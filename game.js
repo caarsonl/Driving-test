@@ -3,23 +3,23 @@
 
   const {
     CONFIG,
+    WARP_POINTS,
     TIME_PRESETS,
     WEATHER_PRESETS,
-    FLOOR_MODES,
     samplePuddleAt,
     buildWorld,
   } = window.HorizonWorld;
 
-  const { ISLAND_HALF, WORLD_LIMIT, ROAD_WIDTH, ROAD_LINES, HARBOR, PORT_ZONE, STUNT_ZONE } = CONFIG;
+  const { WORLD_BOUNDS, ISLANDS } = CONFIG;
   const CAMERA_MODES = ["CHASE", "HOOD", "ORBIT"];
 
   // =========================================================================
-  // 1. RENDERER, CAMERAS, LIGHTS & RT RENDER TARGETS
+  // 1. RENDERER, CAMERAS, LIGHTS & RT REFLECTION TARGETS
   // =========================================================================
   const container = document.getElementById("canvas-container");
   const scene = new THREE.Scene();
 
-  const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.2, 2400);
+  const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.2, 3200);
   const mirrorCamera = camera.clone();
 
   const renderer = new THREE.WebGLRenderer({
@@ -31,12 +31,13 @@
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 1.12;
   container.appendChild(renderer.domElement);
 
   const drawingBufferSize = new THREE.Vector2();
   renderer.getDrawingBufferSize(drawingBufferSize);
 
+  // Planar reflection target shared by ground roads & ocean water
   const reflScale = 0.7;
   const reflTarget = new THREE.WebGLRenderTarget(
     Math.max(256, Math.floor(window.innerWidth * reflScale)),
@@ -48,23 +49,24 @@
     }
   );
 
+  // Live 360-degree CubeCamera for metallic clearcoat car reflections
   const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
     generateMipmaps: true,
     minFilter: THREE.LinearMipmapLinearFilter,
   });
-  const cubeCamera = new THREE.CubeCamera(0.5, 650, cubeRenderTarget);
+  const cubeCamera = new THREE.CubeCamera(0.5, 750, cubeRenderTarget);
   scene.add(cubeCamera);
 
-  const hemiLight = new THREE.HemisphereLight(0xfdba74, 0x1e293b, 0.64);
+  const hemiLight = new THREE.HemisphereLight(0xfdba74, 0x1e293b, 0.65);
   scene.add(hemiLight);
 
   const sunLight = new THREE.DirectionalLight(0xffa45b, 1.45);
-  sunLight.position.set(-320, 92, -240);
+  sunLight.position.set(-360, 105, -280);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.set(2048, 2048);
   sunLight.shadow.camera.near = 20;
-  sunLight.shadow.camera.far = 780;
-  const shadowExtent = 170;
+  sunLight.shadow.camera.far = 850;
+  const shadowExtent = 175;
   sunLight.shadow.camera.left = -shadowExtent;
   sunLight.shadow.camera.right = shadowExtent;
   sunLight.shadow.camera.top = shadowExtent;
@@ -73,15 +75,16 @@
   scene.add(sunLight.target);
 
   const sunDisc = new THREE.Mesh(
-    new THREE.SphereGeometry(42, 24, 24),
+    new THREE.SphereGeometry(48, 24, 24),
     new THREE.MeshBasicMaterial({ color: 0xffd199, fog: false })
   );
   scene.add(sunDisc);
 
+  // Build the Multi-City World (Metro Bay, Palm Island, Pinecrest, Bridge, Tunnel, Viaduct)
   const world = buildWorld(scene, reflTarget, drawingBufferSize);
 
   // =========================================================================
-  // 2. PLAYER SPORTS COUPE + SKIDMARKS + PARTICLES
+  // 2. PLAYER SPORTS COUPE (WITH INDEPENDENT 4-WHEEL VISUAL SUSPENSION)
   // =========================================================================
   const carGroup = new THREE.Group();
   const carBodyGroup = new THREE.Group();
@@ -95,7 +98,7 @@
     clearcoat: 1.0,
     clearcoatRoughness: 0.04,
     envMap: cubeRenderTarget.texture,
-    envMapIntensity: 1.8,
+    envMapIntensity: 1.75,
   });
 
   const cabinMat = new THREE.MeshPhysicalMaterial({
@@ -104,23 +107,24 @@
     roughness: 0.05,
     clearcoat: 1.0,
     envMap: cubeRenderTarget.texture,
-    envMapIntensity: 2.0,
+    envMapIntensity: 1.95,
   });
 
   const trimMat = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.55, roughness: 0.38 });
 
+  // Lower chassis, sculpted hood, front aero splitter & rear diffuser
   const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.14, 0.58, 4.55), bodyMat);
   chassis.position.y = 0.62;
   chassis.castShadow = true;
   chassis.receiveShadow = true;
   carBodyGroup.add(chassis);
 
-  const frontSplitter = new THREE.Mesh(new THREE.BoxGeometry(2.18, 0.1, 0.45), trimMat);
-  frontSplitter.position.set(0, 0.34, -2.25);
+  const frontSplitter = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.1, 0.48), trimMat);
+  frontSplitter.position.set(0, 0.34, -2.26);
   carBodyGroup.add(frontSplitter);
 
-  const rearDiffuser = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.18, 0.25), trimMat);
-  rearDiffuser.position.set(0, 0.38, 2.24);
+  const rearDiffuser = new THREE.Mesh(new THREE.BoxGeometry(2.06, 0.18, 0.28), trimMat);
+  rearDiffuser.position.set(0, 0.38, 2.25);
   carBodyGroup.add(rearDiffuser);
 
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.54, 2.15), cabinMat);
@@ -128,7 +132,7 @@
   cabin.castShadow = true;
   carBodyGroup.add(cabin);
 
-  const spoilerWing = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.09, 0.44), trimMat);
+  const spoilerWing = new THREE.Mesh(new THREE.BoxGeometry(2.12, 0.09, 0.44), trimMat);
   spoilerWing.position.set(0, 1.24, 2.04);
   spoilerWing.castShadow = true;
   carBodyGroup.add(spoilerWing);
@@ -139,6 +143,7 @@
     carBodyGroup.add(strut);
   });
 
+  // Headlights, Brake Lights, Volumetric Cones & Dynamic Point Lights
   const headlightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfffbeb, emissiveIntensity: 2.5 });
   const brakeLightMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff1e1e, emissiveIntensity: 0.6 });
 
@@ -168,10 +173,10 @@
     carBodyGroup.add(tl);
   });
 
-  const headSpot = new THREE.SpotLight(0xfff8e7, 3.0, 110, Math.PI / 4.8, 0.48, 1.15);
+  const headSpot = new THREE.SpotLight(0xfff8e7, 3.0, 120, Math.PI / 4.6, 0.48, 1.15);
   headSpot.position.set(0, 0.95, -2.0);
   const headTarget = new THREE.Object3D();
-  headTarget.position.set(0, 0.0, -28);
+  headTarget.position.set(0, 0.0, -30);
   carBodyGroup.add(headSpot);
   carBodyGroup.add(headTarget);
   headSpot.target = headTarget;
@@ -190,7 +195,8 @@
     return cone;
   });
 
-  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.35, 18);
+  // 4 Wheels mounted to carGroup so the sprung chassis pitches, rolls & heaves over them
+  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.36, 18);
   wheelGeo.rotateZ(Math.PI / 2);
   const tireMat = new THREE.MeshStandardMaterial({ color: 0x0f1218, roughness: 0.88 });
   const rimMat = new THREE.MeshStandardMaterial({
@@ -202,33 +208,37 @@
   });
 
   const wheelMeshes = [];
+  const wheelPivots = [];
   const frontWheelPivots = [];
-  [
-    { x: -1.08, y: 0.42, z: -1.36, front: true },
-    { x: 1.08, y: 0.42, z: -1.36, front: true },
-    { x: -1.08, y: 0.42, z: 1.36, front: false },
-    { x: 1.08, y: 0.42, z: 1.36, front: false },
-  ].forEach((wp) => {
+  const WHEEL_SPEC = [
+    { x: -1.08, y: 0.42, z: -1.38, front: true },
+    { x: 1.08, y: 0.42, z: -1.38, front: true },
+    { x: -1.08, y: 0.42, z: 1.38, front: false },
+    { x: 1.08, y: 0.42, z: 1.38, front: false },
+  ];
+
+  WHEEL_SPEC.forEach((wp) => {
     const pivot = new THREE.Group();
     pivot.position.set(wp.x, wp.y, wp.z);
 
     const tire = new THREE.Mesh(wheelGeo, tireMat);
     tire.castShadow = true;
-    const hub = new THREE.Mesh(new THREE.BoxGeometry(0.37, 0.5, 0.14), rimMat);
+    const hub = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.5, 0.14), rimMat);
     tire.add(hub);
 
     pivot.add(tire);
     carGroup.add(pivot);
 
+    wheelPivots.push(pivot);
     wheelMeshes.push(tire);
     if (wp.front) frontWheelPivots.push(pivot);
   });
 
-  // Persistent Tire Skidmarks
-  const MAX_SKIDS = 240;
+  // Persistent Tire Skidmarks Ring Buffer (height & slope aware!)
+  const MAX_SKIDS = 260;
   const skidGroup = new THREE.Group();
   scene.add(skidGroup);
-  const skidGeo = new THREE.PlaneGeometry(0.34, 1.05);
+  const skidGeo = new THREE.PlaneGeometry(0.34, 1.1);
   skidGeo.rotateX(-Math.PI / 2);
   const skidPool = [];
   for (let i = 0; i < MAX_SKIDS; i++) {
@@ -243,20 +253,20 @@
   let skidIdx = 0;
   let skidAccum = 0;
 
-  function dropSkidmark(x, y, z, heading, isWet) {
+  function dropSkidmark(x, y, z, heading, pitch, isWet) {
     const m = skidPool[skidIdx];
     skidIdx = (skidIdx + 1) % MAX_SKIDS;
     m.position.set(x, y + 0.08, z);
-    m.rotation.y = heading;
+    m.rotation.set(pitch, heading, 0, "YXZ");
     m.material.color.setHex(isWet ? 0x1e293b : 0x090b10);
-    m.material.opacity = isWet ? 0.25 : 0.52;
+    m.material.opacity = isWet ? 0.22 : 0.52;
     m.visible = true;
   }
 
-  // Smoke & Water Spray Particles
+  // Smoke, Wet Spray & Water Splash Particle Pool
   const particlePool = [];
   const particleGeo = new THREE.SphereGeometry(0.36, 6, 6);
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 85; i++) {
     const m = new THREE.Mesh(
       particleGeo,
       new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.45 })
@@ -285,15 +295,16 @@
       p.gravity = 16.0;
     } else if (mode === "spray") {
       p.mesh.material.color.setHex(0xcbd5e1);
-      p.mesh.material.opacity = 0.34;
-      p.mesh.scale.setScalar(0.45);
-      p.maxLife = 0.42;
+      p.mesh.material.opacity = 0.32;
+      p.mesh.scale.setScalar(0.44);
+      p.maxLife = 0.4;
       p.life = p.maxLife;
       p.vx = (Math.random() - 0.5) * 2.2;
-      p.vy = 1.6 + Math.random() * 1.4;
+      p.vy = 1.5 + Math.random() * 1.4;
       p.vz = (Math.random() - 0.5) * 2.2;
-      p.gravity = 5.0;
+      p.gravity = 5.2;
     } else {
+      // Dry tire smoke
       p.mesh.material.color.setHex(0xe2e8f0);
       p.mesh.material.opacity = 0.44;
       p.mesh.scale.setScalar(0.6);
@@ -307,7 +318,7 @@
   }
 
   // =========================================================================
-  // 3. PROCEDURAL WEB AUDIO ENGINE
+  // 3. PROCEDURAL WEB AUDIO ENGINE (WITH TUNNEL RESONANCE & WET TIRE HISS)
   // =========================================================================
   const soundBtn = document.getElementById("btn-sound");
   const soundLabel = document.getElementById("sound-label");
@@ -322,6 +333,9 @@
     oscHarm: null,
     engineFilter: null,
     engineGain: null,
+    tunnelDelay: null,
+    tunnelFeedback: null,
+    tunnelWetGain: null,
     screechFilter: null,
     screechGain: null,
     windGain: null,
@@ -353,6 +367,7 @@
       for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
       this.noiseBuffer = buf;
 
+      // V8 Engine with soft-clipping & tunnel echo send
       const shaper = ctx.createWaveShaper();
       const curve = new Float32Array(256);
       for (let i = 0; i < 256; i++) {
@@ -368,6 +383,19 @@
 
       this.engineGain = ctx.createGain();
       this.engineGain.gain.value = 0.0;
+
+      // Subtle Slapback Echo activated inside the Alpine Ridge Tunnel
+      this.tunnelDelay = ctx.createDelay(0.4);
+      this.tunnelDelay.delayTime.value = 0.085;
+      this.tunnelFeedback = ctx.createGain();
+      this.tunnelFeedback.gain.value = 0.38;
+      this.tunnelWetGain = ctx.createGain();
+      this.tunnelWetGain.gain.value = 0.0;
+
+      this.tunnelDelay.connect(this.tunnelFeedback);
+      this.tunnelFeedback.connect(this.tunnelDelay);
+      this.tunnelDelay.connect(this.tunnelWetGain);
+      this.tunnelWetGain.connect(this.masterGain);
 
       this.oscSub = ctx.createOscillator();
       this.oscSub.type = "triangle";
@@ -392,6 +420,7 @@
       shaper.connect(this.engineFilter);
       this.engineFilter.connect(this.engineGain);
       this.engineGain.connect(this.masterGain);
+      this.engineGain.connect(this.tunnelDelay);
 
       this.oscSub.start();
       this.oscMain.start();
@@ -447,6 +476,7 @@
       this.hornOsc2.connect(hornFilter);
       hornFilter.connect(this.hornGain);
       this.hornGain.connect(this.masterGain);
+      this.hornGain.connect(this.tunnelDelay);
       this.hornOsc1.start();
       this.hornOsc2.start();
     },
@@ -472,13 +502,13 @@
       if (!this.enabled) {
         const now = this.ctx.currentTime;
         [
-          this.engineGain, this.screechGain, this.windGain, this.rainGain,
-          this.wetTireGain, this.nitroNoiseGain, this.turboGain, this.hornGain,
+          this.engineGain, this.tunnelWetGain, this.screechGain, this.windGain,
+          this.rainGain, this.wetTireGain, this.nitroNoiseGain, this.turboGain, this.hornGain,
         ].forEach((g) => g.gain.setTargetAtTime(0, now, 0.04));
       }
     },
 
-    update(rpm, absSpeed, slipAmt, throttle, drifting, usingNitro, hornPressed, rainAudio, wetAmount) {
+    update(rpm, absSpeed, slipAmt, throttle, drifting, usingNitro, hornPressed, rainAudio, wetUnderCar, inTunnel) {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
 
@@ -493,15 +523,19 @@
       this.engineFilter.frequency.setTargetAtTime(cutoff, now, 0.05);
       this.engineGain.gain.setTargetAtTime(0.09 + normRpm * 0.11 + (throttle > 0 ? 0.045 : 0), now, 0.05);
 
-      const screechLevel = drifting ? Math.min(0.19, slipAmt * 0.14) * (1 - wetAmount * 0.55) : 0;
+      // Tunnel echo amplifies engine & horn reverberation inside the mountain bore
+      this.tunnelWetGain.gain.setTargetAtTime(inTunnel ? 0.42 : 0.0, now, 0.15);
+
+      const screechLevel = drifting ? Math.min(0.19, slipAmt * 0.14) * (1 - wetUnderCar * 0.55) : 0;
       this.screechFilter.frequency.setTargetAtTime(1400 + Math.min(600, absSpeed * 8), now, 0.05);
       this.screechGain.gain.setTargetAtTime(screechLevel, now, 0.04);
 
-      const wetHiss = wetAmount > 0.2 && absSpeed > 4 ? Math.min(0.16, absSpeed * 0.0028 * wetAmount) : 0;
+      const wetHiss = wetUnderCar > 0.18 && absSpeed > 4 ? Math.min(0.16, absSpeed * 0.0028 * wetUnderCar) : 0;
       this.wetTireGain.gain.setTargetAtTime(wetHiss, now, 0.06);
 
       this.windGain.gain.setTargetAtTime(absSpeed > 22 ? Math.min(0.15, (absSpeed - 22) * 0.0024) : 0, now, 0.08);
-      this.rainGain.gain.setTargetAtTime(rainAudio, now, 0.25);
+      // Rain patter muffles cleanly inside the Alpine Ridge Tunnel
+      this.rainGain.gain.setTargetAtTime(inTunnel ? rainAudio * 0.12 : rainAudio, now, 0.25);
 
       this.nitroNoiseGain.gain.setTargetAtTime(usingNitro ? 0.19 : 0, now, 0.06);
       this.turboOsc.frequency.setTargetAtTime(2200 + normRpm * 2400, now, 0.06);
@@ -602,68 +636,52 @@
   };
 
   // =========================================================================
-  // 4. STATE, INPUTS & ENVIRONMENT CONTROLS
+  // 4. GLOBAL STATE, DYNAMIC RAIN-TO-DRY MOISTURE & ENVIRONMENT CONTROLS
   // =========================================================================
   let rtEnabled = true;
   let trafficEnabled = true;
-  let floorModeIndex = 0;
-  let weatherIndex = 0;
-  let timeIndex = 0;
+  let weatherIndex = 0; // CLEAR (roads start dry; switch to RAIN/STORM to wet them, CLEAR to watch them evaporate!)
+  let timeIndex = 0;    // SUNSET
   let cameraModeIdx = 0;
+  let warpIndex = 0;
 
-  let activeWetness = 0.95;
-  let activeCoverage = 0.5;
+  // Automatic Road Moisture State (0.0 = Dry -> 1.0 = Rain-Wet with puddles -> gradually evaporates back to 0.0)
+  let roadMoisture = 0.0;
+  let moistureTrend = "DRY"; // "DRY" | "WETTING" | "DRYING" | "SOAKED"
 
-  const keys = {};
-  window.addEventListener("keydown", (e) => {
-    const code = e.code;
-    keys[code] = true;
-    if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(code)) {
-      e.preventDefault();
-    }
-    if (code !== "KeyM") audio.unlockAuto();
-    if (e.repeat) return;
-
-    if (code === "KeyT") toggleRayTracing();
-    if (code === "KeyP") toggleTraffic();
-    if (code === "KeyB") cycleFloorMode();
-    if (code === "KeyV") cycleWeather();
-    if (code === "KeyC") cycleCamera();
-    if (code === "KeyN") cycleTimeOfDay();
-    if (code === "KeyM") audio.toggle();
-    if (code === "KeyR") resetCar();
-  });
-
-  window.addEventListener("keyup", (e) => {
-    keys[e.code] = false;
-  });
-
-  window.addEventListener("pointerdown", (e) => {
-    if (e.target.id !== "btn-sound" && !e.target.closest("#btn-sound")) {
-      audio.unlockAuto();
-    }
-  });
-
-  let bannerTimer = 0;
+  const flashOverlay = document.getElementById("flash-overlay");
+  const tunnelOverlay = document.getElementById("tunnel-overlay");
   const eventBanner = document.getElementById("event-banner");
+  let bannerTimer = 0;
+
   function showBanner(text) {
     eventBanner.textContent = text;
     eventBanner.classList.add("visible");
-    bannerTimer = 1.4;
+    bannerTimer = 1.5;
+  }
+
+  function updateRoadMoisture(dt) {
+    const w = WEATHER_PRESETS[weatherIndex];
+    const t = TIME_PRESETS[timeIndex];
+
+    if (w.wetRate > 0 && roadMoisture < w.targetMoisture) {
+      // Active rain or storm wets asphalt progressively
+      roadMoisture = Math.min(w.targetMoisture, roadMoisture + w.wetRate * dt);
+      moistureTrend = roadMoisture >= w.targetMoisture - 0.01 ? "WET" : "WETTING";
+    } else if (roadMoisture > w.targetMoisture) {
+      // Clear or fog weather evaporates road moisture based on sun warmth (faster at DAY, slower at NIGHT)
+      roadMoisture = Math.max(w.targetMoisture, roadMoisture - t.dryRate * dt);
+      moistureTrend = roadMoisture <= 0.01 ? "DRY" : "DRYING";
+    } else {
+      moistureTrend = roadMoisture <= 0.02 ? "DRY" : roadMoisture >= 0.78 ? "WET" : "DAMP";
+    }
+
+    world.setRoadUniform("uRoadMoisture", roadMoisture);
   }
 
   function applyEnvironment() {
     const t = TIME_PRESETS[timeIndex];
     const w = WEATHER_PRESETS[weatherIndex];
-    const f = FLOOR_MODES[floorModeIndex];
-
-    if (f.wetness < 0) {
-      activeWetness = w.autoFloor.wetness;
-      activeCoverage = w.autoFloor.coverage;
-    } else {
-      activeWetness = f.wetness;
-      activeCoverage = f.coverage;
-    }
 
     const skyTop = new THREE.Color(t.skyTop).multiplyScalar(w.skyDarken);
     const skyHorizon = new THREE.Color(t.skyHorizon).multiplyScalar(w.skyDarken);
@@ -705,8 +723,6 @@
     world.setRoadUniform("uFogColor", fogCol);
     world.setRoadUniform("uFogDensity", fogDensity);
     world.setRoadUniform("uHeadlightsOn", headlightsOn ? 1.0 : 0.0);
-    world.setRoadUniform("uWetness", activeWetness);
-    world.setRoadUniform("uPuddleCoverage", activeCoverage);
     world.setRoadUniform("uRainIntensity", w.rainIntensity);
     world.setRoadUniform("uRTEnabled", rtEnabled ? 1.0 : 0.0);
 
@@ -722,13 +738,13 @@
     world.setWaterUniform("uRTEnabled", rtEnabled ? 1.0 : 0.0);
 
     bodyMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
-    bodyMat.envMapIntensity = rtEnabled ? 1.8 : 0.0;
+    bodyMat.envMapIntensity = rtEnabled ? 1.75 : 0.0;
     bodyMat.clearcoat = rtEnabled ? 1.0 : 0.0;
-    bodyMat.roughness = rtEnabled ? 0.12 : 0.58;
+    bodyMat.roughness = rtEnabled ? 0.12 : 0.56;
     bodyMat.needsUpdate = true;
 
     cabinMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
-    cabinMat.envMapIntensity = rtEnabled ? 2.0 : 0.0;
+    cabinMat.envMapIntensity = rtEnabled ? 1.95 : 0.0;
     cabinMat.roughness = rtEnabled ? 0.05 : 0.45;
     cabinMat.needsUpdate = true;
 
@@ -745,16 +761,11 @@
     document.getElementById("weather-label").textContent = w.name;
     document.getElementById("btn-weather").classList.toggle("active", w.name !== "CLEAR");
 
-    document.getElementById("floor-label").textContent = f.name;
-    document.getElementById("btn-floor").classList.toggle("active", f.name !== "DRY");
-
     document.getElementById("rt-label").textContent = rtEnabled ? "ON" : "OFF";
     document.getElementById("btn-rt").classList.toggle("active", rtEnabled);
 
-    const tLabel = document.getElementById("traffic-label");
-    const tBtn = document.getElementById("btn-traffic");
-    if (tLabel) tLabel.textContent = trafficEnabled ? "ON" : "OFF";
-    if (tBtn) tBtn.classList.toggle("active", trafficEnabled);
+    document.getElementById("traffic-label").textContent = trafficEnabled ? "ON" : "OFF";
+    document.getElementById("btn-traffic").classList.toggle("active", trafficEnabled);
   }
 
   function toggleRayTracing() {
@@ -769,16 +780,17 @@
     showBanner(trafficEnabled ? "TRAFFIC & BOATS: ON" : "TRAFFIC & BOATS: OFF");
   }
 
-  function cycleFloorMode() {
-    floorModeIndex = (floorModeIndex + 1) % FLOOR_MODES.length;
-    applyEnvironment();
-    showBanner(`FLOOR: ${FLOOR_MODES[floorModeIndex].name}`);
-  }
-
   function cycleWeather() {
     weatherIndex = (weatherIndex + 1) % WEATHER_PRESETS.length;
     applyEnvironment();
-    showBanner(`WEATHER: ${WEATHER_PRESETS[weatherIndex].name}`);
+    const name = WEATHER_PRESETS[weatherIndex].name;
+    if (name === "CLEAR" && roadMoisture > 0.15) {
+      showBanner("WEATHER: CLEAR — ROADS DRYING");
+    } else if (name === "RAIN" || name === "STORM") {
+      showBanner(`WEATHER: ${name} — ROADS WETTING`);
+    } else {
+      showBanner(`WEATHER: ${name}`);
+    }
   }
 
   function cycleTimeOfDay() {
@@ -791,38 +803,76 @@
     document.getElementById("cam-label").textContent = CAMERA_MODES[cameraModeIdx];
   }
 
+  // Keyboard & Pointer Input Listeners
+  const keys = {};
+  window.addEventListener("keydown", (e) => {
+    const code = e.code;
+    keys[code] = true;
+    if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(code)) {
+      e.preventDefault();
+    }
+    if (code !== "KeyM") audio.unlockAuto();
+    if (e.repeat) return;
+
+    if (code === "KeyT") toggleRayTracing();
+    if (code === "KeyP") toggleTraffic();
+    if (code === "KeyV") cycleWeather();
+    if (code === "KeyC") cycleCamera();
+    if (code === "KeyN") cycleTimeOfDay();
+    if (code === "KeyX") cycleWarp();
+    if (code === "KeyM") audio.toggle();
+    if (code === "KeyR") resetCar();
+  });
+
+  window.addEventListener("keyup", (e) => {
+    keys[e.code] = false;
+  });
+
+  window.addEventListener("pointerdown", (e) => {
+    if (e.target.id !== "btn-sound" && !e.target.closest("#btn-sound")) {
+      audio.unlockAuto();
+    }
+  });
+
+  // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
   // =========================================================================
-  // 5. VEHICLE PHYSICS + BUILDING, TRAFFIC & BOAT COLLISIONS
+  // 5. UPGRADED VEHICLE PHYSICS (PACEJKA SLIP, ABS, TCS, SLOPE & SUSPENSION)
   // =========================================================================
-  const GEAR_RATIOS = [3.45, 2.28, 1.62, 1.22, 0.94, 0.74];
-  const GEAR_SPEED_THRESH = [48, 92, 142, 196, 254, 335];
+  const GEAR_RATIOS = [3.52, 2.34, 1.66, 1.24, 0.95, 0.74];
+  const GEAR_SPEED_THRESH = [50, 96, 146, 200, 258, 340];
 
   const car = {
-    x: 0,
-    y: 0,
-    z: 20,
+    x: WARP_POINTS[0].x,
+    y: WARP_POINTS[0].y,
+    z: WARP_POINTS[0].z,
     vx: 0,
     vy: 0,
     vz: 0,
-    heading: 0,
+    heading: WARP_POINTS[0].heading,
     yawRate: 0,
     steerAngle: 0,
     nitro: 100,
     grounded: true,
     inWater: false,
+    inTunnel: false,
+    // Suspension & weight transfer
     suspOffset: 0,
     suspVel: 0,
     pitch: 0,
     roll: 0,
+    slopePitch: 0,
     accelLong: 0,
     accelLat: 0,
     prevForwardSpeed: 0,
     prevLateralSpeed: 0,
+    // Drivetrain & Physics telemetry
     gear: "N",
     gearNum: 0,
     rpm: 850,
     airTime: 0,
     drifting: false,
+    absActive: false,
+    tcsActive: false,
     slipAmount: 0,
     surfaceLabel: "DRY ASPHALT",
     surfaceClass: "dry",
@@ -833,109 +883,195 @@
   let impactCooldown = 0;
   let splashCooldown = 0;
 
-  function resetCar() {
-    car.x = 0;
-    car.y = 0.2;
-    car.z = 20;
+  function warpTo(idx) {
+    const wp = WARP_POINTS[idx];
+    car.x = wp.x;
+    car.y = wp.y;
+    car.z = wp.z;
     car.vx = 0;
     car.vy = 0;
     car.vz = 0;
-    car.heading = 0;
+    car.heading = wp.heading;
     car.yawRate = 0;
     car.steerAngle = 0;
     car.suspOffset = 0;
     car.suspVel = 0;
     car.pitch = 0;
     car.roll = 0;
+    car.slopePitch = 0;
     car.nitro = 100;
     car.grounded = true;
     car.inWater = false;
-    showBanner("CAR RESET");
+
+    const fx = -Math.sin(car.heading);
+    const fz = -Math.cos(car.heading);
+    camPosCurrent.set(car.x - fx * 11, car.y + 4.4, car.z - fz * 11);
+    camLookCurrent.set(car.x + fx * 6, car.y + 1.4, car.z + fz * 6);
+
+    const wLabel = document.getElementById("warp-label");
+    if (wLabel) wLabel.textContent = wp.name;
+    showBanner(`TRAVEL: ${wp.name}`);
   }
 
-  function sampleSurface(x, z, currentY) {
-    const overWater = world.isOverWater(x, z);
-    const onRoad = !overWater && world.isOnRoad(x, z);
-    let bestH = overWater ? -0.34 : 0.0;
-    let slopePitch = 0;
-    let hitWall = false;
-    let onRamp = false;
+  function cycleWarp() {
+    warpIndex = (warpIndex + 1) % WARP_POINTS.length;
+    warpTo(warpIndex);
+  }
 
-    for (let i = 0; i < world.ramps.length; i++) {
-      const r = world.ramps[i];
-      const dx = x - r.x;
-      const dz = z - r.z;
-      const cosA = Math.cos(r.angleY);
-      const sinA = Math.sin(r.angleY);
-
-      const lx = dx * cosA - dz * sinA;
-      const lz = dx * sinA + dz * cosA;
-
-      if (Math.abs(lx) <= r.width / 2 + 0.8 && Math.abs(lz) <= r.length / 2 + 0.5) {
-        const t = THREE.MathUtils.clamp((r.length / 2 - lz) / r.length, 0, 1);
-        const rampH = t * r.height;
-
-        if (rampH - currentY > 1.15) {
-          hitWall = true;
-        } else if (rampH > bestH) {
-          bestH = rampH;
-          onRamp = true;
-          const rampFX = -Math.sin(r.angleY);
-          const rampFZ = -Math.cos(r.angleY);
-          const carFX = -Math.sin(car.heading);
-          const carFZ = -Math.cos(car.heading);
-          slopePitch = Math.atan2(r.height, r.length) * (rampFX * carFX + rampFZ * carFZ);
-        }
+  function resetCar() {
+    // Snap cleanly to the nearest fast-travel highway/city point
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < WARP_POINTS.length; i++) {
+      const d = Math.hypot(car.x - WARP_POINTS[i].x, car.z - WARP_POINTS[i].z);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
       }
     }
-
-    return { height: bestH, slopePitch, hitWall, overWater, onRoad: onRoad || onRamp };
+    warpIndex = bestIdx;
+    warpTo(bestIdx);
+    showBanner(`RESET: ${WARP_POINTS[bestIdx].name}`);
   }
 
+  // Exact Multi-Sphere vs Height-Aware AABB / OBB / Circle Collision Solver
+  // Uses dual front/rear bumper spheres + 2 relaxation passes to eliminate corner snagging!
   function resolveCollisions() {
-    const radius = 2.08;
-    const nearby = world.getNearbyBuildings(car.x, car.z);
+    const nearby = world.getNearbyColliders(car.x, car.z);
+    const sphereOffsets = [-1.18, 1.18];
+    const sphereRad = 1.12;
     let maxImpact = 0;
 
-    // 1. Buildings
-    for (let i = 0; i < nearby.length; i++) {
-      const b = nearby[i];
-      const closestX = Math.max(b.minX, Math.min(car.x, b.maxX));
-      const closestZ = Math.max(b.minZ, Math.min(car.z, b.maxZ));
+    for (let pass = 0; pass < 2; pass++) {
+      const fx = -Math.sin(car.heading);
+      const fz = -Math.cos(car.heading);
 
-      const dx = car.x - closestX;
-      const dz = car.z - closestZ;
-      const distSq = dx * dx + dz * dz;
+      for (let s = 0; s < sphereOffsets.length; s++) {
+        const off = sphereOffsets[s];
+        let sx = car.x + fx * off;
+        let sz = car.z + fz * off;
 
-      if (distSq < radius * radius) {
-        const dist = Math.sqrt(distSq) || 0.0001;
-        const nx = dx / dist;
-        const nz = dz / dist;
-        const overlap = radius - dist;
+        for (let i = 0; i < nearby.length; i++) {
+          const c = nearby[i];
+          // Height filter: boats/cars below bridges never hit bridge guardrails overhead!
+          if (car.y + 1.8 < c.minY || car.y > c.maxY) continue;
 
-        car.x += nx * overlap;
-        car.z += nz * overlap;
+          let hit = false;
+          let nx = 0;
+          let nz = 0;
+          let overlap = 0;
 
-        const vn = car.vx * nx + car.vz * nz;
-        if (vn < 0) {
-          maxImpact = Math.max(maxImpact, -vn);
-          car.vx -= 1.32 * vn * nx;
-          car.vz -= 1.32 * vn * nz;
-          car.vx *= 0.72;
-          car.vz *= 0.72;
-          car.yawRate *= 0.5;
+          if (c.type === "aabb") {
+            const cx = Math.max(c.minX, Math.min(sx, c.maxX));
+            const cz = Math.max(c.minZ, Math.min(sz, c.maxZ));
+            const dx = sx - cx;
+            const dz = sz - cz;
+            const dSq = dx * dx + dz * dz;
+
+            if (dSq < sphereRad * sphereRad) {
+              hit = true;
+              if (dSq > 0.000001) {
+                const d = Math.sqrt(dSq);
+                nx = dx / d;
+                nz = dz / d;
+                overlap = sphereRad - d;
+              } else {
+                // Inside AABB fallback: push out via nearest face
+                const dl = sx - c.minX;
+                const dr = c.maxX - sx;
+                const dt = sz - c.minZ;
+                const db = c.maxZ - sz;
+                const m = Math.min(dl, dr, dt, db);
+                if (m === dl) { nx = -1; nz = 0; overlap = dl + sphereRad; }
+                else if (m === dr) { nx = 1; nz = 0; overlap = dr + sphereRad; }
+                else if (m === dt) { nx = 0; nz = -1; overlap = dt + sphereRad; }
+                else { nx = 0; nz = 1; overlap = db + sphereRad; }
+              }
+            }
+          } else if (c.type === "obb") {
+            // Transform sphere center into OBB local frame
+            const dx = sx - c.cx;
+            const dz = sz - c.cz;
+            const lx = dx * c.cosA - dz * c.sinA;
+            const lz = dx * c.sinA + dz * c.cosA;
+
+            const clx = Math.max(-c.hx, Math.min(lx, c.hx));
+            const clz = Math.max(-c.hz, Math.min(lz, c.hz));
+            const dlx = lx - clx;
+            const dlz = lz - clz;
+            const dSq = dlx * dlx + dlz * dlz;
+
+            if (dSq < sphereRad * sphereRad) {
+              hit = true;
+              let nlx = 0;
+              let nlz = 0;
+              if (dSq > 0.000001) {
+                const d = Math.sqrt(dSq);
+                nlx = dlx / d;
+                nlz = dlz / d;
+                overlap = sphereRad - d;
+              } else {
+                const penX = c.hx - Math.abs(lx);
+                const penZ = c.hz - Math.abs(lz);
+                if (penX < penZ) {
+                  nlx = lx >= 0 ? 1 : -1;
+                  overlap = penX + sphereRad;
+                } else {
+                  nlz = lz >= 0 ? 1 : -1;
+                  overlap = penZ + sphereRad;
+                }
+              }
+              // Rotate normal back into world space
+              nx = nlx * c.cosA + nlz * c.sinA;
+              nz = -nlx * c.sinA + nlz * c.cosA;
+            }
+          } else if (c.type === "circle") {
+            const dx = sx - c.x;
+            const dz = sz - c.z;
+            const minD = sphereRad + c.r;
+            const dSq = dx * dx + dz * dz;
+            if (dSq < minD * minD) {
+              hit = true;
+              const d = Math.sqrt(dSq) || 0.0001;
+              nx = dx / d;
+              nz = dz / d;
+              overlap = minD - d;
+            }
+          }
+
+          if (hit) {
+            car.x += nx * overlap;
+            car.z += nz * overlap;
+            sx += nx * overlap;
+            sz += nz * overlap;
+
+            const vn = car.vx * nx + car.vz * nz;
+            if (vn < 0) {
+              maxImpact = Math.max(maxImpact, -vn);
+              // Smooth rail/wall scraping without violent sticky bounce
+              const bounce = Math.abs(vn) > 12 ? 1.24 : 1.06;
+              car.vx -= bounce * vn * nx;
+              car.vz -= bounce * vn * nz;
+              // Tangent friction proportional to impact normal force
+              const scrapeDamp = Math.max(0.76, 1.0 - Math.min(0.24, -vn * 0.012));
+              car.vx *= scrapeDamp;
+              car.vz *= scrapeDamp;
+              car.yawRate *= 0.65;
+            }
+          }
         }
       }
     }
 
-    // 2. Moving AI Traffic Cars & Boats
+    // Collisions with AI Traffic & Boats
+    const carRadius = 1.95;
     if (trafficEnabled) {
       for (let i = 0; i < world.trafficCars.length; i++) {
         const ai = world.trafficCars[i];
         if (Math.abs(car.y - ai.y) > 2.4) continue;
         const dx = car.x - ai.x;
         const dz = car.z - ai.z;
-        const minDist = radius + ai.radius;
+        const minDist = carRadius + ai.radius;
         const distSq = dx * dx + dz * dz;
 
         if (distSq < minDist * minDist) {
@@ -952,11 +1088,10 @@
           const vn = car.vx * nx + car.vz * nz;
           if (vn < 0) {
             maxImpact = Math.max(maxImpact, -vn);
-            car.vx -= 1.25 * vn * nx;
-            car.vz -= 1.25 * vn * nz;
-            car.vx *= 0.78;
-            car.vz *= 0.78;
-            // Knock AI vehicle briefly before it recovers
+            car.vx -= 1.22 * vn * nx;
+            car.vz -= 1.22 * vn * nz;
+            car.vx *= 0.8;
+            car.vz *= 0.8;
             ai.knockVx = -nx * Math.min(18, -vn * 0.65);
             ai.knockVz = -nz * Math.min(18, -vn * 0.65);
             ai.stunTimer = 0.75;
@@ -966,10 +1101,10 @@
 
       for (let i = 0; i < world.boats.length; i++) {
         const b = world.boats[i];
-        if (car.y > 4.0) continue;
+        if (car.y > 4.2) continue;
         const dx = car.x - b.x;
         const dz = car.z - b.z;
-        const minDist = radius + b.radius;
+        const minDist = carRadius + b.radius;
         const distSq = dx * dx + dz * dz;
 
         if (distSq < minDist * minDist) {
@@ -984,28 +1119,32 @@
           const vn = car.vx * nx + car.vz * nz;
           if (vn < 0) {
             maxImpact = Math.max(maxImpact, -vn);
-            car.vx -= 1.3 * vn * nx;
-            car.vz -= 1.3 * vn * nz;
+            car.vx -= 1.28 * vn * nx;
+            car.vz -= 1.28 * vn * nz;
           }
         }
       }
     }
 
-    // 3. Outer Ocean Boundary
-    if (car.x > WORLD_LIMIT) { maxImpact = Math.max(maxImpact, Math.abs(car.vx)); car.x = WORLD_LIMIT; car.vx *= -0.4; }
-    if (car.x < -WORLD_LIMIT) { maxImpact = Math.max(maxImpact, Math.abs(car.vx)); car.x = -WORLD_LIMIT; car.vx *= -0.4; }
-    if (car.z > WORLD_LIMIT) { maxImpact = Math.max(maxImpact, Math.abs(car.vz)); car.z = WORLD_LIMIT; car.vz *= -0.4; }
-    if (car.z < -WORLD_LIMIT) { maxImpact = Math.max(maxImpact, Math.abs(car.vz)); car.z = -WORLD_LIMIT; car.vz *= -0.4; }
+    // Outer Ocean World Bounds
+    if (car.x > WORLD_BOUNDS.maxX) { maxImpact = Math.max(maxImpact, Math.abs(car.vx)); car.x = WORLD_BOUNDS.maxX; car.vx *= -0.35; }
+    if (car.x < WORLD_BOUNDS.minX) { maxImpact = Math.max(maxImpact, Math.abs(car.vx)); car.x = WORLD_BOUNDS.minX; car.vx *= -0.35; }
+    if (car.z > WORLD_BOUNDS.maxZ) { maxImpact = Math.max(maxImpact, Math.abs(car.vz)); car.z = WORLD_BOUNDS.maxZ; car.vz *= -0.35; }
+    if (car.z < WORLD_BOUNDS.minZ) { maxImpact = Math.max(maxImpact, Math.abs(car.vz)); car.z = WORLD_BOUNDS.minZ; car.vz *= -0.35; }
 
-    if (maxImpact > 4.5 && impactCooldown <= 0) {
+    if (maxImpact > 4.2 && impactCooldown <= 0) {
       audio.playImpact(maxImpact);
-      car.suspVel -= Math.min(1.6, maxImpact * 0.05);
-      impactCooldown = 0.25;
+      car.suspVel -= Math.min(1.8, maxImpact * 0.055);
+      impactCooldown = 0.22;
     }
   }
 
-  function tireForce(slipAngle, grip, stiffness, peakLoad) {
-    return -Math.sin(1.45 * Math.atan(stiffness * slipAngle)) * grip * peakLoad;
+  // Pacejka Magic Formula Tire Lateral Force Curve
+  function pacejkaLateral(slipAngle, grip, B, C, peakForce) {
+    const E = 0.92;
+    const x = B * slipAngle;
+    const val = Math.sin(C * Math.atan(x - E * (x - Math.atan(x))));
+    return -val * grip * peakForce;
   }
 
   function updatePhysics(dt, elapsed) {
@@ -1019,6 +1158,7 @@
     const wantsNitro = Boolean(keys.ShiftLeft || keys.ShiftRight);
     const hornPressed = Boolean(keys.KeyH);
 
+    // Local forward & right unit vectors
     const fx = -Math.sin(car.heading);
     const fz = -Math.cos(car.heading);
     const rx = Math.cos(car.heading);
@@ -1028,118 +1168,180 @@
     let vLat = car.vx * rx + car.vz * rz;
     const absSpeed = Math.hypot(vLong, vLat);
 
-    const surfNow = sampleSurface(car.x, car.z, car.y);
-    let surfaceGrip = 1.08;
-    let rollingDrag = 0.26;
+    // Sample road/bridge/tunnel/water surface beneath car
+    const surfNow = world.sampleSurface(car.x, car.z, car.y, car.heading);
+    car.inTunnel = surfNow.inTunnel;
+    tunnelOverlay.classList.toggle("inside", car.inTunnel);
+
+    // Compute realistic dynamic grip from automatic roadMoisture + localized puddle depth
+    let surfaceGrip = 1.12;
+    let rollingDrag = 0.24;
     car.wetUnderCar = 0;
 
     if (surfNow.overWater) {
-      surfaceGrip = 0.45;
-      rollingDrag = 1.85;
+      surfaceGrip = 0.44;
+      rollingDrag = 1.9;
       car.wetUnderCar = 1.0;
       car.surfaceLabel = "WATER";
       car.surfaceClass = "water";
+    } else if (surfNow.inTunnel) {
+      // Sheltered dry concrete inside Alpine Ridge Tunnel
+      surfaceGrip = 1.14;
+      rollingDrag = 0.22;
+      car.wetUnderCar = 0.0;
+      car.surfaceLabel = "DRY TUNNEL";
+      car.surfaceClass = "tunnel";
     } else if (surfNow.onRoad) {
-      const puddleVal = samplePuddleAt(car.x, car.z, activeWetness, activeCoverage);
-      car.wetUnderCar = puddleVal;
-      surfaceGrip = THREE.MathUtils.lerp(1.08, 0.72, puddleVal);
-      rollingDrag = THREE.MathUtils.lerp(0.24, 0.34, puddleVal);
-      if (puddleVal > 0.38) {
+      const puddleVal = samplePuddleAt(car.x, car.z, roadMoisture);
+      const effWet = Math.max(roadMoisture * 0.62, puddleVal);
+      car.wetUnderCar = effWet;
+
+      // Subtle, realistic traction loss: Dry 1.12 -> Damp 0.96 -> Standing Puddle 0.74
+      surfaceGrip = 1.12 - roadMoisture * 0.16 - puddleVal * 0.22;
+      rollingDrag = 0.23 + effWet * 0.14;
+
+      if (surfNow.surfaceType === "BRIDGE") {
+        car.surfaceLabel = roadMoisture > 0.45 ? "WET BRIDGE DECK" : "BRIDGE DECK";
+        car.surfaceClass = roadMoisture > 0.45 ? "wet" : "bridge";
+      } else if (puddleVal > 0.36) {
         car.surfaceLabel = "WET PUDDLE";
         car.surfaceClass = "wet";
+      } else if (roadMoisture > 0.18) {
+        car.surfaceLabel = "DAMP ASPHALT";
+        car.surfaceClass = "damp";
       } else {
         car.surfaceLabel = "DRY ASPHALT";
         car.surfaceClass = "dry";
       }
     } else {
-      const grassWet = activeWetness * 0.4;
+      const grassWet = roadMoisture * 0.45;
       car.wetUnderCar = grassWet;
-      surfaceGrip = 0.64 - grassWet * 0.1;
-      rollingDrag = 0.78;
+      surfaceGrip = 0.68 - grassWet * 0.12;
+      rollingDrag = 0.82;
       car.surfaceLabel = "OFF-ROAD GRASS";
       car.surfaceClass = "offroad";
     }
     car.currentGrip = surfaceGrip;
 
+    // Nitro boost
     const usingNitro = wantsNitro && car.nitro > 1 && throttle > 0;
-    if (usingNitro) car.nitro = Math.max(0, car.nitro - 26 * dt);
-    else car.nitro = Math.min(100, car.nitro + 10 * dt);
+    if (usingNitro) car.nitro = Math.max(0, car.nitro - 25 * dt);
+    else car.nitro = Math.min(100, car.nitro + 10.5 * dt);
 
     flames.forEach((f) => {
       f.visible = usingNitro;
       if (usingNitro) f.scale.y = 0.8 + Math.random() * 0.7;
     });
 
-    const maxSteer = THREE.MathUtils.lerp(0.56, 0.22, Math.min(1, absSpeed / 65));
-    const steerRate = steerInput !== 0 ? 7.5 : 10.5;
+    // Progressive speed-sensitive steering + gentle self-aligning countersteer assist
+    const maxSteer = THREE.MathUtils.lerp(0.58, 0.21, Math.min(1, absSpeed / 70));
+    const steerRate = steerInput !== 0 ? 7.8 : 11.5;
     car.steerAngle = THREE.MathUtils.lerp(car.steerAngle, steerInput * maxSteer, 1 - Math.exp(-steerRate * dt));
 
-    const weightShift = THREE.MathUtils.clamp(car.accelLong * 0.012, -0.22, 0.22);
+    // Aerodynamic Downforce increases tire grip smoothly at highway speeds!
+    const aeroDownforce = Math.min(0.28, (absSpeed * absSpeed) * 0.000052);
+    const effectiveGrip = surfaceGrip + aeroDownforce;
+
+    // Dynamic Longitudinal Weight Transfer (front loads on braking, rear loads on launch)
+    const weightShift = THREE.MathUtils.clamp(car.accelLong * 0.013, -0.24, 0.24);
     const frontLoad = 0.5 - weightShift;
     const rearLoad = 0.5 + weightShift;
 
+    car.absActive = false;
+    car.tcsActive = false;
+
     if (car.grounded) {
       const normRpm = THREE.MathUtils.clamp((car.rpm - 850) / 7150, 0, 1);
-      const torqueCurve = 0.68 + 0.36 * Math.sin(normRpm * Math.PI * 0.85);
-      const activeRatio = car.gearNum > 0 ? GEAR_RATIOS[car.gearNum - 1] : 3.2;
+      const torqueCurve = 0.72 + 0.34 * Math.sin(normRpm * Math.PI * 0.86);
+      const activeRatio = car.gearNum > 0 ? GEAR_RATIOS[car.gearNum - 1] : 3.4;
 
       let driveAccel = 0;
       if (throttle > 0) {
-        const baseDrive = (16.5 + activeRatio * 8.2) * torqueCurve * (usingNitro ? 1.58 : 1.0);
-        driveAccel = Math.min(baseDrive, 46 * surfaceGrip * (0.7 + rearLoad * 0.6) * (usingNitro ? 1.45 : 1.0));
+        const rawDrive = (17.5 + activeRatio * 8.4) * torqueCurve * (usingNitro ? 1.56 : 1.0);
+        const tractionCap = 44 * effectiveGrip * (0.68 + rearLoad * 0.64) * (usingNitro ? 1.45 : 1.0);
+        if (rawDrive > tractionCap && !handbrake && absSpeed > 4) {
+          // Traction Control (TCS) gently feathers excessive wheelspin on wet/grass surfaces
+          car.tcsActive = true;
+          driveAccel = tractionCap * 0.96;
+        } else {
+          driveAccel = rawDrive;
+        }
       } else if (throttle < 0) {
-        if (vLong > 1.5) driveAccel = -48 * Math.min(1.1, surfaceGrip);
-        else driveAccel = -22 * surfaceGrip;
+        if (vLong > 1.5) {
+          // Anti-lock Braking System (ABS) pulses smoothly near peak tire grip on wet asphalt
+          const brakeDemand = 52;
+          const brakeCap = 46 * effectiveGrip * (0.72 + frontLoad * 0.56);
+          if (brakeDemand > brakeCap && absSpeed > 10) {
+            car.absActive = true;
+            const pulse = 0.92 + 0.08 * Math.sin(elapsed * 55);
+            driveAccel = -brakeCap * pulse;
+          } else {
+            driveAccel = -brakeDemand;
+          }
+        } else {
+          driveAccel = -22 * effectiveGrip;
+        }
       } else {
-        driveAccel = -Math.sign(vLong) * Math.min(Math.abs(vLong) * 1.2, 3.2);
+        driveAccel = -Math.sign(vLong) * Math.min(Math.abs(vLong) * 1.15, 3.0);
       }
 
-      if (handbrake) driveAccel -= Math.sign(vLong) * 14 * surfaceGrip;
+      if (handbrake) {
+        driveAccel -= Math.sign(vLong) * 15 * surfaceGrip;
+      }
 
-      const aeroDrag = -vLong * Math.abs(vLong) * (usingNitro ? 0.0044 : 0.0068);
+      // True Slope Gravity along bridge arches & highway viaduct ramps!
+      const slopeGravity = -28 * Math.sin(surfNow.slopePitch);
+      const aeroDrag = -vLong * Math.abs(vLong) * (usingNitro ? 0.0042 : 0.0064);
       const rollForce = -vLong * rollingDrag;
 
-      vLong += (driveAccel + aeroDrag + rollForce) * dt;
-      const topCap = car.inWater ? 24 : usingNitro ? 92 : 69;
+      vLong += (driveAccel + slopeGravity + aeroDrag + rollForce) * dt;
+      const topCap = car.inWater ? 24 : usingNitro ? 96 : 74;
       vLong = THREE.MathUtils.clamp(vLong, -24, topCap);
 
-      const halfL = 1.36;
-      const speedClamped = Math.max(Math.abs(vLong), 2.5);
+      // Bicycle Slip-Angle Dynamics with Pacejka Magic Formula + Smooth Drift Stability
+      const halfL = 1.38;
+      const speedClamped = Math.max(Math.abs(vLong), 2.6);
       const dirSign = vLong >= -0.3 ? 1 : -1;
 
       if (absSpeed > 0.35) {
         const vLatF = vLat + car.yawRate * halfL;
         const vLatR = vLat - car.yawRate * halfL;
 
-        const alphaF = Math.atan2(vLatF, speedClamped) - car.steerAngle * dirSign;
+        // Subtle countersteer self-alignment when sliding so drifts feel planted and controllable
+        const slipRatio = Math.atan2(vLat, speedClamped);
+        const autoAlign = steerInput === 0 ? -slipRatio * 0.22 : 0;
+        const effSteer = car.steerAngle * dirSign + autoAlign;
+
+        const alphaF = Math.atan2(vLatF, speedClamped) - effSteer;
         const alphaR = Math.atan2(vLatR, speedClamped);
 
-        const frontGrip = surfaceGrip * (0.85 + frontLoad * 0.45);
-        const rearGrip = surfaceGrip * (0.85 + rearLoad * 0.45) * (handbrake ? 0.24 : 1.0);
-        const powerOversteer = throttle > 0 && car.wetUnderCar > 0.35 && absSpeed > 14 ? 0.82 : 1.0;
+        const frontGrip = effectiveGrip * (0.85 + frontLoad * 0.45);
+        const rearGrip = effectiveGrip * (0.85 + rearLoad * 0.45) * (handbrake ? 0.26 : 1.0);
+        const wetOversteer = throttle > 0 && car.wetUnderCar > 0.38 && absSpeed > 15 ? 0.84 : 1.0;
 
-        const FyF = tireForce(alphaF, frontGrip, 4.6, 26.0);
-        const FyR = tireForce(alphaR, rearGrip * powerOversteer, 4.4, 27.5);
+        const FyF = pacejkaLateral(alphaF, frontGrip, 4.4, 1.42, 27.5);
+        const FyR = pacejkaLateral(alphaR, rearGrip * wetOversteer, 4.2, 1.42, 29.0);
 
         const latAccel = FyF + FyR;
-        const yawAccel = (FyF * halfL - FyR * halfL) * 0.52;
+        const yawAccel = (FyF * halfL - FyR * halfL) * 0.54;
 
-        const lowSpeedBlend = Math.min(1, absSpeed / 6.0);
-        vLat += latAccel * dt * lowSpeedBlend;
-        car.yawRate += yawAccel * dt * lowSpeedBlend;
+        const lowBlend = Math.min(1, absSpeed / 5.5);
+        vLat += latAccel * dt * lowBlend;
+        car.yawRate += yawAccel * dt * lowBlend;
 
-        if (absSpeed < 6.0) {
-          const targetYaw = (vLong / 2.72) * Math.tan(car.steerAngle);
-          car.yawRate = THREE.MathUtils.lerp(car.yawRate, targetYaw, 10 * dt);
-          vLat *= Math.exp(-10 * dt);
+        if (absSpeed < 5.5) {
+          const kinYaw = (vLong / 2.76) * Math.tan(car.steerAngle);
+          car.yawRate = THREE.MathUtils.lerp(car.yawRate, kinYaw, 11 * dt);
+          vLat *= Math.exp(-11 * dt);
         } else {
-          car.yawRate *= Math.exp(-3.4 * dt);
+          // Yaw damping prevents infinite spin-outs while allowing sustained power slides
+          car.yawRate *= Math.exp(-(handbrake ? 2.4 : 3.8) * dt);
         }
 
         car.slipAmount = Math.abs(alphaR);
       } else {
-        vLat *= Math.exp(-14 * dt);
-        car.yawRate *= Math.exp(-14 * dt);
+        vLat *= Math.exp(-15 * dt);
+        car.yawRate *= Math.exp(-15 * dt);
         car.slipAmount = 0;
       }
 
@@ -1152,11 +1354,13 @@
       car.slipAmount = 0;
     }
 
+    // Track real accelerations for weight transfer & suspension lean
     car.accelLong = THREE.MathUtils.lerp(car.accelLong, (vLong - car.prevForwardSpeed) / Math.max(dt, 0.008), 8 * dt);
     car.accelLat = THREE.MathUtils.lerp(car.accelLat, (vLat - car.prevLateralSpeed) / Math.max(dt, 0.008) + vLong * car.yawRate, 8 * dt);
     car.prevForwardSpeed = vLong;
     car.prevLateralSpeed = vLat;
 
+    // Integrate world velocity
     const nfx = -Math.sin(car.heading);
     const nfz = -Math.cos(car.heading);
     const nrx = Math.cos(car.heading);
@@ -1172,7 +1376,8 @@
     car.x += car.vx * dt;
     car.z += car.vz * dt;
 
-    const surf = sampleSurface(car.x, car.z, car.y);
+    // Sample updated elevation (bridges, viaduct ramps, stunt ramps, ocean)
+    const surf = world.sampleSurface(car.x, car.z, car.y, car.heading);
     if (surf.hitWall) {
       if (Math.abs(vLong) > 6 && impactCooldown <= 0) {
         audio.playImpact(Math.abs(vLong));
@@ -1184,13 +1389,15 @@
       car.vz *= -0.35;
     }
 
+    // Vertical gravity & smooth deck tracking on sloped bridges/viaducts
     const gravity = 28;
     car.vy -= gravity * dt;
     car.y += car.vy * dt;
 
     const wasInWater = car.inWater;
+    const slopeSnapMargin = car.grounded && surf.surfaceType === "BRIDGE" ? 0.55 : 0.08;
 
-    if (car.y <= surf.height + 0.05) {
+    if (car.y <= surf.height + slopeSnapMargin) {
       if (!car.grounded) {
         const impactVy = Math.abs(car.vy);
         car.suspVel -= Math.min(3.5, impactVy * 0.22);
@@ -1221,19 +1428,20 @@
       }
     }
 
+    // Resolve multi-sphere AABB/OBB/Circle collisions AFTER movement
     resolveCollisions();
 
+    // Spring-damper suspension + subtle off-road / water swell motion
     let targetHeave = 0;
     if (car.inWater) {
-      targetHeave = Math.sin(elapsed * 4.2) * 0.06;
+      targetHeave = Math.sin(elapsed * 4.2) * 0.065;
     } else if (car.grounded && !surf.onRoad && absSpeed > 3) {
-      targetHeave = Math.sin(elapsed * absSpeed * 1.5) * 0.045;
+      targetHeave = Math.sin(elapsed * absSpeed * 1.45) * 0.045;
     }
-    const springK = 52;
-    const damperC = 9.5;
-    car.suspVel += ((targetHeave - car.suspOffset) * springK - car.suspVel * damperC) * dt;
+    car.suspVel += ((targetHeave - car.suspOffset) * 54 - car.suspVel * 9.8) * dt;
     car.suspOffset = THREE.MathUtils.clamp(car.suspOffset + car.suspVel * dt, -0.22, 0.22);
 
+    // Automatic 6-Speed Gearbox
     const kmh = Math.abs(vLong) * 3.6;
     let gearStr = "N";
     let newGearNum = 0;
@@ -1264,52 +1472,69 @@
     const targetRpm = 850 + gearRatio * 7100 + (throttle > 0 && newGearNum === 0 ? 1500 : 0);
     car.rpm = THREE.MathUtils.lerp(car.rpm, targetRpm, 12 * dt);
 
-    const hardBrake = throttle < 0 && vLong > 10;
-    car.drifting = car.grounded && !car.inWater && (car.slipAmount > 0.22 || (handbrake && absSpeed > 8));
+    // Drift detection, Skidmarks, Smoke & Wet Tire Rooster-Tail Spray
+    const hardBrake = throttle < 0 && vLong > 10 && !car.absActive;
+    car.drifting = car.grounded && !car.inWater && (car.slipAmount > 0.2 || (handbrake && absSpeed > 8));
 
-    const rearX = car.x - nfx * 1.36;
-    const rearZ = car.z - nfz * 1.36;
+    const rearX = car.x - nfx * 1.38;
+    const rearZ = car.z - nfz * 1.38;
 
     if (car.inWater && absSpeed > 3.5) {
       spawnParticle(rearX + nrx * 1.0, 0.05, rearZ + nrz * 1.0, "splash");
       spawnParticle(rearX - nrx * 1.0, 0.05, rearZ - nrz * 1.0, "splash");
     } else if (car.grounded && !car.inWater) {
-      if (car.wetUnderCar > 0.4 && absSpeed > 15 && Math.random() < 0.65) {
+      if (car.wetUnderCar > 0.35 && absSpeed > 15 && Math.random() < 0.6) {
         spawnParticle(rearX + nrx * 0.95, car.y + 0.18, rearZ + nrz * 0.95, "spray");
         spawnParticle(rearX - nrx * 0.95, car.y + 0.18, rearZ - nrz * 0.95, "spray");
       }
       if (car.drifting || hardBrake) {
-        if (car.wetUnderCar < 0.5 && Math.random() < 0.78) {
+        if (car.wetUnderCar < 0.45 && Math.random() < 0.78) {
           spawnParticle(rearX + nrx * 0.92, car.y + 0.22, rearZ + nrz * 0.92, "smoke");
           spawnParticle(rearX - nrx * 0.92, car.y + 0.22, rearZ - nrz * 0.92, "smoke");
         }
         skidAccum += absSpeed * dt;
-        if (skidAccum > 0.75 && surf.onRoad) {
+        if (skidAccum > 0.78 && surf.onRoad) {
           skidAccum = 0;
-          dropSkidmark(rearX + nrx * 0.98, car.y, rearZ + nrz * 0.98, car.heading, car.wetUnderCar > 0.45);
-          dropSkidmark(rearX - nrx * 0.98, car.y, rearZ - nrz * 0.98, car.heading, car.wetUnderCar > 0.45);
+          dropSkidmark(rearX + nrx * 0.98, car.y, rearZ + nrz * 0.98, car.heading, car.slopePitch, car.wetUnderCar > 0.45);
+          dropSkidmark(rearX - nrx * 0.98, car.y, rearZ - nrz * 0.98, car.heading, car.slopePitch, car.wetUnderCar > 0.45);
         }
       }
     }
 
+    // Visual Chassis Orientation, Suspension Pitch/Roll & Independent Wheel Travel
     frontWheelPivots.forEach((p) => (p.rotation.y = car.steerAngle));
     wheelMeshes.forEach((w) => (w.rotation.x -= (vLong * dt) / 0.42));
 
-    const targetPitch = car.grounded
-      ? surf.slopePitch + THREE.MathUtils.clamp(car.accelLong * 0.0024, -0.085, 0.07)
+    car.slopePitch = THREE.MathUtils.lerp(car.slopePitch, car.grounded ? surf.slopePitch : 0, 10 * dt);
+    const dynamicPitch = car.grounded
+      ? THREE.MathUtils.clamp(car.accelLong * 0.0024, -0.08, 0.065)
       : THREE.MathUtils.clamp(car.vy * 0.018, -0.35, 0.35);
     const targetRoll = THREE.MathUtils.clamp(-car.accelLat * 0.0042, -0.15, 0.15);
 
-    car.pitch = THREE.MathUtils.lerp(car.pitch, targetPitch, 10 * dt);
+    car.pitch = THREE.MathUtils.lerp(car.pitch, dynamicPitch, 10 * dt);
     car.roll = THREE.MathUtils.lerp(car.roll, targetRoll, 10 * dt);
 
     carGroup.position.set(car.x, car.y, car.z);
-    carGroup.rotation.y = car.heading;
+    carGroup.rotation.set(car.slopePitch, car.heading, 0, "YXZ");
     carBodyGroup.position.y = car.suspOffset;
     carBodyGroup.rotation.x = car.pitch;
     carBodyGroup.rotation.z = car.roll;
 
+    // Subtle independent wheel droop when airborne
+    const wheelDroop = car.grounded ? 0 : -0.14;
+    for (let i = 0; i < wheelPivots.length; i++) {
+      wheelPivots[i].position.y = THREE.MathUtils.lerp(wheelPivots[i].position.y, 0.42 + wheelDroop, 12 * dt);
+    }
+
+    // Dynamic Car Lights & Road/Water Shader Uniforms
     const braking = (throttle < 0 && vLong > 1) || handbrake;
+    const preset = TIME_PRESETS[timeIndex];
+    const headlightsOn = preset.headlights || weather.forceHeadlights || car.inTunnel;
+
+    headlightMat.emissiveIntensity = headlightsOn ? 2.8 : 0.4;
+    headSpot.intensity = rtEnabled && headlightsOn ? 3.2 : headlightsOn ? 1.4 : 0;
+    volumetricBeams.forEach((b) => (b.visible = rtEnabled && headlightsOn));
+
     brakeLightMat.emissiveIntensity = braking ? 2.6 : 0.55;
     rearGlowLight.color.setHex(usingNitro ? 0x38bdf8 : 0xff2222);
     rearGlowLight.intensity = rtEnabled ? (usingNitro ? 2.8 : braking ? 2.2 : 0.75) : 0;
@@ -1324,6 +1549,7 @@
     world.setWaterUniform("uCarForward", fwdVec);
     world.setWaterUniform("uNitroActive", usingNitro ? 1.0 : 0.0);
 
+    // Update smoke/spray/splash particles
     for (let i = 0; i < particlePool.length; i++) {
       const p = particlePool[i];
       if (p.life > 0) {
@@ -1339,18 +1565,18 @@
       }
     }
 
-    const preset = TIME_PRESETS[timeIndex];
+    // Track sky, sun & shadows smoothly around player across the entire multi-city world
     world.skyDome.position.set(car.x, 0, car.z);
     sunLight.position.set(
       car.x + preset.sunPos[0] * 0.45,
-      preset.sunPos[1] * 0.55,
+      car.y + preset.sunPos[1] * 0.55,
       car.z + preset.sunPos[2] * 0.45
     );
-    sunLight.target.position.set(car.x, 0, car.z);
+    sunLight.target.position.set(car.x, car.y, car.z);
     sunDisc.position.set(
-      car.x + preset.sunPos[0] * 3.0,
-      preset.sunPos[1] * 3.0,
-      car.z + preset.sunPos[2] * 3.0
+      car.x + preset.sunPos[0] * 3.5,
+      preset.sunPos[1] * 3.5,
+      car.z + preset.sunPos[2] * 3.5
     );
 
     audio.update(
@@ -1362,17 +1588,18 @@
       usingNitro,
       hornPressed,
       weather.rainAudio,
-      car.wetUnderCar
+      car.wetUnderCar,
+      car.inTunnel
     );
 
     return { vLong, usingNitro };
   }
 
   // =========================================================================
-  // 6. CAMERA & RT REFLECTION RENDER PASSES (INCLUDES BOATS & TRAFFIC!)
+  // 6. TUNNEL-SAFE CAMERA & LIVE RT REFLECTION PASSES
   // =========================================================================
-  const camPosCurrent = new THREE.Vector3(0, 5.5, 31);
-  const camLookCurrent = new THREE.Vector3(0, 1.4, 14);
+  const camPosCurrent = new THREE.Vector3(0, 5.5, 56);
+  const camLookCurrent = new THREE.Vector3(0, 1.4, 38);
 
   function updateCamera(dt, speed, usingNitro) {
     const mode = CAMERA_MODES[cameraModeIdx];
@@ -1387,23 +1614,43 @@
     camera.updateProjectionMatrix();
 
     if (mode === "CHASE") {
-      const dist = 10.2 + Math.min(3.6, Math.abs(speed) * 0.042);
-      const desiredPos = new THREE.Vector3(car.x - fx * dist, car.y + 4.05, car.z - fz * dist);
-      const desiredLook = new THREE.Vector3(car.x + fx * 7.0, car.y + 1.35, car.z + fz * 7.0);
+      const dist = (car.inTunnel ? 8.8 : 10.2) + Math.min(3.4, Math.abs(speed) * 0.04);
+      const heightOff = car.inTunnel ? 3.2 : 4.05;
+      const desiredPos = new THREE.Vector3(car.x - fx * dist, car.y + heightOff, car.z - fz * dist);
+      const desiredLook = new THREE.Vector3(
+        car.x + fx * 7.2,
+        car.y + 1.35 + Math.sin(car.slopePitch) * 3.2,
+        car.z + fz * 7.2
+      );
 
-      camPosCurrent.lerp(desiredPos, 1 - Math.exp(-7.5 * dt));
-      camLookCurrent.lerp(desiredLook, 1 - Math.exp(-10 * dt));
+      // Keep chase camera cleanly inside the Alpine Tunnel bore
+      if (world.isPointInTunnel(desiredPos.x, desiredPos.z)) {
+        desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -8.8, 8.8);
+        desiredPos.y = Math.min(desiredPos.y, 8.4);
+      }
+
+      camPosCurrent.lerp(desiredPos, 1 - Math.exp(-7.8 * dt));
+      camLookCurrent.lerp(desiredLook, 1 - Math.exp(-10.5 * dt));
       camera.position.copy(camPosCurrent);
       camera.lookAt(camLookCurrent);
     } else if (mode === "HOOD") {
-      camPosCurrent.set(car.x + fx * 0.5, car.y + 1.52 + car.suspOffset, car.z + fz * 0.5);
-      camLookCurrent.set(car.x + fx * 28, car.y + 1.2 + car.pitch * 12, car.z + fz * 28);
+      camPosCurrent.set(car.x + fx * 0.5, car.y + 1.54 + car.suspOffset, car.z + fz * 0.5);
+      camLookCurrent.set(
+        car.x + fx * 28,
+        car.y + 1.2 + (car.slopePitch + car.pitch) * 14,
+        car.z + fz * 28
+      );
       camera.position.copy(camPosCurrent);
       camera.lookAt(camLookCurrent);
     } else {
-      const desiredPos = new THREE.Vector3(car.x - fx * 20, car.y + 26, car.z - fz * 20);
+      const orbitH = car.inTunnel ? 7.8 : 26;
+      const orbitD = car.inTunnel ? 11 : 21;
+      const desiredPos = new THREE.Vector3(car.x - fx * orbitD, car.y + orbitH, car.z - fz * orbitD);
+      if (world.isPointInTunnel(desiredPos.x, desiredPos.z)) {
+        desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -8.5, 8.5);
+      }
       camPosCurrent.lerp(desiredPos, 1 - Math.exp(-5 * dt));
-      camLookCurrent.set(car.x, car.y + 1, car.z);
+      camLookCurrent.set(car.x, car.y + 1.1, car.z);
       camera.position.copy(camPosCurrent);
       camera.lookAt(camLookCurrent);
     }
@@ -1424,9 +1671,9 @@
     mirrorCamera.up.set(0, 1, 0);
     mirrorCamera.lookAt(camLookCurrent.x, -camLookCurrent.y, camLookCurrent.z);
 
-    // Note: world.trafficGroup and world.boatsGroup remain VISIBLE so they reflect in water & puddles!
+    // Keep cities, suspension bridge, traffic & boats visible so they reflect in ocean water & wet puddles!
     const prevRainVis = world.rainLines.visible;
-    world.ground.visible = false;
+    world.groundGroup.visible = false;
     world.waterGroup.visible = false;
     world.roadGroup.visible = false;
     world.roadShadowGroup.visible = false;
@@ -1438,13 +1685,14 @@
     renderer.render(scene, mirrorCamera);
     renderer.setRenderTarget(null);
 
-    world.ground.visible = true;
+    world.groundGroup.visible = true;
     world.waterGroup.visible = true;
     world.roadGroup.visible = true;
     world.roadShadowGroup.visible = rtEnabled;
     skidGroup.visible = true;
     world.rainLines.visible = prevRainVis;
 
+    // Live 360-degree CubeCamera reflection on car body & glass
     if (frameCounter % 2 === 0) {
       carGroup.visible = false;
       world.rainLines.visible = false;
@@ -1456,7 +1704,7 @@
   }
 
   // =========================================================================
-  // 7. HUD TELEMETRY & LIVE TRAFFIC/BOAT MINIMAP
+  // 7. HUD TELEMETRY, PHYSICS BADGES & MULTI-CITY MINIMAP
   // =========================================================================
   const speedEl = document.getElementById("speed-value");
   const gearEl = document.getElementById("gear-value");
@@ -1464,10 +1712,16 @@
   const rpmText = document.getElementById("rpm-text");
   const nitroFill = document.getElementById("nitro-fill");
   const nitroText = document.getElementById("nitro-text");
+  const wetnessFill = document.getElementById("wetness-fill");
+  const wetnessText = document.getElementById("wetness-text");
+  const wetnessTrendEl = document.getElementById("wetness-trend");
   const coordsEl = document.getElementById("coords-display");
   const zoneEl = document.getElementById("status-zone");
   const surfacePill = document.getElementById("surface-pill");
   const gripReadout = document.getElementById("grip-readout");
+  const badgeAbs = document.getElementById("badge-abs");
+  const badgeDrift = document.getElementById("badge-drift");
+  const badgeTcs = document.getElementById("badge-tcs");
 
   const minimapCanvas = document.getElementById("minimap");
   const mapCtx = minimapCanvas.getContext("2d");
@@ -1475,7 +1729,7 @@
   function drawMinimap() {
     const w = minimapCanvas.width;
     const h = minimapCanvas.height;
-    const scale = 0.165;
+    const scale = 0.145; // Shows neighboring cities, bridge, tunnel & viaduct cleanly
 
     mapCtx.clearRect(0, 0, w, h);
     mapCtx.fillStyle = "#082f49";
@@ -1484,60 +1738,61 @@
     mapCtx.save();
     mapCtx.translate(w / 2, h / 2);
 
-    // City Island
-    mapCtx.fillStyle = "#0f172a";
-    mapCtx.fillRect(
-      (-ISLAND_HALF - car.x) * scale,
-      (-ISLAND_HALF - car.z) * scale,
-      ISLAND_HALF * 2 * scale,
-      ISLAND_HALF * 2 * scale
-    );
-
-    // Grand Harbor
-    mapCtx.fillStyle = "#0369a1";
-    mapCtx.fillRect(
-      (HARBOR.minX - car.x) * scale,
-      (HARBOR.minZ - car.z) * scale,
-      (HARBOR.maxX - HARBOR.minX) * scale,
-      (HARBOR.maxZ - HARBOR.minZ) * scale
-    );
-
-    // Road Grid
-    mapCtx.strokeStyle = "#334155";
-    mapCtx.lineWidth = Math.max(2, ROAD_WIDTH * scale);
-    ROAD_LINES.forEach((line) => {
-      const rx = (line - car.x) * scale;
-      if (rx >= -w && rx <= w) {
-        mapCtx.beginPath();
-        mapCtx.moveTo(rx, (-998 - car.z) * scale);
-        mapCtx.lineTo(rx, (998 - car.z) * scale);
-        mapCtx.stroke();
+    // 1. Draw the 3 Distinct City Islands + Marina Lagoon Cutout
+    for (let i = 0; i < ISLANDS.length; i++) {
+      const isl = ISLANDS[i];
+      mapCtx.fillStyle = isl.id === "palm" ? "#1e3a2f" : isl.id === "pinecrest" ? "#152a24" : "#0f172a";
+      mapCtx.fillRect(
+        (isl.minX - car.x) * scale,
+        (isl.minZ - car.z) * scale,
+        (isl.maxX - isl.minX) * scale,
+        (isl.maxZ - isl.minZ) * scale
+      );
+      if (isl.hole) {
+        mapCtx.fillStyle = "#0369a1";
+        mapCtx.fillRect(
+          (isl.hole.minX - car.x) * scale,
+          (isl.hole.minZ - car.z) * scale,
+          (isl.hole.maxX - isl.hole.minX) * scale,
+          (isl.hole.maxZ - isl.hole.minZ) * scale
+        );
       }
-      const rz = (line - car.z) * scale;
-      if (rz >= -h && rz <= h) {
-        mapCtx.beginPath();
-        mapCtx.moveTo((-998 - car.x) * scale, rz);
-        mapCtx.lineTo((998 - car.x) * scale, rz);
-        mapCtx.stroke();
-      }
-    });
+    }
 
-    // Buildings
-    mapCtx.fillStyle = "#475569";
+    // 2. Draw Alpine Mountain Ridge Band
+    mapCtx.fillStyle = "rgba(71, 85, 105, 0.55)";
+    mapCtx.fillRect((-290 - car.x) * scale, (-870 - car.z) * scale, 580 * scale, 520 * scale);
+
+    // 3. Draw City Roads, Suspension Bridge (red-gold), Tunnel (dashed), & Viaduct (cyan)
+    mapCtx.lineCap = "round";
+    for (let i = 0; i < world.roadSegments.length; i++) {
+      const s = world.roadSegments[i];
+      mapCtx.strokeStyle =
+        s.kind === "bridge" ? "#f97316" : s.kind === "viaduct" ? "#38bdf8" : "#475569";
+      mapCtx.lineWidth = Math.max(2.2, s.w * scale);
+      mapCtx.beginPath();
+      mapCtx.moveTo((s.x1 - car.x) * scale, (s.z1 - car.z) * scale);
+      mapCtx.lineTo((s.x2 - car.x) * scale, (s.z2 - car.z) * scale);
+      mapCtx.stroke();
+    }
+
+    // 4. Draw Buildings within view
+    mapCtx.fillStyle = "#64748b";
     const viewRange = w / scale;
-    for (let i = 0; i < world.buildings.length; i++) {
-      const b = world.buildings[i];
+    for (let i = 0; i < world.minimapBuildings.length; i++) {
+      const b = world.minimapBuildings[i];
       if (Math.abs(b.x - car.x) > viewRange || Math.abs(b.z - car.z) > viewRange) continue;
       mapCtx.fillRect((b.minX - car.x) * scale, (b.minZ - car.z) * scale, b.w * scale, b.d * scale);
     }
 
-    // Stunt Ramps
-    mapCtx.fillStyle = "#f97316";
-    world.ramps.forEach((r) => {
-      mapCtx.fillRect((r.x - car.x) * scale - 3.5, (r.z - car.z) * scale - 3.5, 7, 7);
-    });
+    // 5. Stunt Ramps
+    mapCtx.fillStyle = "#fb923c";
+    for (let i = 0; i < world.ramps.length; i++) {
+      const r = world.ramps[i];
+      mapCtx.fillRect((r.x - car.x) * scale - 3, (r.z - car.z) * scale - 3, 6, 6);
+    }
 
-    // Moving AI Traffic Cars & Harbor/Ocean Boats
+    // 6. Moving AI Traffic & Boats
     if (trafficEnabled) {
       mapCtx.fillStyle = "#facc15";
       for (let i = 0; i < world.trafficCars.length; i++) {
@@ -1545,7 +1800,7 @@
         const tx = (ai.x - car.x) * scale;
         const tz = (ai.z - car.z) * scale;
         if (Math.abs(tx) > w || Math.abs(tz) > h) continue;
-        mapCtx.fillRect(tx - 2, tz - 2, 4, 4);
+        mapCtx.fillRect(tx - 1.8, tz - 1.8, 3.6, 3.6);
       }
 
       mapCtx.fillStyle = "#e0f2fe";
@@ -1555,12 +1810,12 @@
         const bz = (b.z - car.z) * scale;
         if (Math.abs(bx) > w || Math.abs(bz) > h) continue;
         mapCtx.beginPath();
-        mapCtx.arc(bx, bz, b.mode === "patrol" ? 3.5 : 2.5, 0, Math.PI * 2);
+        mapCtx.arc(bx, bz, b.kind === "ship" ? 3.5 : 2.3, 0, Math.PI * 2);
         mapCtx.fill();
       }
     }
 
-    // Player Arrow
+    // 7. Player Directional Arrow
     mapCtx.rotate(-car.heading);
     mapCtx.fillStyle = "#38bdf8";
     mapCtx.beginPath();
@@ -1585,28 +1840,30 @@
     nitroFill.style.width = `${car.nitro}%`;
     nitroText.textContent = `${Math.round(car.nitro)}%`;
 
-    coordsEl.textContent = `X: ${Math.round(car.x)} | Z: ${Math.round(car.z)}`;
+    // Live Auto Road Moisture Gauge (Wetting in Rain -> Evaporating in Clear)
+    const wetPct = Math.round(roadMoisture * 100);
+    wetnessFill.style.width = `${wetPct}%`;
+    wetnessText.textContent = `${wetPct}%`;
+    wetnessTrendEl.textContent = moistureTrend;
+    wetnessTrendEl.className =
+      moistureTrend === "WETTING" || moistureTrend === "WET"
+        ? "trend-tag wetting"
+        : moistureTrend === "DRYING"
+        ? "trend-tag drying"
+        : "trend-tag";
+
+    // Physics Indicator Badges (ABS, DRIFT, TCS)
+    badgeAbs.classList.toggle("active-abs", car.absActive);
+    badgeDrift.classList.toggle("active-drift", car.drifting);
+    badgeTcs.classList.toggle("active-tcs", car.tcsActive);
+
+    coordsEl.textContent = `X: ${Math.round(car.x)} | Z: ${Math.round(car.z)} | ALT: ${Math.max(0, Math.round(car.y))}m`;
 
     surfacePill.textContent = car.surfaceLabel;
     surfacePill.className = `surface-pill ${car.surfaceClass}`;
-    gripReadout.textContent = `GRIP ${Math.round(Math.min(100, (car.currentGrip / 1.08) * 100))}%`;
+    gripReadout.textContent = `GRIP ${Math.round(Math.min(100, (car.currentGrip / 1.12) * 100))}%`;
 
-    const dist = Math.hypot(car.x, car.z);
-    if (Math.abs(car.x) > ISLAND_HALF - 5 || Math.abs(car.z) > ISLAND_HALF - 5) {
-      zoneEl.textContent = "COASTAL OCEAN";
-    } else if (car.x > HARBOR.minX - 10 && car.x < HARBOR.maxX + 10 && car.z > HARBOR.minZ - 10 && car.z < HARBOR.maxZ + 10) {
-      zoneEl.textContent = "GRAND HARBOR";
-    } else if (car.x > STUNT_ZONE.minX && car.x < STUNT_ZONE.maxX && car.z > STUNT_ZONE.minZ && car.z < STUNT_ZONE.maxZ) {
-      zoneEl.textContent = "EAST STUNT ARENA";
-    } else if (car.x > PORT_ZONE.minX && car.x < PORT_ZONE.maxX && car.z > PORT_ZONE.minZ && car.z < PORT_ZONE.maxZ) {
-      zoneEl.textContent = "INDUSTRIAL CONTAINER PORT";
-    } else if (dist < 410) {
-      zoneEl.textContent = "DOWNTOWN FINANCIAL CORE";
-    } else if (dist < 760) {
-      zoneEl.textContent = "MIDTOWN DISTRICT";
-    } else {
-      zoneEl.textContent = "COASTAL PARKLANDS";
-    }
+    zoneEl.textContent = world.getZoneName(car.x, car.z);
 
     drawMinimap();
   }
@@ -1625,10 +1882,10 @@
 
   bindButton("btn-rt", toggleRayTracing);
   bindButton("btn-traffic", toggleTraffic);
-  bindButton("btn-floor", cycleFloorMode);
   bindButton("btn-weather", cycleWeather);
   bindButton("btn-time", cycleTimeOfDay);
   bindButton("btn-camera", cycleCamera);
+  bindButton("btn-warp", cycleWarp);
   bindButton("btn-sound", () => audio.toggle());
   bindButton("btn-reset", resetCar);
 
@@ -1660,10 +1917,21 @@
     world.setRoadUniform("uTime", elapsed);
     world.setWaterUniform("uTime", elapsed);
 
+    // 1. Update natural rain wetting & clear-weather road evaporation
+    updateRoadMoisture(dt);
+
+    // 2. Update AI inter-city traffic & ships/yachts
     world.updateTrafficAndBoats(dt, elapsed, car, weather.waveStrength, trafficEnabled);
+
+    // 3. Update player physics, suspension & fixed hitboxes
     const { vLong, usingNitro } = updatePhysics(dt, elapsed);
+
+    // 4. Update tunnel-safe camera & weather
     updateCamera(dt, vLong, usingNitro);
-    world.updateWeather(dt, weather, camera.position, car, () => audio.playThunder());
+    const flash = world.updateWeather(dt, weather, camera.position, car, car.inTunnel, () => audio.playThunder());
+    flashOverlay.style.opacity = car.inTunnel ? "0" : (flash * 0.65).toFixed(3);
+
+    // 5. Render live RT planar & cubemap passes + final frame
     renderRTPasses();
     updateHUD(vLong);
 
