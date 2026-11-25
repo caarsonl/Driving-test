@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Horizon Drive 3D — Open World Driving Simulator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- HUD Overlay -->
+  <div id="hud">
+    <!-- Top Bar -->
+    <div class="hud-top">
+      <div class="brand-badge">
+        <span class="title">HORIZON DRIVE 3D</span>
+        <span class="subtitle" id="status-zone">DOWNTOWN DISTRICT</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="btn-camera" class="hud-btn" title="Switch Camera (C)">
+          CAM: <span id="cam-label">CHASE</span>
+        </button>
+        <button id="btn-time" class="hud-btn" title="Cycle Time of Day (N)">
+          TIME: <span id="time-label">DAY</span>
+        </button>
+        <button id="btn-sound" class="hud-btn" title="Toggle Engine Audio (M)">
+          AUDIO: <span id="sound-label">OFF</span>
+        </button>
+        <button id="btn-reset" class="hud-btn accent" title="Reset Car Position (R)">
+          RESET
+        </button>
+      </div>
+    </div>
+
+    <!-- Center Drift / Air Notifications -->
+    <div id="event-banner" class="event-banner"></div>
+
+    <!-- Bottom HUD -->
+    <div class="hud-bottom">
+      <!-- Minimap -->
+      <div class="minimap-panel">
+        <canvas id="minimap" width="180" height="180"></canvas>
+        <div class="minimap-coords" id="coords-display">X: 0 | Z: 0</div>
+      </div>
+
+      <!-- Controls Legend -->
+      <div class="controls-panel">
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>Arrows</kbd> Drive</div>
+        <div><kbd>Space</kbd> Handbrake Drift &nbsp;|&nbsp; <kbd>Shift</kbd> Nitro</div>
+        <div><kbd>C</kbd> Camera &nbsp;|&nbsp; <kbd>N</kbd> Day/Night &nbsp;|&nbsp; <kbd>R</kbd> Reset</div>
+      </div>
+
+      <!-- Speedometer & Gauges -->
+      <div class="telemetry-panel">
+        <div class="speed-row">
+          <div class="gear-box">
+            <span class="label">GEAR</span>
+            <span id="gear-value">N</span>
+          </div>
+          <div class="speed-box">
+            <span id="speed-value">0</span>
+            <span class="unit">KM/H</span>
+          </div>
+        </div>
+
+        <div class="bar-group">
+          <div class="bar-header">
+            <span>RPM</span>
+            <span id="rpm-text">800</span>
+          </div>
+          <div class="bar-track">
+            <div id="rpm-fill" class="bar-fill rpm"></div>
+          </div>
+        </div>
+
+        <div class="bar-group">
+          <div class="bar-header">
+            <span>NITRO</span>
+            <span id="nitro-text">100%</span>
+          </div>
+          <div class="bar-track">
+            <div id="nitro-fill" class="bar-fill nitro"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Three.js r128 (UMD build works directly via file:// without CORS errors) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
