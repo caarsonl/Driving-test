@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Horizon Drive 3D — Multi-City Highway, Bridges & Tunnels</title>
+  <title>Horizon Drive 3D — Multi-City Open World & Vehicle Garage</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="canvas-container"></div>
 
-  <!-- Subtle Environmental Screen Effects (Lightning & Tunnel Exposure) -->
+  <!-- Environmental Screen Overlays (Lightning & Tunnel Exposure) -->
   <div id="flash-overlay" aria-hidden="true"></div>
   <div id="tunnel-overlay" aria-hidden="true"></div>
 
@@ -20,9 +20,16 @@
       <div class="brand-badge">
         <span class="title">HORIZON DRIVE 3D</span>
         <span class="subtitle" id="status-zone">METRO BAY CITY</span>
+        <span class="car-tag" id="active-car-label">APEX GT COUPE</span>
       </div>
 
       <div class="toolbar">
+        <button id="btn-garage" class="hud-btn garage-btn" title="Open Vehicle Garage (G)">
+          GARAGE <span>[G]</span>
+        </button>
+        <button id="btn-siren" class="hud-btn siren-btn hidden" title="Toggle Police Lightbar & Siren (L)">
+          SIREN: <span id="siren-label">OFF</span>
+        </button>
         <button id="btn-rt" class="hud-btn active" title="Toggle Real-Time Reflections (T)">
           RT: <span id="rt-label">ON</span>
         </button>
@@ -58,7 +65,7 @@
       <!-- Minimap -->
       <div class="minimap-panel">
         <canvas id="minimap" width="200" height="200"></canvas>
-        <div class="minimap-coords" id="coords-display">X: 0 | Z: 0 | ALT: 0m</div>
+        <div class="minimap-coords" id="coords-display">X: 0 | Z: 45 | ALT: 0m</div>
       </div>
 
       <!-- Controls Legend -->
@@ -68,9 +75,11 @@
           &nbsp;|&nbsp; <kbd>Space</kbd> Handbrake
           &nbsp;|&nbsp; <kbd>Shift</kbd> Nitro
           &nbsp;|&nbsp; <kbd>H</kbd> Horn
+          &nbsp;|&nbsp; <kbd>L</kbd> Siren
         </div>
         <div>
-          <kbd>V</kbd> Weather (Auto Wet/Dry)
+          <kbd>G</kbd> Garage
+          &nbsp;|&nbsp; <kbd>V</kbd> Weather
           &nbsp;|&nbsp; <kbd>X</kbd> Fast Travel
           &nbsp;|&nbsp; <kbd>T</kbd> RT
           &nbsp;|&nbsp; <kbd>P</kbd> Traffic
@@ -134,6 +143,100 @@
             <div id="wetness-fill" class="bar-fill wetness"></div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vehicle Garage Modal -->
+  <div id="garage-modal" class="garage-modal hidden" role="dialog" aria-modal="true" aria-labelledby="garage-title">
+    <div class="garage-backdrop" id="garage-backdrop"></div>
+    <div class="garage-card">
+      <div class="garage-header">
+        <div>
+          <h2 id="garage-title">VEHICLE GARAGE</h2>
+          <p class="garage-sub">Select a vehicle and paint finish — physics, suspension, and engine audio adapt live.</p>
+        </div>
+        <button id="btn-garage-close" class="garage-close-btn" title="Close Garage (G / Esc)">✕</button>
+      </div>
+
+      <div class="garage-body">
+        <!-- 5 Selectable Vehicles -->
+        <div class="car-grid" id="car-grid">
+          <button class="car-option selected" data-car="gt">
+            <span class="car-class">SPORTS</span>
+            <span class="car-title">Apex GT Coupe</span>
+            <span class="car-desc">Balanced grip, crisp cornering, strong highway pace.</span>
+          </button>
+
+          <button class="car-option" data-car="muscle">
+            <span class="car-class">DRIFT</span>
+            <span class="car-title">Viper Drift Muscle</span>
+            <span class="car-desc">Heavy V8 torque, tail-happy rear bias, long power slides.</span>
+          </button>
+
+          <button class="car-option" data-car="supercar">
+            <span class="car-class">HYPER</span>
+            <span class="car-title">Hyperion Supercar</span>
+            <span class="car-desc">Widebody aero downforce, V10 scream, 360+ KM/H top speed.</span>
+          </button>
+
+          <button class="car-option" data-car="suv">
+            <span class="car-class">OFF-ROAD</span>
+            <span class="car-title">Trailblazer SUV</span>
+            <span class="car-desc">High suspension travel, boosted wet &amp; grass traction.</span>
+          </button>
+
+          <button class="car-option" data-car="police">
+            <span class="car-class">PURSUIT</span>
+            <span class="car-title">Interceptor Police</span>
+            <span class="car-desc">Pursuit-tuned sedan with flashing lightbar &amp; siren (L).</span>
+          </button>
+        </div>
+
+        <!-- Specs & Paint Customizer -->
+        <div class="garage-details">
+          <div class="spec-panel">
+            <div class="spec-title" id="spec-car-name">Apex GT Coupe</div>
+            <div class="spec-row">
+              <span>TOP SPEED</span>
+              <div class="spec-track"><div class="spec-fill" id="spec-speed" style="width: 82%"></div></div>
+            </div>
+            <div class="spec-row">
+              <span>ACCELERATION</span>
+              <div class="spec-track"><div class="spec-fill" id="spec-accel" style="width: 80%"></div></div>
+            </div>
+            <div class="spec-row">
+              <span>HANDLING &amp; GRIP</span>
+              <div class="spec-track"><div class="spec-fill" id="spec-grip" style="width: 86%"></div></div>
+            </div>
+            <div class="spec-row">
+              <span>DRIFT / OFF-ROAD</span>
+              <div class="spec-track"><div class="spec-fill" id="spec-drift" style="width: 72%"></div></div>
+            </div>
+          </div>
+
+          <div class="paint-panel">
+            <div class="paint-header">
+              <span>PAINT FINISH</span>
+              <span id="paint-name">CRIMSON RED</span>
+            </div>
+            <div class="swatch-row" id="swatch-row">
+              <button class="swatch selected" data-color="#e11d48" data-name="CRIMSON RED" style="background:#e11d48" title="Crimson Red"></button>
+              <button class="swatch" data-color="#2563eb" data-name="COBALT BLUE" style="background:#2563eb" title="Cobalt Blue"></button>
+              <button class="swatch" data-color="#f8fafc" data-name="PEARL WHITE" style="background:#f8fafc" title="Pearl White"></button>
+              <button class="swatch" data-color="#f59e0b" data-name="SOLAR GOLD" style="background:#f59e0b" title="Solar Gold"></button>
+              <button class="swatch" data-color="#10b981" data-name="EMERALD" style="background:#10b981" title="Emerald"></button>
+              <button class="swatch" data-color="#7c3aed" data-name="CYBER VIOLET" style="background:#7c3aed" title="Cyber Violet"></button>
+              <button class="swatch" data-color="#f97316" data-name="SUNSET ORANGE" style="background:#f97316" title="Sunset Orange"></button>
+              <button class="swatch" data-color="#1e293b" data-name="OBSIDIAN" style="background:#1e293b" title="Obsidian"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="garage-footer">
+        <span class="garage-hint">Tip: Press <kbd>G</kbd> anytime to switch vehicles without losing your location.</span>
+        <button id="btn-garage-drive" class="garage-drive-btn">DRIVE VEHICLE</button>
       </div>
     </div>
   </div>

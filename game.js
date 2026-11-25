@@ -7,6 +7,7 @@
     TIME_PRESETS,
     WEATHER_PRESETS,
     samplePuddleAt,
+    createSoftBeamMaterial,
     buildWorld,
   } = window.HorizonWorld;
 
@@ -37,7 +38,6 @@
   const drawingBufferSize = new THREE.Vector2();
   renderer.getDrawingBufferSize(drawingBufferSize);
 
-  // Planar reflection target shared by ground roads & ocean water
   const reflScale = 0.7;
   const reflTarget = new THREE.WebGLRenderTarget(
     Math.max(256, Math.floor(window.innerWidth * reflScale)),
@@ -49,7 +49,6 @@
     }
   );
 
-  // Live 360-degree CubeCamera for metallic clearcoat car reflections
   const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
     generateMipmaps: true,
     minFilter: THREE.LinearMipmapLinearFilter,
@@ -80,165 +79,521 @@
   );
   scene.add(sunDisc);
 
-  // Build the Multi-City World (Metro Bay, Palm Island, Pinecrest, Bridge, Tunnel, Viaduct)
   const world = buildWorld(scene, reflTarget, drawingBufferSize);
 
   // =========================================================================
-  // 2. PLAYER SPORTS COUPE (WITH INDEPENDENT 4-WHEEL VISUAL SUSPENSION)
+  // 2. 5 DRIVABLE GARAGE VEHICLES (SPECS, PHYSICS TUNING & 3D MODEL BUILDER)
   // =========================================================================
+  const VEHICLE_SPECS = {
+    gt: {
+      id: "gt",
+      name: "Apex GT Coupe",
+      defaultColor: "#e11d48",
+      stats: { speed: 82, accel: 80, grip: 86, drift: 72 },
+      // Physics tuning
+      topSpeed: 74,        // ~266 km/h (330+ w/ nitro)
+      nitroTopSpeed: 96,
+      drivePower: 1.0,
+      gripMult: 1.02,
+      rearGripBias: 1.0,
+      offroadGrip: 0.68,
+      wetGripPenalty: 1.0,
+      aeroDownforce: 0.000055,
+      suspStiffness: 56,
+      suspDamping: 10.0,
+      suspTravel: 0.22,
+      rollMult: 1.0,
+      enginePitch: 1.0,
+      engineHarmonic: 0.24,
+      // Dimensions
+      wheelRadius: 0.42,
+      wheelWidth: 0.36,
+      wheelX: 1.08,
+      wheelZ: 1.38,
+      bodyLen: 4.55,
+      bodyW: 2.14,
+      hoodEyeY: 1.54,
+      isPolice: false,
+    },
+    muscle: {
+      id: "muscle",
+      name: "Viper Drift Muscle",
+      defaultColor: "#f97316",
+      stats: { speed: 79, accel: 88, grip: 70, drift: 96 },
+      topSpeed: 72,
+      nitroTopSpeed: 93,
+      drivePower: 1.14,
+      gripMult: 0.92,
+      rearGripBias: 0.78, // Tail-happy rear bias for effortless drifts
+      offroadGrip: 0.65,
+      wetGripPenalty: 1.12,
+      aeroDownforce: 0.000038,
+      suspStiffness: 46,
+      suspDamping: 8.6,
+      suspTravel: 0.25,
+      rollMult: 1.25,
+      enginePitch: 0.76,  // Deep classic V8 rumble
+      engineHarmonic: 0.36,
+      wheelRadius: 0.44,
+      wheelWidth: 0.4,
+      wheelX: 1.12,
+      wheelZ: 1.44,
+      bodyLen: 4.78,
+      bodyW: 2.2,
+      hoodEyeY: 1.58,
+      isPolice: false,
+    },
+    supercar: {
+      id: "supercar",
+      name: "Hyperion Supercar",
+      defaultColor: "#2563eb",
+      stats: { speed: 99, accel: 97, grip: 96, drift: 68 },
+      topSpeed: 90,        // ~324 km/h (390+ w/ nitro!)
+      nitroTopSpeed: 112,
+      drivePower: 1.28,
+      gripMult: 1.16,
+      rearGripBias: 1.04,
+      offroadGrip: 0.54,
+      wetGripPenalty: 1.05,
+      aeroDownforce: 0.000088, // Massive highway cornering glue
+      suspStiffness: 72,
+      suspDamping: 12.0,
+      suspTravel: 0.16,
+      rollMult: 0.65,
+      enginePitch: 1.38,  // High-revving V10 howl
+      engineHarmonic: 0.2,
+      wheelRadius: 0.4,
+      wheelWidth: 0.4,
+      wheelX: 1.16,
+      wheelZ: 1.42,
+      bodyLen: 4.68,
+      bodyW: 2.3,
+      hoodEyeY: 1.36,
+      isPolice: false,
+    },
+    suv: {
+      id: "suv",
+      name: "Trailblazer SUV",
+      defaultColor: "#10b981",
+      stats: { speed: 68, accel: 74, grip: 82, drift: 94 },
+      topSpeed: 64,
+      nitroTopSpeed: 82,
+      drivePower: 0.96,
+      gripMult: 0.98,
+      rearGripBias: 1.05,
+      offroadGrip: 0.98,  // Nearly full asphalt grip on grass!
+      wetGripPenalty: 0.62,
+      aeroDownforce: 0.000028,
+      suspStiffness: 36,
+      suspDamping: 7.4,
+      suspTravel: 0.34,   // Plush off-road suspension travel
+      rollMult: 1.45,
+      enginePitch: 0.84,
+      engineHarmonic: 0.28,
+      wheelRadius: 0.54,
+      wheelWidth: 0.42,
+      wheelX: 1.15,
+      wheelZ: 1.48,
+      bodyLen: 4.82,
+      bodyW: 2.24,
+      hoodEyeY: 2.02,
+      isPolice: false,
+    },
+    police: {
+      id: "police",
+      name: "Interceptor Police",
+      defaultColor: "#1e293b",
+      stats: { speed: 88, accel: 86, grip: 88, drift: 78 },
+      topSpeed: 80,
+      nitroTopSpeed: 102,
+      drivePower: 1.12,
+      gripMult: 1.08,
+      rearGripBias: 0.96,
+      offroadGrip: 0.76,
+      wetGripPenalty: 0.88,
+      aeroDownforce: 0.000058,
+      suspStiffness: 58,
+      suspDamping: 10.4,
+      suspTravel: 0.22,
+      rollMult: 0.92,
+      enginePitch: 0.94,
+      engineHarmonic: 0.28,
+      wheelRadius: 0.43,
+      wheelWidth: 0.36,
+      wheelX: 1.08,
+      wheelZ: 1.44,
+      bodyLen: 4.76,
+      bodyW: 2.12,
+      hoodEyeY: 1.62,
+      isPolice: true,
+    },
+  };
+
+  let activeCarId = "gt";
+  let activeSpec = VEHICLE_SPECS.gt;
+  let activePaintHex = "#e11d48";
+  let sirenActive = false;
+
   const carGroup = new THREE.Group();
   const carBodyGroup = new THREE.Group();
   carGroup.add(carBodyGroup);
   scene.add(carGroup);
 
+  // Shared PBR Materials for Player Vehicle (soft clearcoat prevents harsh specular pinhole dots)
   const bodyMat = new THREE.MeshPhysicalMaterial({
-    color: 0xe11d48,
-    metalness: 0.85,
-    roughness: 0.12,
+    color: activePaintHex,
+    metalness: 0.82,
+    roughness: 0.16,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.04,
+    clearcoatRoughness: 0.1,
     envMap: cubeRenderTarget.texture,
-    envMapIntensity: 1.75,
+    envMapIntensity: 1.7,
+  });
+
+  const secondaryWhiteMat = new THREE.MeshPhysicalMaterial({
+    color: 0xf8fafc,
+    metalness: 0.35,
+    roughness: 0.22,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.12,
+    envMap: cubeRenderTarget.texture,
+    envMapIntensity: 1.4,
   });
 
   const cabinMat = new THREE.MeshPhysicalMaterial({
     color: 0x0a1020,
-    metalness: 0.94,
-    roughness: 0.05,
+    metalness: 0.92,
+    roughness: 0.08,
     clearcoat: 1.0,
+    clearcoatRoughness: 0.08,
     envMap: cubeRenderTarget.texture,
-    envMapIntensity: 1.95,
+    envMapIntensity: 1.9,
   });
 
-  const trimMat = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.55, roughness: 0.38 });
-
-  // Lower chassis, sculpted hood, front aero splitter & rear diffuser
-  const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.14, 0.58, 4.55), bodyMat);
-  chassis.position.y = 0.62;
-  chassis.castShadow = true;
-  chassis.receiveShadow = true;
-  carBodyGroup.add(chassis);
-
-  const frontSplitter = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.1, 0.48), trimMat);
-  frontSplitter.position.set(0, 0.34, -2.26);
-  carBodyGroup.add(frontSplitter);
-
-  const rearDiffuser = new THREE.Mesh(new THREE.BoxGeometry(2.06, 0.18, 0.28), trimMat);
-  rearDiffuser.position.set(0, 0.38, 2.25);
-  carBodyGroup.add(rearDiffuser);
-
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.54, 2.15), cabinMat);
-  cabin.position.set(0, 1.13, 0.18);
-  cabin.castShadow = true;
-  carBodyGroup.add(cabin);
-
-  const spoilerWing = new THREE.Mesh(new THREE.BoxGeometry(2.12, 0.09, 0.44), trimMat);
-  spoilerWing.position.set(0, 1.24, 2.04);
-  spoilerWing.castShadow = true;
-  carBodyGroup.add(spoilerWing);
-
-  [-0.72, 0.72].forEach((sx) => {
-    const strut = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.34, 0.24), trimMat);
-    strut.position.set(sx, 1.04, 2.04);
-    carBodyGroup.add(strut);
-  });
-
-  // Headlights, Brake Lights, Volumetric Cones & Dynamic Point Lights
-  const headlightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfffbeb, emissiveIntensity: 2.5 });
-  const brakeLightMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff1e1e, emissiveIntensity: 0.6 });
-
-  const volumetricBeams = [];
-  const beamMat = new THREE.MeshBasicMaterial({
-    color: 0xfff6d6,
-    transparent: true,
-    opacity: 0.085,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-  });
-
-  [-0.74, 0.74].forEach((lx) => {
-    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.16, 0.08), headlightMat);
-    hl.position.set(lx, 0.68, -2.28);
-    carBodyGroup.add(hl);
-
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(2.4, 15, 16, 1, true), beamMat);
-    cone.rotation.x = Math.PI / 2;
-    cone.position.set(lx, 0.66, -9.8);
-    carBodyGroup.add(cone);
-    volumetricBeams.push(cone);
-
-    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.16, 0.08), brakeLightMat);
-    tl.position.set(lx, 0.7, 2.28);
-    carBodyGroup.add(tl);
-  });
-
-  const headSpot = new THREE.SpotLight(0xfff8e7, 3.0, 120, Math.PI / 4.6, 0.48, 1.15);
-  headSpot.position.set(0, 0.95, -2.0);
-  const headTarget = new THREE.Object3D();
-  headTarget.position.set(0, 0.0, -30);
-  carBodyGroup.add(headSpot);
-  carBodyGroup.add(headTarget);
-  headSpot.target = headTarget;
-
-  const rearGlowLight = new THREE.PointLight(0xff2222, 1.0, 14);
-  rearGlowLight.position.set(0, 0.7, 2.8);
-  carBodyGroup.add(rearGlowLight);
-
-  const flameMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.9 });
-  const flames = [-0.52, 0.52].map((fx) => {
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.17, 1.3, 8), flameMat);
-    cone.rotation.x = Math.PI / 2;
-    cone.position.set(fx, 0.42, 2.88);
-    cone.visible = false;
-    carBodyGroup.add(cone);
-    return cone;
-  });
-
-  // 4 Wheels mounted to carGroup so the sprung chassis pitches, rolls & heaves over them
-  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.36, 18);
-  wheelGeo.rotateZ(Math.PI / 2);
-  const tireMat = new THREE.MeshStandardMaterial({ color: 0x0f1218, roughness: 0.88 });
-  const rimMat = new THREE.MeshStandardMaterial({
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.55, roughness: 0.42 });
+  const chromeMat = new THREE.MeshStandardMaterial({
     color: 0xe2e8f0,
     metalness: 0.95,
-    roughness: 0.12,
+    roughness: 0.14,
     envMap: cubeRenderTarget.texture,
     envMapIntensity: 1.5,
   });
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x0f1218, roughness: 0.9 });
+  const headlightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfffbeb, emissiveIntensity: 2.5 });
+  const brakeLightMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff1e1e, emissiveIntensity: 0.6 });
+  const softBeamMat = createSoftBeamMaterial(0xfff5d6, 0.15);
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.9 });
 
-  const wheelMeshes = [];
-  const wheelPivots = [];
-  const frontWheelPivots = [];
-  const WHEEL_SPEC = [
-    { x: -1.08, y: 0.42, z: -1.38, front: true },
-    { x: 1.08, y: 0.42, z: -1.38, front: true },
-    { x: -1.08, y: 0.42, z: 1.38, front: false },
-    { x: 1.08, y: 0.42, z: 1.38, front: false },
-  ];
+  // Dynamic arrays rebuilt whenever the player swaps vehicles in the garage
+  let wheelMeshes = [];
+  let wheelPivots = [];
+  let frontWheelPivots = [];
+  let volumetricBeams = [];
+  let flames = [];
+  let headSpot = null;
+  let rearGlowLight = null;
+  let policeLightbar = null; // { redMat, blueMat, redLight, blueLight }
 
-  WHEEL_SPEC.forEach((wp) => {
-    const pivot = new THREE.Group();
-    pivot.position.set(wp.x, wp.y, wp.z);
+  function clearGroup(grp) {
+    while (grp.children.length > 0) {
+      grp.remove(grp.children[0]);
+    }
+  }
 
-    const tire = new THREE.Mesh(wheelGeo, tireMat);
-    tire.castShadow = true;
-    const hub = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.5, 0.14), rimMat);
-    tire.add(hub);
+  function rebuildPlayerCarModel(carId) {
+    activeCarId = carId;
+    activeSpec = VEHICLE_SPECS[carId];
 
-    pivot.add(tire);
-    carGroup.add(pivot);
+    // Clear previous body & wheel pivots (keep carBodyGroup inside carGroup)
+    clearGroup(carBodyGroup);
+    wheelPivots.forEach((p) => carGroup.remove(p));
+    wheelPivots = [];
+    wheelMeshes = [];
+    frontWheelPivots = [];
+    volumetricBeams = [];
+    flames = [];
+    policeLightbar = null;
 
-    wheelPivots.push(pivot);
-    wheelMeshes.push(tire);
-    if (wp.front) frontWheelPivots.push(pivot);
-  });
+    const sp = activeSpec;
+    const halfL = sp.bodyLen * 0.5;
+    const baseY = sp.wheelRadius;
 
-  // Persistent Tire Skidmarks Ring Buffer (height & slope aware!)
+    if (carId === "supercar") {
+      // HYPERION SUPERCAR — ultra-low wide wedge, side intakes & twin-strut aero wing
+      const lower = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.44, sp.bodyLen), bodyMat);
+      lower.position.y = baseY + 0.16;
+      lower.castShadow = true;
+      carBodyGroup.add(lower);
+
+      const nose = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW * 0.94, 0.24, 1.35), bodyMat);
+      nose.position.set(0, baseY + 0.28, -halfL + 0.72);
+      nose.rotation.x = 0.12;
+      carBodyGroup.add(nose);
+
+      const splitter = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.08, 0.08, 0.55), trimMat);
+      splitter.position.set(0, baseY - 0.06, -halfL + 0.15);
+      carBodyGroup.add(splitter);
+
+      const cockpit = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.44, 2.0), cabinMat);
+      cockpit.position.set(0, baseY + 0.56, 0.12);
+      cockpit.castShadow = true;
+      carBodyGroup.add(cockpit);
+
+      const engineCover = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.22, 1.45), trimMat);
+      engineCover.position.set(0, baseY + 0.48, 1.45);
+      carBodyGroup.add(engineCover);
+
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.08, 0.48), trimMat);
+      wing.position.set(0, baseY + 0.78, halfL - 0.26);
+      wing.castShadow = true;
+      carBodyGroup.add(wing);
+
+      [-0.65, 0.65].forEach((sx) => {
+        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.28), trimMat);
+        strut.position.set(sx, baseY + 0.56, halfL - 0.26);
+        carBodyGroup.add(strut);
+      });
+    } else if (carId === "muscle") {
+      // VIPER DRIFT MUSCLE — wide aggressive hood, supercharger blower & ducktail spoiler
+      const body = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.64, sp.bodyLen), bodyMat);
+      body.position.y = baseY + 0.24;
+      body.castShadow = true;
+      carBodyGroup.add(body);
+
+      // Chrome supercharger blower sticking out of the hood
+      const blower = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.34, 0.85), chromeMat);
+      blower.position.set(0, baseY + 0.66, -1.08);
+      carBodyGroup.add(blower);
+      const intake = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.16, 0.35), trimMat);
+      intake.position.set(0, baseY + 0.86, -1.22);
+      carBodyGroup.add(intake);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.54, 1.98), cabinMat);
+      cabin.position.set(0, baseY + 0.78, 0.36);
+      cabin.castShadow = true;
+      carBodyGroup.add(cabin);
+
+      const ducktail = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW - 0.06, 0.22, 0.32), trimMat);
+      ducktail.position.set(0, baseY + 0.64, halfL - 0.18);
+      ducktail.rotation.x = -0.35;
+      carBodyGroup.add(ducktail);
+
+      const chin = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.04, 0.14, 0.38), trimMat);
+      chin.position.set(0, baseY - 0.04, -halfL + 0.08);
+      carBodyGroup.add(chin);
+    } else if (carId === "suv") {
+      // TRAILBLAZER OFF-ROAD SUV — lifted chassis, tall greenhouse, bullbar, roof rack & spare wheel
+      const lower = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.78, sp.bodyLen), bodyMat);
+      lower.position.y = baseY + 0.36;
+      lower.castShadow = true;
+      carBodyGroup.add(lower);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.04, 0.76, 3.05), cabinMat);
+      cabin.position.set(0, baseY + 1.08, 0.35);
+      cabin.castShadow = true;
+      carBodyGroup.add(cabin);
+
+      const roofCap = new THREE.Mesh(new THREE.BoxGeometry(2.08, 0.14, 3.08), bodyMat);
+      roofCap.position.set(0, baseY + 1.48, 0.35);
+      carBodyGroup.add(roofCap);
+
+      // Roof rack rails + off-road LED bar
+      [-0.86, 0.86].forEach((rx) => {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 2.7), trimMat);
+        rail.position.set(rx, baseY + 1.62, 0.35);
+        carBodyGroup.add(rail);
+      });
+      const ledBar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 0.14), headlightMat);
+      ledBar.position.set(0, baseY + 1.62, -1.05);
+      carBodyGroup.add(ledBar);
+
+      // Front steel bullbar & rear-mounted spare tire
+      const bullbar = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.42, 0.24), trimMat);
+      bullbar.position.set(0, baseY + 0.32, -halfL - 0.14);
+      carBodyGroup.add(bullbar);
+
+      const spareGeo = new THREE.CylinderGeometry(0.46, 0.46, 0.28, 14);
+      spareGeo.rotateX(Math.PI / 2);
+      const spare = new THREE.Mesh(spareGeo, tireMat);
+      spare.position.set(0, baseY + 0.65, halfL + 0.15);
+      carBodyGroup.add(spare);
+    } else if (carId === "police") {
+      // INTERCEPTOR POLICE CRUISER — two-tone pursuit sedan, push bumper & flashing red/blue lightbar
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.62, sp.bodyLen), bodyMat);
+      chassis.position.y = baseY + 0.24;
+      chassis.castShadow = true;
+      carBodyGroup.add(chassis);
+
+      // Classic white pursuit doors & roof panel
+      const whiteDoors = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.04, 0.56, 2.15), secondaryWhiteMat);
+      whiteDoors.position.set(0, baseY + 0.24, 0.1);
+      carBodyGroup.add(whiteDoors);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.56, 2.2), cabinMat);
+      cabin.position.set(0, baseY + 0.78, 0.12);
+      cabin.castShadow = true;
+      carBodyGroup.add(cabin);
+
+      const roofWhite = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.1, 2.05), secondaryWhiteMat);
+      roofWhite.position.set(0, baseY + 1.07, 0.12);
+      carBodyGroup.add(roofWhite);
+
+      const pushBar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.46, 0.22), trimMat);
+      pushBar.position.set(0, baseY + 0.26, -halfL - 0.12);
+      carBodyGroup.add(pushBar);
+
+      // Flashing Red / Blue Roof Lightbar
+      const barBase = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.1, 0.34), trimMat);
+      barBase.position.set(0, baseY + 1.15, 0.05);
+      carBodyGroup.add(barBase);
+
+      const redMat = new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff1111, emissiveIntensity: 0.4 });
+      const blueMat = new THREE.MeshStandardMaterial({ color: 0x2266ff, emissive: 0x1155ff, emissiveIntensity: 0.4 });
+
+      const redPod = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.16, 0.32), redMat);
+      redPod.position.set(-0.38, baseY + 1.24, 0.05);
+      carBodyGroup.add(redPod);
+
+      const bluePod = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.16, 0.32), blueMat);
+      bluePod.position.set(0.38, baseY + 1.24, 0.05);
+      carBodyGroup.add(bluePod);
+
+      const redLight = new THREE.PointLight(0xff1e1e, 0, 22, 2);
+      redLight.position.set(-0.6, baseY + 1.7, 0.05);
+      carBodyGroup.add(redLight);
+
+      const blueLight = new THREE.PointLight(0x2563eb, 0, 22, 2);
+      blueLight.position.set(0.6, baseY + 1.7, 0.05);
+      carBodyGroup.add(blueLight);
+
+      policeLightbar = { redMat, blueMat, redLight, blueLight };
+    } else {
+      // APEX GT COUPE — balanced modern grand tourer
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.58, sp.bodyLen), bodyMat);
+      chassis.position.y = baseY + 0.2;
+      chassis.castShadow = true;
+      carBodyGroup.add(chassis);
+
+      const splitter = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.06, 0.1, 0.46), trimMat);
+      splitter.position.set(0, baseY - 0.08, -halfL + 0.02);
+      carBodyGroup.add(splitter);
+
+      const diffuser = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW - 0.08, 0.18, 0.28), trimMat);
+      diffuser.position.set(0, baseY - 0.04, halfL - 0.02);
+      carBodyGroup.add(diffuser);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.54, 2.15), cabinMat);
+      cabin.position.set(0, baseY + 0.71, 0.18);
+      cabin.castShadow = true;
+      carBodyGroup.add(cabin);
+
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(2.12, 0.09, 0.44), trimMat);
+      wing.position.set(0, baseY + 0.82, halfL - 0.22);
+      wing.castShadow = true;
+      carBodyGroup.add(wing);
+
+      [-0.72, 0.72].forEach((sx) => {
+        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.34, 0.24), trimMat);
+        strut.position.set(sx, baseY + 0.62, halfL - 0.22);
+        carBodyGroup.add(strut);
+      });
+    }
+
+    // Headlights, Taillights & FIXED Soft Downward-Angled Volumetric Beams (NO floating bubble circles!)
+    const lightY = carId === "suv" ? baseY + 0.48 : baseY + 0.26;
+    const beamGeo = new THREE.ConeGeometry(1.45, 11.5, 22, 1, true);
+    beamGeo.rotateX(Math.PI / 2);
+
+    [-sp.bodyW * 0.34, sp.bodyW * 0.34].forEach((lx) => {
+      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.15, 0.08), headlightMat);
+      hl.position.set(lx, lightY, -halfL - 0.02);
+      carBodyGroup.add(hl);
+
+      const cone = new THREE.Mesh(beamGeo, softBeamMat);
+      cone.position.set(lx, lightY - 0.24, -halfL - 5.75);
+      cone.rotation.x = -0.055; // Angled smoothly toward the road surface
+      carBodyGroup.add(cone);
+      volumetricBeams.push(cone);
+
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.16, 0.08), brakeLightMat);
+      tl.position.set(lx, lightY + 0.02, halfL + 0.02);
+      carBodyGroup.add(tl);
+    });
+
+    // Real Forward Headlight Spotlight
+    headSpot = new THREE.SpotLight(0xfff8e7, 3.0, 125, Math.PI / 4.5, 0.52, 1.15);
+    headSpot.position.set(0, lightY + 0.28, -halfL + 0.1);
+    const headTarget = new THREE.Object3D();
+    headTarget.position.set(0, 0.0, -34);
+    carBodyGroup.add(headSpot);
+    carBodyGroup.add(headTarget);
+    headSpot.target = headTarget;
+
+    // FIXED Rear Brake / Nitro Road Glow Light: mounted low behind diffuser so NO bright dot burns on the trunk/roof!
+    rearGlowLight = new THREE.PointLight(0xff2222, 0.7, 10, 2);
+    rearGlowLight.position.set(0, 0.24, halfL + 1.05);
+    carBodyGroup.add(rearGlowLight);
+
+    // Dual Nitro Exhaust Flames
+    [-0.52, 0.52].forEach((fx) => {
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.3, 8), flameMat);
+      cone.rotation.x = Math.PI / 2;
+      cone.position.set(fx, baseY - 0.02, halfL + 0.62);
+      cone.visible = false;
+      carBodyGroup.add(cone);
+      flames.push(cone);
+    });
+
+    // Build 4 Custom-Sized Wheels matching this Vehicle's Wheelbase & Radius
+    const wGeo = new THREE.CylinderGeometry(sp.wheelRadius, sp.wheelRadius, sp.wheelWidth, 18);
+    wGeo.rotateZ(Math.PI / 2);
+
+    [
+      { x: -sp.wheelX, y: sp.wheelRadius, z: -sp.wheelZ, front: true },
+      { x: sp.wheelX, y: sp.wheelRadius, z: -sp.wheelZ, front: true },
+      { x: -sp.wheelX, y: sp.wheelRadius, z: sp.wheelZ, front: false },
+      { x: sp.wheelX, y: sp.wheelRadius, z: sp.wheelZ, front: false },
+    ].forEach((wp) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(wp.x, wp.y, wp.z);
+
+      const tire = new THREE.Mesh(wGeo, tireMat);
+      tire.castShadow = true;
+      const hub = new THREE.Mesh(
+        new THREE.BoxGeometry(sp.wheelWidth + 0.02, sp.wheelRadius * 1.18, sp.wheelRadius * 0.34),
+        chromeMat
+      );
+      tire.add(hub);
+
+      pivot.add(tire);
+      carGroup.add(pivot);
+
+      wheelPivots.push(pivot);
+      wheelMeshes.push(tire);
+      if (wp.front) frontWheelPivots.push(pivot);
+    });
+
+    // Update HUD Car Name & Police Siren Button visibility
+    const carLabel = document.getElementById("active-car-label");
+    if (carLabel) carLabel.textContent = sp.name.toUpperCase();
+
+    const sirenBtn = document.getElementById("btn-siren");
+    if (sirenBtn) {
+      sirenBtn.classList.toggle("hidden", !sp.isPolice);
+      if (!sp.isPolice && sirenActive) {
+        sirenActive = false;
+        sirenBtn.classList.remove("siren-on");
+        const sLbl = document.getElementById("siren-label");
+        if (sLbl) sLbl.textContent = "OFF";
+      }
+    }
+  }
+
+  // Persistent Tire Skidmarks Ring Buffer
   const MAX_SKIDS = 260;
   const skidGroup = new THREE.Group();
   scene.add(skidGroup);
-  const skidGeo = new THREE.PlaneGeometry(0.34, 1.1);
+  const skidGeo = new THREE.PlaneGeometry(0.36, 1.1);
   skidGeo.rotateX(-Math.PI / 2);
   const skidPool = [];
   for (let i = 0; i < MAX_SKIDS; i++) {
@@ -304,7 +659,6 @@
       p.vz = (Math.random() - 0.5) * 2.2;
       p.gravity = 5.2;
     } else {
-      // Dry tire smoke
       p.mesh.material.color.setHex(0xe2e8f0);
       p.mesh.material.opacity = 0.44;
       p.mesh.scale.setScalar(0.6);
@@ -318,7 +672,7 @@
   }
 
   // =========================================================================
-  // 3. PROCEDURAL WEB AUDIO ENGINE (WITH TUNNEL RESONANCE & WET TIRE HISS)
+  // 3. PROCEDURAL WEB AUDIO ENGINE (PER-CAR TONE, TUNNEL ECHO & POLICE SIREN)
   // =========================================================================
   const soundBtn = document.getElementById("btn-sound");
   const soundLabel = document.getElementById("sound-label");
@@ -331,6 +685,7 @@
     oscSub: null,
     oscMain: null,
     oscHarm: null,
+    harmGain: null,
     engineFilter: null,
     engineGain: null,
     tunnelDelay: null,
@@ -347,6 +702,8 @@
     hornOsc1: null,
     hornOsc2: null,
     hornGain: null,
+    sirenOsc: null,
+    sirenGain: null,
     noiseBuffer: null,
 
     init() {
@@ -367,7 +724,6 @@
       for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
       this.noiseBuffer = buf;
 
-      // V8 Engine with soft-clipping & tunnel echo send
       const shaper = ctx.createWaveShaper();
       const curve = new Float32Array(256);
       for (let i = 0; i < 256; i++) {
@@ -384,7 +740,7 @@
       this.engineGain = ctx.createGain();
       this.engineGain.gain.value = 0.0;
 
-      // Subtle Slapback Echo activated inside the Alpine Ridge Tunnel
+      // Tunnel Slapback Echo
       this.tunnelDelay = ctx.createDelay(0.4);
       this.tunnelDelay.delayTime.value = 0.085;
       this.tunnelFeedback = ctx.createGain();
@@ -409,13 +765,13 @@
       this.oscHarm.type = "square";
       this.oscHarm.frequency.value = 126;
 
-      const harmGain = ctx.createGain();
-      harmGain.gain.value = 0.25;
+      this.harmGain = ctx.createGain();
+      this.harmGain.gain.value = 0.25;
 
       this.oscSub.connect(shaper);
       this.oscMain.connect(shaper);
-      this.oscHarm.connect(harmGain);
-      harmGain.connect(shaper);
+      this.oscHarm.connect(this.harmGain);
+      this.harmGain.connect(shaper);
 
       shaper.connect(this.engineFilter);
       this.engineFilter.connect(this.engineGain);
@@ -479,6 +835,22 @@
       this.hornGain.connect(this.tunnelDelay);
       this.hornOsc1.start();
       this.hornOsc2.start();
+
+      // Police Cruiser Wailing Siren Channel
+      this.sirenOsc = ctx.createOscillator();
+      this.sirenOsc.type = "sawtooth";
+      this.sirenOsc.frequency.value = 720;
+      const sirenFilter = ctx.createBiquadFilter();
+      sirenFilter.type = "bandpass";
+      sirenFilter.frequency.value = 1150;
+      sirenFilter.Q.value = 1.6;
+      this.sirenGain = ctx.createGain();
+      this.sirenGain.gain.value = 0;
+      this.sirenOsc.connect(sirenFilter);
+      sirenFilter.connect(this.sirenGain);
+      this.sirenGain.connect(this.masterGain);
+      this.sirenGain.connect(this.tunnelDelay);
+      this.sirenOsc.start();
     },
 
     unlockAuto() {
@@ -503,27 +875,29 @@
         const now = this.ctx.currentTime;
         [
           this.engineGain, this.tunnelWetGain, this.screechGain, this.windGain,
-          this.rainGain, this.wetTireGain, this.nitroNoiseGain, this.turboGain, this.hornGain,
+          this.rainGain, this.wetTireGain, this.nitroNoiseGain, this.turboGain,
+          this.hornGain, this.sirenGain,
         ].forEach((g) => g.gain.setTargetAtTime(0, now, 0.04));
       }
     },
 
-    update(rpm, absSpeed, slipAmt, throttle, drifting, usingNitro, hornPressed, rainAudio, wetUnderCar, inTunnel) {
+    update(rpm, absSpeed, slipAmt, throttle, drifting, usingNitro, hornPressed, rainAudio, wetUnderCar, inTunnel, elapsed) {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
 
+      // Engine sound adapts dynamically to the selected garage vehicle!
       const normRpm = THREE.MathUtils.clamp((rpm - 800) / 7200, 0, 1);
-      const baseFreq = 34 + normRpm * 92 + (usingNitro ? 14 : 0);
+      const baseFreq = (34 + normRpm * 92 + (usingNitro ? 14 : 0)) * activeSpec.enginePitch;
 
       this.oscSub.frequency.setTargetAtTime(baseFreq, now, 0.035);
       this.oscMain.frequency.setTargetAtTime(baseFreq * 2.0, now, 0.035);
       this.oscHarm.frequency.setTargetAtTime(baseFreq * 3.01, now, 0.035);
+      this.harmGain.gain.setTargetAtTime(activeSpec.engineHarmonic, now, 0.06);
 
-      const cutoff = 220 + normRpm * 1350 + (throttle > 0 ? 350 : 0) + (usingNitro ? 500 : 0);
+      const cutoff = 220 + normRpm * 1350 * activeSpec.enginePitch + (throttle > 0 ? 350 : 0) + (usingNitro ? 500 : 0);
       this.engineFilter.frequency.setTargetAtTime(cutoff, now, 0.05);
       this.engineGain.gain.setTargetAtTime(0.09 + normRpm * 0.11 + (throttle > 0 ? 0.045 : 0), now, 0.05);
 
-      // Tunnel echo amplifies engine & horn reverberation inside the mountain bore
       this.tunnelWetGain.gain.setTargetAtTime(inTunnel ? 0.42 : 0.0, now, 0.15);
 
       const screechLevel = drifting ? Math.min(0.19, slipAmt * 0.14) * (1 - wetUnderCar * 0.55) : 0;
@@ -534,13 +908,21 @@
       this.wetTireGain.gain.setTargetAtTime(wetHiss, now, 0.06);
 
       this.windGain.gain.setTargetAtTime(absSpeed > 22 ? Math.min(0.15, (absSpeed - 22) * 0.0024) : 0, now, 0.08);
-      // Rain patter muffles cleanly inside the Alpine Ridge Tunnel
       this.rainGain.gain.setTargetAtTime(inTunnel ? rainAudio * 0.12 : rainAudio, now, 0.25);
 
       this.nitroNoiseGain.gain.setTargetAtTime(usingNitro ? 0.19 : 0, now, 0.06);
       this.turboOsc.frequency.setTargetAtTime(2200 + normRpm * 2400, now, 0.06);
       this.turboGain.gain.setTargetAtTime(usingNitro ? 0.045 : normRpm > 0.65 ? 0.012 : 0, now, 0.07);
       this.hornGain.gain.setTargetAtTime(hornPressed ? 0.13 : 0, now, 0.018);
+
+      // Police Cruiser Wail Siren
+      if (sirenActive && activeSpec.isPolice) {
+        const wail = 660 + 480 * (0.5 + 0.5 * Math.sin(elapsed * 4.4));
+        this.sirenOsc.frequency.setTargetAtTime(wail, now, 0.03);
+        this.sirenGain.gain.setTargetAtTime(0.11, now, 0.04);
+      } else {
+        this.sirenGain.gain.setTargetAtTime(0, now, 0.04);
+      }
     },
 
     playGearShiftPop() {
@@ -636,22 +1018,23 @@
   };
 
   // =========================================================================
-  // 4. GLOBAL STATE, DYNAMIC RAIN-TO-DRY MOISTURE & ENVIRONMENT CONTROLS
+  // 4. GLOBAL STATE, GARAGE CONTROLLER, AUTO MOISTURE & INPUT HANDLERS
   // =========================================================================
   let rtEnabled = true;
   let trafficEnabled = true;
-  let weatherIndex = 0; // CLEAR (roads start dry; switch to RAIN/STORM to wet them, CLEAR to watch them evaporate!)
+  let weatherIndex = 0; // CLEAR
   let timeIndex = 0;    // SUNSET
   let cameraModeIdx = 0;
   let warpIndex = 0;
+  let garageOpen = false;
 
-  // Automatic Road Moisture State (0.0 = Dry -> 1.0 = Rain-Wet with puddles -> gradually evaporates back to 0.0)
   let roadMoisture = 0.0;
-  let moistureTrend = "DRY"; // "DRY" | "WETTING" | "DRYING" | "SOAKED"
+  let moistureTrend = "DRY";
 
   const flashOverlay = document.getElementById("flash-overlay");
   const tunnelOverlay = document.getElementById("tunnel-overlay");
   const eventBanner = document.getElementById("event-banner");
+  const garageModal = document.getElementById("garage-modal");
   let bannerTimer = 0;
 
   function showBanner(text) {
@@ -665,11 +1048,9 @@
     const t = TIME_PRESETS[timeIndex];
 
     if (w.wetRate > 0 && roadMoisture < w.targetMoisture) {
-      // Active rain or storm wets asphalt progressively
       roadMoisture = Math.min(w.targetMoisture, roadMoisture + w.wetRate * dt);
       moistureTrend = roadMoisture >= w.targetMoisture - 0.01 ? "WET" : "WETTING";
     } else if (roadMoisture > w.targetMoisture) {
-      // Clear or fog weather evaporates road moisture based on sun warmth (faster at DAY, slower at NIGHT)
       roadMoisture = Math.max(w.targetMoisture, roadMoisture - t.dryRate * dt);
       moistureTrend = roadMoisture <= 0.01 ? "DRY" : "DRYING";
     } else {
@@ -738,24 +1119,28 @@
     world.setWaterUniform("uRTEnabled", rtEnabled ? 1.0 : 0.0);
 
     bodyMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
-    bodyMat.envMapIntensity = rtEnabled ? 1.75 : 0.0;
+    bodyMat.envMapIntensity = rtEnabled ? 1.7 : 0.0;
     bodyMat.clearcoat = rtEnabled ? 1.0 : 0.0;
-    bodyMat.roughness = rtEnabled ? 0.12 : 0.56;
+    bodyMat.roughness = rtEnabled ? 0.16 : 0.56;
     bodyMat.needsUpdate = true;
 
+    secondaryWhiteMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
+    secondaryWhiteMat.envMapIntensity = rtEnabled ? 1.4 : 0.0;
+    secondaryWhiteMat.needsUpdate = true;
+
     cabinMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
-    cabinMat.envMapIntensity = rtEnabled ? 1.95 : 0.0;
-    cabinMat.roughness = rtEnabled ? 0.05 : 0.45;
+    cabinMat.envMapIntensity = rtEnabled ? 1.9 : 0.0;
+    cabinMat.roughness = rtEnabled ? 0.08 : 0.45;
     cabinMat.needsUpdate = true;
 
-    rimMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
-    rimMat.envMapIntensity = rtEnabled ? 1.5 : 0.0;
-    rimMat.needsUpdate = true;
+    chromeMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
+    chromeMat.envMapIntensity = rtEnabled ? 1.5 : 0.0;
+    chromeMat.needsUpdate = true;
 
     sunLight.castShadow = rtEnabled;
     world.roadShadowGroup.visible = rtEnabled;
     volumetricBeams.forEach((b) => (b.visible = rtEnabled && headlightsOn));
-    headSpot.intensity = rtEnabled && headlightsOn ? 3.2 : headlightsOn ? 1.2 : 0;
+    if (headSpot) headSpot.intensity = rtEnabled && headlightsOn ? 3.2 : headlightsOn ? 1.2 : 0;
 
     document.getElementById("time-label").textContent = t.name;
     document.getElementById("weather-label").textContent = w.name;
@@ -766,6 +1151,60 @@
 
     document.getElementById("traffic-label").textContent = trafficEnabled ? "ON" : "OFF";
     document.getElementById("btn-traffic").classList.toggle("active", trafficEnabled);
+  }
+
+  // Garage Selection & Live Paint Preview
+  function selectGarageCar(carId, autoApplyPaint = true) {
+    const sp = VEHICLE_SPECS[carId];
+    if (!sp) return;
+
+    document.querySelectorAll(".car-option").forEach((el) => {
+      el.classList.toggle("selected", el.dataset.car === carId);
+    });
+
+    document.getElementById("spec-car-name").textContent = sp.name;
+    document.getElementById("spec-speed").style.width = `${sp.stats.speed}%`;
+    document.getElementById("spec-accel").style.width = `${sp.stats.accel}%`;
+    document.getElementById("spec-grip").style.width = `${sp.stats.grip}%`;
+    document.getElementById("spec-drift").style.width = `${sp.stats.drift}%`;
+
+    if (autoApplyPaint) {
+      selectPaintColor(sp.defaultColor);
+    }
+
+    rebuildPlayerCarModel(carId);
+    applyEnvironment();
+  }
+
+  function selectPaintColor(hex) {
+    activePaintHex = hex;
+    bodyMat.color.set(hex);
+
+    document.querySelectorAll(".swatch").forEach((sw) => {
+      const match = sw.dataset.color.toLowerCase() === hex.toLowerCase();
+      sw.classList.toggle("selected", match);
+      if (match) {
+        document.getElementById("paint-name").textContent = sw.dataset.name;
+      }
+    });
+  }
+
+  function toggleGarage(forceState = null) {
+    garageOpen = forceState !== null ? forceState : !garageOpen;
+    garageModal.classList.toggle("hidden", !garageOpen);
+    if (!garageOpen) {
+      showBanner(`VEHICLE: ${activeSpec.name.toUpperCase()}`);
+    }
+  }
+
+  function toggleSiren() {
+    if (!activeSpec.isPolice) return;
+    sirenActive = !sirenActive;
+    const btn = document.getElementById("btn-siren");
+    const lbl = document.getElementById("siren-label");
+    if (btn) btn.classList.toggle("siren-on", sirenActive);
+    if (lbl) lbl.textContent = sirenActive ? "ON" : "OFF";
+    showBanner(sirenActive ? "PURSUIT SIREN: ON" : "PURSUIT SIREN: OFF");
   }
 
   function toggleRayTracing() {
@@ -803,6 +1242,25 @@
     document.getElementById("cam-label").textContent = CAMERA_MODES[cameraModeIdx];
   }
 
+  // Wire Garage Modal Click Events
+  document.querySelectorAll(".car-option").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      selectGarageCar(btn.dataset.car, true);
+    });
+  });
+
+  document.querySelectorAll(".swatch").forEach((sw) => {
+    sw.addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      selectPaintColor(sw.dataset.color);
+    });
+  });
+
+  document.getElementById("garage-backdrop").addEventListener("click", () => toggleGarage(false));
+  document.getElementById("btn-garage-close").addEventListener("click", () => toggleGarage(false));
+  document.getElementById("btn-garage-drive").addEventListener("click", () => toggleGarage(false));
+
   // Keyboard & Pointer Input Listeners
   const keys = {};
   window.addEventListener("keydown", (e) => {
@@ -814,6 +1272,17 @@
     if (code !== "KeyM") audio.unlockAuto();
     if (e.repeat) return;
 
+    if (code === "KeyG") {
+      toggleGarage();
+      return;
+    }
+    if (code === "Escape" && garageOpen) {
+      toggleGarage(false);
+      return;
+    }
+    if (garageOpen) return;
+
+    if (code === "KeyL") toggleSiren();
     if (code === "KeyT") toggleRayTracing();
     if (code === "KeyP") toggleTraffic();
     if (code === "KeyV") cycleWeather();
@@ -834,12 +1303,18 @@
     }
   });
 
+  // Build Initial Default Vehicle (Apex GT Coupe)
+  rebuildPlayerCarModel("gt");
+
   // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
   // =========================================================================
-  // 5. UPGRADED VEHICLE PHYSICS (PACEJKA SLIP, ABS, TCS, SLOPE & SUSPENSION)
+  // 5. PER-CAR VEHICLE PHYSICS (PACEJKA SLIP, ABS, TCS, SLOPE & SUSPENSION)
   // =========================================================================
   const GEAR_RATIOS = [3.52, 2.34, 1.66, 1.24, 0.95, 0.74];
-  const GEAR_SPEED_THRESH = [50, 96, 146, 200, 258, 340];
+  const BASE_GEAR_THRESH = [50, 96, 146, 200, 258, 340];
+
+  const camPosCurrent = new THREE.Vector3(0, 5.5, 56);
+  const camLookCurrent = new THREE.Vector3(0, 1.4, 38);
 
   const car = {
     x: WARP_POINTS[0].x,
@@ -919,7 +1394,6 @@
   }
 
   function resetCar() {
-    // Snap cleanly to the nearest fast-travel highway/city point
     let bestIdx = 0;
     let bestDist = Infinity;
     for (let i = 0; i < WARP_POINTS.length; i++) {
@@ -935,11 +1409,12 @@
   }
 
   // Exact Multi-Sphere vs Height-Aware AABB / OBB / Circle Collision Solver
-  // Uses dual front/rear bumper spheres + 2 relaxation passes to eliminate corner snagging!
+  // Adapts dynamically to the active vehicle's width and length
   function resolveCollisions() {
     const nearby = world.getNearbyColliders(car.x, car.z);
-    const sphereOffsets = [-1.18, 1.18];
-    const sphereRad = 1.12;
+    const sphereRad = activeSpec.bodyW * 0.5;
+    const bumperOff = Math.max(0.95, activeSpec.bodyLen * 0.5 - sphereRad);
+    const sphereOffsets = [-bumperOff, bumperOff];
     let maxImpact = 0;
 
     for (let pass = 0; pass < 2; pass++) {
@@ -953,8 +1428,7 @@
 
         for (let i = 0; i < nearby.length; i++) {
           const c = nearby[i];
-          // Height filter: boats/cars below bridges never hit bridge guardrails overhead!
-          if (car.y + 1.8 < c.minY || car.y > c.maxY) continue;
+          if (car.y + 1.9 < c.minY || car.y > c.maxY) continue;
 
           let hit = false;
           let nx = 0;
@@ -976,7 +1450,6 @@
                 nz = dz / d;
                 overlap = sphereRad - d;
               } else {
-                // Inside AABB fallback: push out via nearest face
                 const dl = sx - c.minX;
                 const dr = c.maxX - sx;
                 const dt = sz - c.minZ;
@@ -989,7 +1462,6 @@
               }
             }
           } else if (c.type === "obb") {
-            // Transform sphere center into OBB local frame
             const dx = sx - c.cx;
             const dz = sz - c.cz;
             const lx = dx * c.cosA - dz * c.sinA;
@@ -1021,7 +1493,6 @@
                   overlap = penZ + sphereRad;
                 }
               }
-              // Rotate normal back into world space
               nx = nlx * c.cosA + nlz * c.sinA;
               nz = -nlx * c.sinA + nlz * c.cosA;
             }
@@ -1048,11 +1519,9 @@
             const vn = car.vx * nx + car.vz * nz;
             if (vn < 0) {
               maxImpact = Math.max(maxImpact, -vn);
-              // Smooth rail/wall scraping without violent sticky bounce
               const bounce = Math.abs(vn) > 12 ? 1.24 : 1.06;
               car.vx -= bounce * vn * nx;
               car.vz -= bounce * vn * nz;
-              // Tangent friction proportional to impact normal force
               const scrapeDamp = Math.max(0.76, 1.0 - Math.min(0.24, -vn * 0.012));
               car.vx *= scrapeDamp;
               car.vz *= scrapeDamp;
@@ -1064,11 +1533,11 @@
     }
 
     // Collisions with AI Traffic & Boats
-    const carRadius = 1.95;
+    const carRadius = activeSpec.bodyW * 0.92;
     if (trafficEnabled) {
       for (let i = 0; i < world.trafficCars.length; i++) {
         const ai = world.trafficCars[i];
-        if (Math.abs(car.y - ai.y) > 2.4) continue;
+        if (Math.abs(car.y - ai.y) > 2.6) continue;
         const dx = car.x - ai.x;
         const dz = car.z - ai.z;
         const minDist = carRadius + ai.radius;
@@ -1151,14 +1620,19 @@
     impactCooldown = Math.max(0, impactCooldown - dt);
     splashCooldown = Math.max(0, splashCooldown - dt);
     const weather = WEATHER_PRESETS[weatherIndex];
+    const sp = activeSpec;
 
-    const throttle = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
-    const steerInput = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
-    const handbrake = Boolean(keys.Space);
-    const wantsNitro = Boolean(keys.ShiftLeft || keys.ShiftRight);
-    const hornPressed = Boolean(keys.KeyH);
+    // Pause driving controls while the Garage modal is open so the car coasts safely
+    const throttle = garageOpen
+      ? 0
+      : (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+    const steerInput = garageOpen
+      ? 0
+      : (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
+    const handbrake = !garageOpen && Boolean(keys.Space);
+    const wantsNitro = !garageOpen && Boolean(keys.ShiftLeft || keys.ShiftRight);
+    const hornPressed = !garageOpen && Boolean(keys.KeyH);
 
-    // Local forward & right unit vectors
     const fx = -Math.sin(car.heading);
     const fz = -Math.cos(car.heading);
     const rx = Math.cos(car.heading);
@@ -1168,13 +1642,12 @@
     let vLat = car.vx * rx + car.vz * rz;
     const absSpeed = Math.hypot(vLong, vLat);
 
-    // Sample road/bridge/tunnel/water surface beneath car
     const surfNow = world.sampleSurface(car.x, car.z, car.y, car.heading);
     car.inTunnel = surfNow.inTunnel;
     tunnelOverlay.classList.toggle("inside", car.inTunnel);
 
-    // Compute realistic dynamic grip from automatic roadMoisture + localized puddle depth
-    let surfaceGrip = 1.12;
+    // Dynamic Surface Grip tuned by the Active Vehicle's Wet & Off-Road Capabilities
+    let surfaceGrip = 1.12 * sp.gripMult;
     let rollingDrag = 0.24;
     car.wetUnderCar = 0;
 
@@ -1185,8 +1658,7 @@
       car.surfaceLabel = "WATER";
       car.surfaceClass = "water";
     } else if (surfNow.inTunnel) {
-      // Sheltered dry concrete inside Alpine Ridge Tunnel
-      surfaceGrip = 1.14;
+      surfaceGrip = 1.14 * sp.gripMult;
       rollingDrag = 0.22;
       car.wetUnderCar = 0.0;
       car.surfaceLabel = "DRY TUNNEL";
@@ -1196,8 +1668,8 @@
       const effWet = Math.max(roadMoisture * 0.62, puddleVal);
       car.wetUnderCar = effWet;
 
-      // Subtle, realistic traction loss: Dry 1.12 -> Damp 0.96 -> Standing Puddle 0.74
-      surfaceGrip = 1.12 - roadMoisture * 0.16 - puddleVal * 0.22;
+      const wetLoss = (roadMoisture * 0.16 + puddleVal * 0.22) * sp.wetGripPenalty;
+      surfaceGrip = (1.12 - wetLoss) * sp.gripMult;
       rollingDrag = 0.23 + effWet * 0.14;
 
       if (surfNow.surfaceType === "BRIDGE") {
@@ -1216,14 +1688,13 @@
     } else {
       const grassWet = roadMoisture * 0.45;
       car.wetUnderCar = grassWet;
-      surfaceGrip = 0.68 - grassWet * 0.12;
-      rollingDrag = 0.82;
+      surfaceGrip = Math.max(0.42, sp.offroadGrip - grassWet * 0.1 * sp.wetGripPenalty);
+      rollingDrag = sp.id === "suv" ? 0.48 : 0.84;
       car.surfaceLabel = "OFF-ROAD GRASS";
       car.surfaceClass = "offroad";
     }
     car.currentGrip = surfaceGrip;
 
-    // Nitro boost
     const usingNitro = wantsNitro && car.nitro > 1 && throttle > 0;
     if (usingNitro) car.nitro = Math.max(0, car.nitro - 25 * dt);
     else car.nitro = Math.min(100, car.nitro + 10.5 * dt);
@@ -1233,16 +1704,15 @@
       if (usingNitro) f.scale.y = 0.8 + Math.random() * 0.7;
     });
 
-    // Progressive speed-sensitive steering + gentle self-aligning countersteer assist
-    const maxSteer = THREE.MathUtils.lerp(0.58, 0.21, Math.min(1, absSpeed / 70));
+    // Progressive Speed-Sensitive Steering
+    const maxSteer = THREE.MathUtils.lerp(0.58, 0.2, Math.min(1, absSpeed / 75));
     const steerRate = steerInput !== 0 ? 7.8 : 11.5;
     car.steerAngle = THREE.MathUtils.lerp(car.steerAngle, steerInput * maxSteer, 1 - Math.exp(-steerRate * dt));
 
-    // Aerodynamic Downforce increases tire grip smoothly at highway speeds!
-    const aeroDownforce = Math.min(0.28, (absSpeed * absSpeed) * 0.000052);
+    // Per-Vehicle Aero Downforce + Longitudinal Weight Transfer
+    const aeroDownforce = Math.min(0.38, absSpeed * absSpeed * sp.aeroDownforce);
     const effectiveGrip = surfaceGrip + aeroDownforce;
 
-    // Dynamic Longitudinal Weight Transfer (front loads on braking, rear loads on launch)
     const weightShift = THREE.MathUtils.clamp(car.accelLong * 0.013, -0.24, 0.24);
     const frontLoad = 0.5 - weightShift;
     const rearLoad = 0.5 + weightShift;
@@ -1257,18 +1727,17 @@
 
       let driveAccel = 0;
       if (throttle > 0) {
-        const rawDrive = (17.5 + activeRatio * 8.4) * torqueCurve * (usingNitro ? 1.56 : 1.0);
-        const tractionCap = 44 * effectiveGrip * (0.68 + rearLoad * 0.64) * (usingNitro ? 1.45 : 1.0);
-        if (rawDrive > tractionCap && !handbrake && absSpeed > 4) {
-          // Traction Control (TCS) gently feathers excessive wheelspin on wet/grass surfaces
+        const rawDrive = (17.5 + activeRatio * 8.4) * sp.drivePower * torqueCurve * (usingNitro ? 1.56 : 1.0);
+        const tractionCap =
+          44 * effectiveGrip * sp.rearGripBias * (0.68 + rearLoad * 0.64) * (usingNitro ? 1.45 : 1.0);
+        if (rawDrive > tractionCap && !handbrake && absSpeed > 4 && sp.id !== "muscle") {
           car.tcsActive = true;
           driveAccel = tractionCap * 0.96;
         } else {
-          driveAccel = rawDrive;
+          driveAccel = Math.min(rawDrive, tractionCap * 1.15);
         }
       } else if (throttle < 0) {
         if (vLong > 1.5) {
-          // Anti-lock Braking System (ABS) pulses smoothly near peak tire grip on wet asphalt
           const brakeDemand = 52;
           const brakeCap = 46 * effectiveGrip * (0.72 + frontLoad * 0.56);
           if (brakeDemand > brakeCap && absSpeed > 10) {
@@ -1289,17 +1758,17 @@
         driveAccel -= Math.sign(vLong) * 15 * surfaceGrip;
       }
 
-      // True Slope Gravity along bridge arches & highway viaduct ramps!
       const slopeGravity = -28 * Math.sin(surfNow.slopePitch);
-      const aeroDrag = -vLong * Math.abs(vLong) * (usingNitro ? 0.0042 : 0.0064);
+      const aeroDragCoeff = (usingNitro ? 0.004 : 0.0062) * (74 / sp.topSpeed);
+      const aeroDrag = -vLong * Math.abs(vLong) * aeroDragCoeff;
       const rollForce = -vLong * rollingDrag;
 
       vLong += (driveAccel + slopeGravity + aeroDrag + rollForce) * dt;
-      const topCap = car.inWater ? 24 : usingNitro ? 96 : 74;
+      const topCap = car.inWater ? 24 : usingNitro ? sp.nitroTopSpeed : sp.topSpeed;
       vLong = THREE.MathUtils.clamp(vLong, -24, topCap);
 
-      // Bicycle Slip-Angle Dynamics with Pacejka Magic Formula + Smooth Drift Stability
-      const halfL = 1.38;
+      // Bicycle Slip-Angle Dynamics with Per-Car Rear Grip Bias
+      const halfL = sp.wheelZ;
       const speedClamped = Math.max(Math.abs(vLong), 2.6);
       const dirSign = vLong >= -0.3 ? 1 : -1;
 
@@ -1307,7 +1776,6 @@
         const vLatF = vLat + car.yawRate * halfL;
         const vLatR = vLat - car.yawRate * halfL;
 
-        // Subtle countersteer self-alignment when sliding so drifts feel planted and controllable
         const slipRatio = Math.atan2(vLat, speedClamped);
         const autoAlign = steerInput === 0 ? -slipRatio * 0.22 : 0;
         const effSteer = car.steerAngle * dirSign + autoAlign;
@@ -1316,7 +1784,7 @@
         const alphaR = Math.atan2(vLatR, speedClamped);
 
         const frontGrip = effectiveGrip * (0.85 + frontLoad * 0.45);
-        const rearGrip = effectiveGrip * (0.85 + rearLoad * 0.45) * (handbrake ? 0.26 : 1.0);
+        const rearGrip = effectiveGrip * sp.rearGripBias * (0.85 + rearLoad * 0.45) * (handbrake ? 0.25 : 1.0);
         const wetOversteer = throttle > 0 && car.wetUnderCar > 0.38 && absSpeed > 15 ? 0.84 : 1.0;
 
         const FyF = pacejkaLateral(alphaF, frontGrip, 4.4, 1.42, 27.5);
@@ -1330,12 +1798,11 @@
         car.yawRate += yawAccel * dt * lowBlend;
 
         if (absSpeed < 5.5) {
-          const kinYaw = (vLong / 2.76) * Math.tan(car.steerAngle);
+          const kinYaw = (vLong / (halfL * 2)) * Math.tan(car.steerAngle);
           car.yawRate = THREE.MathUtils.lerp(car.yawRate, kinYaw, 11 * dt);
           vLat *= Math.exp(-11 * dt);
         } else {
-          // Yaw damping prevents infinite spin-outs while allowing sustained power slides
-          car.yawRate *= Math.exp(-(handbrake ? 2.4 : 3.8) * dt);
+          car.yawRate *= Math.exp(-(handbrake ? 2.3 : 3.8) * dt);
         }
 
         car.slipAmount = Math.abs(alphaR);
@@ -1354,13 +1821,11 @@
       car.slipAmount = 0;
     }
 
-    // Track real accelerations for weight transfer & suspension lean
     car.accelLong = THREE.MathUtils.lerp(car.accelLong, (vLong - car.prevForwardSpeed) / Math.max(dt, 0.008), 8 * dt);
     car.accelLat = THREE.MathUtils.lerp(car.accelLat, (vLat - car.prevLateralSpeed) / Math.max(dt, 0.008) + vLong * car.yawRate, 8 * dt);
     car.prevForwardSpeed = vLong;
     car.prevLateralSpeed = vLat;
 
-    // Integrate world velocity
     const nfx = -Math.sin(car.heading);
     const nfz = -Math.cos(car.heading);
     const nrx = Math.cos(car.heading);
@@ -1376,7 +1841,6 @@
     car.x += car.vx * dt;
     car.z += car.vz * dt;
 
-    // Sample updated elevation (bridges, viaduct ramps, stunt ramps, ocean)
     const surf = world.sampleSurface(car.x, car.z, car.y, car.heading);
     if (surf.hitWall) {
       if (Math.abs(vLong) > 6 && impactCooldown <= 0) {
@@ -1389,7 +1853,6 @@
       car.vz *= -0.35;
     }
 
-    // Vertical gravity & smooth deck tracking on sloped bridges/viaducts
     const gravity = 28;
     car.vy -= gravity * dt;
     car.y += car.vy * dt;
@@ -1400,7 +1863,7 @@
     if (car.y <= surf.height + slopeSnapMargin) {
       if (!car.grounded) {
         const impactVy = Math.abs(car.vy);
-        car.suspVel -= Math.min(3.5, impactVy * 0.22);
+        car.suspVel -= Math.min(3.8, impactVy * 0.22);
         if (surf.overWater) {
           audio.playWaterSplash(impactVy + Math.abs(vLong));
           showBanner("WATER SPLASH!");
@@ -1428,20 +1891,20 @@
       }
     }
 
-    // Resolve multi-sphere AABB/OBB/Circle collisions AFTER movement
     resolveCollisions();
 
-    // Spring-damper suspension + subtle off-road / water swell motion
+    // Per-Vehicle Spring-Damper Suspension
     let targetHeave = 0;
     if (car.inWater) {
       targetHeave = Math.sin(elapsed * 4.2) * 0.065;
     } else if (car.grounded && !surf.onRoad && absSpeed > 3) {
-      targetHeave = Math.sin(elapsed * absSpeed * 1.45) * 0.045;
+      targetHeave = Math.sin(elapsed * absSpeed * 1.45) * (sp.id === "suv" ? 0.07 : 0.045);
     }
-    car.suspVel += ((targetHeave - car.suspOffset) * 54 - car.suspVel * 9.8) * dt;
-    car.suspOffset = THREE.MathUtils.clamp(car.suspOffset + car.suspVel * dt, -0.22, 0.22);
+    car.suspVel += ((targetHeave - car.suspOffset) * sp.suspStiffness - car.suspVel * sp.suspDamping) * dt;
+    car.suspOffset = THREE.MathUtils.clamp(car.suspOffset + car.suspVel * dt, -sp.suspTravel, sp.suspTravel);
 
-    // Automatic 6-Speed Gearbox
+    // Automatic 6-Speed Gearbox Scaled to Active Vehicle's Top Speed
+    const speedScale = sp.topSpeed / 74;
     const kmh = Math.abs(vLong) * 3.6;
     let gearStr = "N";
     let newGearNum = 0;
@@ -1453,12 +1916,12 @@
       gearRatio = Math.min(1, kmh / 72);
     } else if (kmh > 1.2) {
       newGearNum = 1;
-      for (let i = 0; i < GEAR_SPEED_THRESH.length; i++) {
-        if (kmh > GEAR_SPEED_THRESH[i]) newGearNum = Math.min(6, i + 2);
+      for (let i = 0; i < BASE_GEAR_THRESH.length; i++) {
+        if (kmh > BASE_GEAR_THRESH[i] * speedScale) newGearNum = Math.min(6, i + 2);
       }
       gearStr = String(newGearNum);
-      const low = newGearNum === 1 ? 0 : GEAR_SPEED_THRESH[newGearNum - 2];
-      const high = GEAR_SPEED_THRESH[newGearNum - 1];
+      const low = newGearNum === 1 ? 0 : BASE_GEAR_THRESH[newGearNum - 2] * speedScale;
+      const high = BASE_GEAR_THRESH[newGearNum - 1] * speedScale;
       gearRatio = THREE.MathUtils.clamp((kmh - low) / (high - low), 0.18, 1);
     }
 
@@ -1472,44 +1935,44 @@
     const targetRpm = 850 + gearRatio * 7100 + (throttle > 0 && newGearNum === 0 ? 1500 : 0);
     car.rpm = THREE.MathUtils.lerp(car.rpm, targetRpm, 12 * dt);
 
-    // Drift detection, Skidmarks, Smoke & Wet Tire Rooster-Tail Spray
+    // Drift detection, Skidmarks, Smoke & Wet Tire Spray
     const hardBrake = throttle < 0 && vLong > 10 && !car.absActive;
     car.drifting = car.grounded && !car.inWater && (car.slipAmount > 0.2 || (handbrake && absSpeed > 8));
 
-    const rearX = car.x - nfx * 1.38;
-    const rearZ = car.z - nfz * 1.38;
+    const rearX = car.x - nfx * sp.wheelZ;
+    const rearZ = car.z - nfz * sp.wheelZ;
 
     if (car.inWater && absSpeed > 3.5) {
-      spawnParticle(rearX + nrx * 1.0, 0.05, rearZ + nrz * 1.0, "splash");
-      spawnParticle(rearX - nrx * 1.0, 0.05, rearZ - nrz * 1.0, "splash");
+      spawnParticle(rearX + nrx * sp.wheelX, 0.05, rearZ + nrz * sp.wheelX, "splash");
+      spawnParticle(rearX - nrx * sp.wheelX, 0.05, rearZ - nrz * sp.wheelX, "splash");
     } else if (car.grounded && !car.inWater) {
       if (car.wetUnderCar > 0.35 && absSpeed > 15 && Math.random() < 0.6) {
-        spawnParticle(rearX + nrx * 0.95, car.y + 0.18, rearZ + nrz * 0.95, "spray");
-        spawnParticle(rearX - nrx * 0.95, car.y + 0.18, rearZ - nrz * 0.95, "spray");
+        spawnParticle(rearX + nrx * (sp.wheelX - 0.1), car.y + 0.18, rearZ + nrz * (sp.wheelX - 0.1), "spray");
+        spawnParticle(rearX - nrx * (sp.wheelX - 0.1), car.y + 0.18, rearZ - nrz * (sp.wheelX - 0.1), "spray");
       }
       if (car.drifting || hardBrake) {
         if (car.wetUnderCar < 0.45 && Math.random() < 0.78) {
-          spawnParticle(rearX + nrx * 0.92, car.y + 0.22, rearZ + nrz * 0.92, "smoke");
-          spawnParticle(rearX - nrx * 0.92, car.y + 0.22, rearZ - nrz * 0.92, "smoke");
+          spawnParticle(rearX + nrx * (sp.wheelX - 0.1), car.y + 0.22, rearZ + nrz * (sp.wheelX - 0.1), "smoke");
+          spawnParticle(rearX - nrx * (sp.wheelX - 0.1), car.y + 0.22, rearZ - nrz * (sp.wheelX - 0.1), "smoke");
         }
         skidAccum += absSpeed * dt;
         if (skidAccum > 0.78 && surf.onRoad) {
           skidAccum = 0;
-          dropSkidmark(rearX + nrx * 0.98, car.y, rearZ + nrz * 0.98, car.heading, car.slopePitch, car.wetUnderCar > 0.45);
-          dropSkidmark(rearX - nrx * 0.98, car.y, rearZ - nrz * 0.98, car.heading, car.slopePitch, car.wetUnderCar > 0.45);
+          dropSkidmark(rearX + nrx * (sp.wheelX - 0.08), car.y, rearZ + nrz * (sp.wheelX - 0.08), car.heading, car.slopePitch, car.wetUnderCar > 0.45);
+          dropSkidmark(rearX - nrx * (sp.wheelX - 0.08), car.y, rearZ - nrz * (sp.wheelX - 0.08), car.heading, car.slopePitch, car.wetUnderCar > 0.45);
         }
       }
     }
 
-    // Visual Chassis Orientation, Suspension Pitch/Roll & Independent Wheel Travel
+    // Visual Wheel Rotation, Chassis Pitch/Roll & Suspension Droop
     frontWheelPivots.forEach((p) => (p.rotation.y = car.steerAngle));
-    wheelMeshes.forEach((w) => (w.rotation.x -= (vLong * dt) / 0.42));
+    wheelMeshes.forEach((w) => (w.rotation.x -= (vLong * dt) / sp.wheelRadius));
 
     car.slopePitch = THREE.MathUtils.lerp(car.slopePitch, car.grounded ? surf.slopePitch : 0, 10 * dt);
     const dynamicPitch = car.grounded
-      ? THREE.MathUtils.clamp(car.accelLong * 0.0024, -0.08, 0.065)
+      ? THREE.MathUtils.clamp(car.accelLong * 0.0024 * sp.rollMult, -0.09, 0.075)
       : THREE.MathUtils.clamp(car.vy * 0.018, -0.35, 0.35);
-    const targetRoll = THREE.MathUtils.clamp(-car.accelLat * 0.0042, -0.15, 0.15);
+    const targetRoll = THREE.MathUtils.clamp(-car.accelLat * 0.0042 * sp.rollMult, -0.18, 0.18);
 
     car.pitch = THREE.MathUtils.lerp(car.pitch, dynamicPitch, 10 * dt);
     car.roll = THREE.MathUtils.lerp(car.roll, targetRoll, 10 * dt);
@@ -1520,24 +1983,43 @@
     carBodyGroup.rotation.x = car.pitch;
     carBodyGroup.rotation.z = car.roll;
 
-    // Subtle independent wheel droop when airborne
-    const wheelDroop = car.grounded ? 0 : -0.14;
+    const wheelDroop = car.grounded ? 0 : -sp.suspTravel * 0.65;
     for (let i = 0; i < wheelPivots.length; i++) {
-      wheelPivots[i].position.y = THREE.MathUtils.lerp(wheelPivots[i].position.y, 0.42 + wheelDroop, 12 * dt);
+      wheelPivots[i].position.y = THREE.MathUtils.lerp(wheelPivots[i].position.y, sp.wheelRadius + wheelDroop, 12 * dt);
     }
 
-    // Dynamic Car Lights & Road/Water Shader Uniforms
+    // Dynamic Car Lights & Police Lightbar Strobe
     const braking = (throttle < 0 && vLong > 1) || handbrake;
     const preset = TIME_PRESETS[timeIndex];
     const headlightsOn = preset.headlights || weather.forceHeadlights || car.inTunnel;
 
     headlightMat.emissiveIntensity = headlightsOn ? 2.8 : 0.4;
-    headSpot.intensity = rtEnabled && headlightsOn ? 3.2 : headlightsOn ? 1.4 : 0;
+    if (headSpot) headSpot.intensity = rtEnabled && headlightsOn ? 3.2 : headlightsOn ? 1.4 : 0;
     volumetricBeams.forEach((b) => (b.visible = rtEnabled && headlightsOn));
 
     brakeLightMat.emissiveIntensity = braking ? 2.6 : 0.55;
-    rearGlowLight.color.setHex(usingNitro ? 0x38bdf8 : 0xff2222);
-    rearGlowLight.intensity = rtEnabled ? (usingNitro ? 2.8 : braking ? 2.2 : 0.75) : 0;
+    if (rearGlowLight) {
+      rearGlowLight.color.setHex(usingNitro ? 0x38bdf8 : 0xff2222);
+      rearGlowLight.intensity = rtEnabled ? (usingNitro ? 1.8 : braking ? 1.3 : 0.45) : 0;
+    }
+
+    if (policeLightbar) {
+      if (sirenActive) {
+        // Authentic double-flash alternating red/blue pursuit strobe!
+        const phase = (elapsed * 6.5) % 2.0;
+        const redOn = phase < 0.35 || (phase > 0.5 && phase < 0.85);
+        const blueOn = (phase > 1.0 && phase < 1.35) || (phase > 1.5 && phase < 1.85);
+        policeLightbar.redMat.emissiveIntensity = redOn ? 4.5 : 0.25;
+        policeLightbar.blueMat.emissiveIntensity = blueOn ? 4.5 : 0.25;
+        policeLightbar.redLight.intensity = redOn ? 3.6 : 0.0;
+        policeLightbar.blueLight.intensity = blueOn ? 3.6 : 0.0;
+      } else {
+        policeLightbar.redMat.emissiveIntensity = 0.35;
+        policeLightbar.blueMat.emissiveIntensity = 0.35;
+        policeLightbar.redLight.intensity = 0;
+        policeLightbar.blueLight.intensity = 0;
+      }
+    }
 
     const fwdVec = new THREE.Vector3(nfx, 0, nfz);
     world.setRoadUniform("uCarPos", carGroup.position);
@@ -1549,7 +2031,6 @@
     world.setWaterUniform("uCarForward", fwdVec);
     world.setWaterUniform("uNitroActive", usingNitro ? 1.0 : 0.0);
 
-    // Update smoke/spray/splash particles
     for (let i = 0; i < particlePool.length; i++) {
       const p = particlePool[i];
       if (p.life > 0) {
@@ -1565,7 +2046,6 @@
       }
     }
 
-    // Track sky, sun & shadows smoothly around player across the entire multi-city world
     world.skyDome.position.set(car.x, 0, car.z);
     sunLight.position.set(
       car.x + preset.sunPos[0] * 0.45,
@@ -1589,7 +2069,8 @@
       hornPressed,
       weather.rainAudio,
       car.wetUnderCar,
-      car.inTunnel
+      car.inTunnel,
+      elapsed
     );
 
     return { vLong, usingNitro };
@@ -1598,10 +2079,19 @@
   // =========================================================================
   // 6. TUNNEL-SAFE CAMERA & LIVE RT REFLECTION PASSES
   // =========================================================================
-  const camPosCurrent = new THREE.Vector3(0, 5.5, 56);
-  const camLookCurrent = new THREE.Vector3(0, 1.4, 38);
+  function updateCamera(dt, speed, usingNitro, elapsed) {
+    // Gentle showroom orbit around the active vehicle while browsing the Garage!
+    if (garageOpen) {
+      const ang = car.heading + elapsed * 0.45;
+      const desiredPos = new THREE.Vector3(car.x + Math.sin(ang) * 7.8, car.y + 2.6, car.z + Math.cos(ang) * 7.8);
+      const desiredLook = new THREE.Vector3(car.x, car.y + 1.0, car.z);
+      camPosCurrent.lerp(desiredPos, 1 - Math.exp(-5 * dt));
+      camLookCurrent.lerp(desiredLook, 1 - Math.exp(-6 * dt));
+      camera.position.copy(camPosCurrent);
+      camera.lookAt(camLookCurrent);
+      return;
+    }
 
-  function updateCamera(dt, speed, usingNitro) {
     const mode = CAMERA_MODES[cameraModeIdx];
     const fx = -Math.sin(car.heading);
     const fz = -Math.cos(car.heading);
@@ -1615,7 +2105,7 @@
 
     if (mode === "CHASE") {
       const dist = (car.inTunnel ? 8.8 : 10.2) + Math.min(3.4, Math.abs(speed) * 0.04);
-      const heightOff = car.inTunnel ? 3.2 : 4.05;
+      const heightOff = car.inTunnel ? 3.2 : activeSpec.id === "suv" ? 4.45 : 4.05;
       const desiredPos = new THREE.Vector3(car.x - fx * dist, car.y + heightOff, car.z - fz * dist);
       const desiredLook = new THREE.Vector3(
         car.x + fx * 7.2,
@@ -1623,7 +2113,6 @@
         car.z + fz * 7.2
       );
 
-      // Keep chase camera cleanly inside the Alpine Tunnel bore
       if (world.isPointInTunnel(desiredPos.x, desiredPos.z)) {
         desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -8.8, 8.8);
         desiredPos.y = Math.min(desiredPos.y, 8.4);
@@ -1634,10 +2123,10 @@
       camera.position.copy(camPosCurrent);
       camera.lookAt(camLookCurrent);
     } else if (mode === "HOOD") {
-      camPosCurrent.set(car.x + fx * 0.5, car.y + 1.54 + car.suspOffset, car.z + fz * 0.5);
+      camPosCurrent.set(car.x + fx * 0.5, car.y + activeSpec.hoodEyeY + car.suspOffset, car.z + fz * 0.5);
       camLookCurrent.set(
         car.x + fx * 28,
-        car.y + 1.2 + (car.slopePitch + car.pitch) * 14,
+        car.y + activeSpec.hoodEyeY - 0.3 + (car.slopePitch + car.pitch) * 14,
         car.z + fz * 28
       );
       camera.position.copy(camPosCurrent);
@@ -1671,14 +2160,16 @@
     mirrorCamera.up.set(0, 1, 0);
     mirrorCamera.lookAt(camLookCurrent.x, -camLookCurrent.y, camLookCurrent.z);
 
-    // Keep cities, suspension bridge, traffic & boats visible so they reflect in ocean water & wet puddles!
     const prevRainVis = world.rainLines.visible;
+    const prevSplashVis = world.rainSplashGroup.visible;
+
     world.groundGroup.visible = false;
     world.waterGroup.visible = false;
     world.roadGroup.visible = false;
     world.roadShadowGroup.visible = false;
     skidGroup.visible = false;
     world.rainLines.visible = false;
+    world.rainSplashGroup.visible = false;
 
     renderer.setRenderTarget(reflTarget);
     renderer.clear();
@@ -1691,15 +2182,17 @@
     world.roadShadowGroup.visible = rtEnabled;
     skidGroup.visible = true;
     world.rainLines.visible = prevRainVis;
+    world.rainSplashGroup.visible = prevSplashVis;
 
-    // Live 360-degree CubeCamera reflection on car body & glass
     if (frameCounter % 2 === 0) {
       carGroup.visible = false;
       world.rainLines.visible = false;
+      world.rainSplashGroup.visible = false;
       cubeCamera.position.set(car.x, car.y + 1.15, car.z);
       cubeCamera.update(renderer, scene);
       carGroup.visible = true;
       world.rainLines.visible = prevRainVis;
+      world.rainSplashGroup.visible = prevSplashVis;
     }
   }
 
@@ -1729,7 +2222,7 @@
   function drawMinimap() {
     const w = minimapCanvas.width;
     const h = minimapCanvas.height;
-    const scale = 0.145; // Shows neighboring cities, bridge, tunnel & viaduct cleanly
+    const scale = 0.145;
 
     mapCtx.clearRect(0, 0, w, h);
     mapCtx.fillStyle = "#082f49";
@@ -1738,7 +2231,7 @@
     mapCtx.save();
     mapCtx.translate(w / 2, h / 2);
 
-    // 1. Draw the 3 Distinct City Islands + Marina Lagoon Cutout
+    // 3 Distinct City Islands + Marina Lagoon
     for (let i = 0; i < ISLANDS.length; i++) {
       const isl = ISLANDS[i];
       mapCtx.fillStyle = isl.id === "palm" ? "#1e3a2f" : isl.id === "pinecrest" ? "#152a24" : "#0f172a";
@@ -1759,11 +2252,11 @@
       }
     }
 
-    // 2. Draw Alpine Mountain Ridge Band
+    // Alpine Mountain Ridge Band
     mapCtx.fillStyle = "rgba(71, 85, 105, 0.55)";
     mapCtx.fillRect((-290 - car.x) * scale, (-870 - car.z) * scale, 580 * scale, 520 * scale);
 
-    // 3. Draw City Roads, Suspension Bridge (red-gold), Tunnel (dashed), & Viaduct (cyan)
+    // City Roads, Suspension Bridge (orange), & Coastal Viaduct (cyan)
     mapCtx.lineCap = "round";
     for (let i = 0; i < world.roadSegments.length; i++) {
       const s = world.roadSegments[i];
@@ -1776,7 +2269,7 @@
       mapCtx.stroke();
     }
 
-    // 4. Draw Buildings within view
+    // Buildings within view
     mapCtx.fillStyle = "#64748b";
     const viewRange = w / scale;
     for (let i = 0; i < world.minimapBuildings.length; i++) {
@@ -1785,14 +2278,14 @@
       mapCtx.fillRect((b.minX - car.x) * scale, (b.minZ - car.z) * scale, b.w * scale, b.d * scale);
     }
 
-    // 5. Stunt Ramps
+    // Stunt Ramps
     mapCtx.fillStyle = "#fb923c";
     for (let i = 0; i < world.ramps.length; i++) {
       const r = world.ramps[i];
       mapCtx.fillRect((r.x - car.x) * scale - 3, (r.z - car.z) * scale - 3, 6, 6);
     }
 
-    // 6. Moving AI Traffic & Boats
+    // Moving AI Traffic & Boats
     if (trafficEnabled) {
       mapCtx.fillStyle = "#facc15";
       for (let i = 0; i < world.trafficCars.length; i++) {
@@ -1815,7 +2308,7 @@
       }
     }
 
-    // 7. Player Directional Arrow
+    // Player Arrow
     mapCtx.rotate(-car.heading);
     mapCtx.fillStyle = "#38bdf8";
     mapCtx.beginPath();
@@ -1840,7 +2333,6 @@
     nitroFill.style.width = `${car.nitro}%`;
     nitroText.textContent = `${Math.round(car.nitro)}%`;
 
-    // Live Auto Road Moisture Gauge (Wetting in Rain -> Evaporating in Clear)
     const wetPct = Math.round(roadMoisture * 100);
     wetnessFill.style.width = `${wetPct}%`;
     wetnessText.textContent = `${wetPct}%`;
@@ -1852,7 +2344,6 @@
         ? "trend-tag drying"
         : "trend-tag";
 
-    // Physics Indicator Badges (ABS, DRIFT, TCS)
     badgeAbs.classList.toggle("active-abs", car.absActive);
     badgeDrift.classList.toggle("active-drift", car.drifting);
     badgeTcs.classList.toggle("active-tcs", car.tcsActive);
@@ -1861,7 +2352,7 @@
 
     surfacePill.textContent = car.surfaceLabel;
     surfacePill.className = `surface-pill ${car.surfaceClass}`;
-    gripReadout.textContent = `GRIP ${Math.round(Math.min(100, (car.currentGrip / 1.12) * 100))}%`;
+    gripReadout.textContent = `GRIP ${Math.round(Math.min(125, (car.currentGrip / 1.12) * 100))}%`;
 
     zoneEl.textContent = world.getZoneName(car.x, car.z);
 
@@ -1880,6 +2371,8 @@
     });
   }
 
+  bindButton("btn-garage", () => toggleGarage());
+  bindButton("btn-siren", toggleSiren);
   bindButton("btn-rt", toggleRayTracing);
   bindButton("btn-traffic", toggleTraffic);
   bindButton("btn-weather", cycleWeather);
@@ -1917,21 +2410,21 @@
     world.setRoadUniform("uTime", elapsed);
     world.setWaterUniform("uTime", elapsed);
 
-    // 1. Update natural rain wetting & clear-weather road evaporation
+    // 1. Automatic rain wetting & clear-weather road evaporation
     updateRoadMoisture(dt);
 
-    // 2. Update AI inter-city traffic & ships/yachts
-    world.updateTrafficAndBoats(dt, elapsed, car, weather.waveStrength, trafficEnabled);
+    // 2. Inter-city AI traffic (with wet-road tire mist) & ocean/lagoon boats
+    world.updateTrafficAndBoats(dt, elapsed, car, weather.waveStrength, roadMoisture, trafficEnabled);
 
-    // 3. Update player physics, suspension & fixed hitboxes
+    // 3. Per-vehicle player physics, suspension & fixed collisions
     const { vLong, usingNitro } = updatePhysics(dt, elapsed);
 
-    // 4. Update tunnel-safe camera & weather
-    updateCamera(dt, vLong, usingNitro);
+    // 4. Camera (smooth showroom orbit when Garage is open) & rain-on-road splash weather
+    updateCamera(dt, vLong, usingNitro, elapsed);
     const flash = world.updateWeather(dt, weather, camera.position, car, car.inTunnel, () => audio.playThunder());
     flashOverlay.style.opacity = car.inTunnel ? "0" : (flash * 0.65).toFixed(3);
 
-    // 5. Render live RT planar & cubemap passes + final frame
+    // 5. Render live RT planar/cubemap passes & final frame
     renderRTPasses();
     updateHUD(vLong);
 

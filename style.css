@@ -15,6 +15,10 @@ body {
   color: #f1f5f9;
 }
 
+.hidden {
+  display: none !important;
+}
+
 #canvas-container {
   position: fixed;
   inset: 0;
@@ -72,7 +76,7 @@ body {
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-left: 4px solid #38bdf8;
   border-radius: 10px;
-  padding: 10px 15px;
+  padding: 9px 15px;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -92,6 +96,15 @@ body {
   color: #38bdf8;
   margin-top: 2px;
   text-transform: uppercase;
+}
+
+.brand-badge .car-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  color: #cbd5e1;
+  margin-top: 3px;
+  opacity: 0.88;
 }
 
 .toolbar {
@@ -138,6 +151,41 @@ body {
   color: #4ade80;
 }
 
+.hud-btn.garage-btn {
+  border-color: rgba(168, 85, 247, 0.6);
+  background: rgba(88, 28, 135, 0.32);
+}
+
+.hud-btn.garage-btn:hover {
+  background: rgba(126, 34, 206, 0.45);
+  border-color: #c084fc;
+}
+
+.hud-btn.garage-btn span {
+  color: #d8b4fe;
+}
+
+.hud-btn.siren-btn.siren-on {
+  animation: sirenPulse 0.65s infinite alternate;
+}
+
+.hud-btn.siren-btn.siren-on span {
+  color: #ffffff;
+}
+
+@keyframes sirenPulse {
+  0% {
+    background: rgba(220, 38, 38, 0.55);
+    border-color: #f87171;
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.55);
+  }
+  100% {
+    background: rgba(37, 99, 235, 0.55);
+    border-color: #60a5fa;
+    box-shadow: 0 0 14px rgba(59, 130, 246, 0.55);
+  }
+}
+
 .hud-btn.accent {
   border-color: rgba(249, 115, 22, 0.55);
   color: #fdba74;
@@ -156,7 +204,7 @@ body {
   letter-spacing: 2.4px;
   color: #fbbf24;
   text-shadow: 0 2px 16px rgba(251, 191, 36, 0.6);
-  background: rgba(10, 15, 28, 0.55);
+  background: rgba(10, 15, 28, 0.58);
   backdrop-filter: blur(6px);
   border: 1px solid rgba(251, 191, 36, 0.28);
   border-radius: 999px;
@@ -472,6 +520,261 @@ kbd {
   background: linear-gradient(90deg, #64748b 0%, #38bdf8 55%, #0284c7 100%);
 }
 
+/* =========================================================================
+   VEHICLE GARAGE MODAL
+   ========================================================================= */
+.garage-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.garage-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 7, 18, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.garage-card {
+  position: relative;
+  width: 100%;
+  max-width: 820px;
+  background: rgba(12, 18, 34, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-top: 3px solid #38bdf8;
+  border-radius: 16px;
+  padding: 20px 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.garage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.garage-header h2 {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+  color: #f8fafc;
+}
+
+.garage-sub {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 3px;
+}
+
+.garage-close-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.7);
+  color: #e2e8f0;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.garage-close-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #f87171;
+}
+
+.garage-body {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 16px;
+}
+
+.car-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.car-option {
+  text-align: left;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  padding: 10px 13px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.car-option:hover {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(56, 189, 248, 0.6);
+}
+
+.car-option.selected {
+  background: rgba(14, 116, 144, 0.25);
+  border-color: #38bdf8;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.22);
+}
+
+.car-class {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  color: #38bdf8;
+}
+
+.car-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.car-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+
+.garage-details {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.spec-panel,
+.paint-panel {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 13px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.spec-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 0.4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.spec-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spec-row span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  color: #94a3b8;
+}
+
+.spec-track {
+  width: 100%;
+  height: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.spec-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8 0%, #818cf8 100%);
+  transition: width 0.25s ease;
+}
+
+.paint-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+  color: #94a3b8;
+}
+
+.paint-header #paint-name {
+  color: #f8fafc;
+}
+
+.swatch-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 9px;
+}
+
+.swatch {
+  height: 32px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.swatch:hover {
+  transform: scale(1.06);
+}
+
+.swatch.selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px #38bdf8;
+}
+
+.garage-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.garage-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.garage-drive-btn {
+  background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 9px;
+  padding: 10px 22px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.35);
+  transition: transform 0.12s ease, filter 0.15s ease;
+}
+
+.garage-drive-btn:hover {
+  filter: brightness(1.12);
+}
+
+.garage-drive-btn:active {
+  transform: scale(0.97);
+}
+
 @media (max-width: 1020px) {
   .controls-panel {
     display: none;
@@ -482,5 +785,12 @@ kbd {
   }
   .telemetry-panel {
     width: 230px;
+  }
+  .garage-body {
+    grid-template-columns: 1fr;
+  }
+  .garage-card {
+    max-height: 92vh;
+    overflow-y: auto;
   }
 }
