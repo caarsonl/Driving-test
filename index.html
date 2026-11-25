@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Horizon Drive 3D — Weather, Water & RT Reflections</title>
+  <title>Horizon Drive 3D — Traffic, Harbor Boats & RT Reflections</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="canvas-container"></div>
 
-  <!-- HUD Overlay -->
   <div id="hud">
     <!-- Top Bar -->
     <div class="hud-top">
@@ -20,10 +19,16 @@
 
       <div class="toolbar">
         <button id="btn-rt" class="hud-btn active" title="Toggle Real-Time Reflections (T)">
-          RT REFLECTIONS: <span id="rt-label">ON</span>
+          RT: <span id="rt-label">ON</span>
         </button>
-        <button id="btn-weather" class="hud-btn active" title="Cycle Weather (V)">
-          WEATHER: <span id="weather-label">RAIN</span>
+        <button id="btn-floor" class="hud-btn active" title="Cycle Dry / Wet Floor (B)">
+          FLOOR: <span id="floor-label">DRY + WET</span>
+        </button>
+        <button id="btn-traffic" class="hud-btn active" title="Toggle AI Traffic & Boats (P)">
+          TRAFFIC: <span id="traffic-label">ON</span>
+        </button>
+        <button id="btn-weather" class="hud-btn" title="Cycle Weather (V)">
+          WEATHER: <span id="weather-label">CLEAR</span>
         </button>
         <button id="btn-time" class="hud-btn" title="Cycle Time of Day (N)">
           TIME: <span id="time-label">SUNSET</span>
@@ -47,18 +52,23 @@
     <div class="hud-bottom">
       <!-- Minimap -->
       <div class="minimap-panel">
-        <canvas id="minimap" width="180" height="180"></canvas>
+        <canvas id="minimap" width="190" height="190"></canvas>
         <div class="minimap-coords" id="coords-display">X: 0 | Z: 20</div>
       </div>
 
       <!-- Controls Legend -->
       <div class="controls-panel">
-        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>Arrows</kbd> Drive &nbsp;|&nbsp; <kbd>Space</kbd> Drift &nbsp;|&nbsp; <kbd>Shift</kbd> Nitro</div>
-        <div><kbd>T</kbd> RT Reflections &nbsp;|&nbsp; <kbd>V</kbd> Weather &nbsp;|&nbsp; <kbd>N</kbd> Time &nbsp;|&nbsp; <kbd>C</kbd> Camera &nbsp;|&nbsp; <kbd>H</kbd> Horn &nbsp;|&nbsp; <kbd>M</kbd> Audio &nbsp;|&nbsp; <kbd>R</kbd> Reset</div>
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>Arrows</kbd> Drive &nbsp;|&nbsp; <kbd>Space</kbd> Handbrake &nbsp;|&nbsp; <kbd>Shift</kbd> Nitro &nbsp;|&nbsp; <kbd>H</kbd> Horn</div>
+        <div><kbd>B</kbd> Dry/Wet &nbsp;|&nbsp; <kbd>P</kbd> Traffic/Boats &nbsp;|&nbsp; <kbd>T</kbd> RT &nbsp;|&nbsp; <kbd>V</kbd> Weather &nbsp;|&nbsp; <kbd>N</kbd> Time &nbsp;|&nbsp; <kbd>C</kbd> Cam &nbsp;|&nbsp; <kbd>R</kbd> Reset</div>
       </div>
 
-      <!-- Speedometer & Gauges -->
+      <!-- Telemetry & Surface Readout -->
       <div class="telemetry-panel">
+        <div class="telemetry-top">
+          <span class="surface-pill dry" id="surface-pill">DRY ASPHALT</span>
+          <span class="grip-readout" id="grip-readout">GRIP 100%</span>
+        </div>
+
         <div class="speed-row">
           <div class="gear-box">
             <span class="label">GEAR</span>
@@ -93,8 +103,9 @@
     </div>
   </div>
 
-  <!-- Three.js r128 UMD -->
+  <!-- Three.js r128 UMD + Split Scripts (1/2 world.js, 2/2 game.js) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="script.js"></script>
+  <script src="world.js"></script>
+  <script src="game.js"></script>
 </body>
 </html>
