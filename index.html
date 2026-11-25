@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Horizon Drive 3D — Open World Driving Simulator</title>
+  <title>Horizon Drive 3D — RT Reflections & Audio Edition</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -15,18 +15,21 @@
     <div class="hud-top">
       <div class="brand-badge">
         <span class="title">HORIZON DRIVE 3D</span>
-        <span class="subtitle" id="status-zone">DOWNTOWN DISTRICT</span>
+        <span class="subtitle" id="status-zone">DOWNTOWN CORE</span>
       </div>
 
       <div class="toolbar">
+        <button id="btn-rt" class="hud-btn active" title="Toggle Real-Time Reflections (T)">
+          RT REFLECTIONS: <span id="rt-label">ON</span>
+        </button>
         <button id="btn-camera" class="hud-btn" title="Switch Camera (C)">
           CAM: <span id="cam-label">CHASE</span>
         </button>
         <button id="btn-time" class="hud-btn" title="Cycle Time of Day (N)">
-          TIME: <span id="time-label">DAY</span>
+          TIME: <span id="time-label">SUNSET</span>
         </button>
         <button id="btn-sound" class="hud-btn" title="Toggle Engine Audio (M)">
-          AUDIO: <span id="sound-label">OFF</span>
+          AUDIO: <span id="sound-label">CLICK / DRIVE</span>
         </button>
         <button id="btn-reset" class="hud-btn accent" title="Reset Car Position (R)">
           RESET
@@ -34,7 +37,7 @@
       </div>
     </div>
 
-    <!-- Center Drift / Air Notifications -->
+    <!-- Center Event Banner -->
     <div id="event-banner" class="event-banner"></div>
 
     <!-- Bottom HUD -->
@@ -47,9 +50,8 @@
 
       <!-- Controls Legend -->
       <div class="controls-panel">
-        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>Arrows</kbd> Drive</div>
-        <div><kbd>Space</kbd> Handbrake Drift &nbsp;|&nbsp; <kbd>Shift</kbd> Nitro</div>
-        <div><kbd>C</kbd> Camera &nbsp;|&nbsp; <kbd>N</kbd> Day/Night &nbsp;|&nbsp; <kbd>R</kbd> Reset</div>
+        <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>Arrows</kbd> Drive &nbsp;|&nbsp; <kbd>Space</kbd> Drift &nbsp;|&nbsp; <kbd>Shift</kbd> Nitro</div>
+        <div><kbd>T</kbd> RT Reflections &nbsp;|&nbsp; <kbd>C</kbd> Camera &nbsp;|&nbsp; <kbd>N</kbd> Time &nbsp;|&nbsp; <kbd>H</kbd> Horn &nbsp;|&nbsp; <kbd>M</kbd> Audio &nbsp;|&nbsp; <kbd>R</kbd> Reset</div>
       </div>
 
       <!-- Speedometer & Gauges -->
@@ -68,7 +70,7 @@
         <div class="bar-group">
           <div class="bar-header">
             <span>RPM</span>
-            <span id="rpm-text">800</span>
+            <span id="rpm-text">850</span>
           </div>
           <div class="bar-track">
             <div id="rpm-fill" class="bar-fill rpm"></div>
@@ -88,7 +90,7 @@
     </div>
   </div>
 
-  <!-- Three.js r128 (UMD build works directly via file:// without CORS errors) -->
+  <!-- Three.js r128 UMD -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="script.js"></script>
 </body>
