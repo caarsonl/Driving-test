@@ -1308,112 +1308,112 @@
 
   // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
   // =========================================================================
-  // 5. PLANTED 240Hz VEHICLE PHYSICS (GRIP-MATCHED STEERING + ZERO LOW-SPEED DRIFT)
+  // 5. RESPONSIVE 240Hz VEHICLE PHYSICS (SLIP-AWARE STEERING + PLANTED GRIP)
   // =========================================================================
   const GRAVITY_PHYS = 9.81;
   const GEAR_RATIOS = [3.55, 2.38, 1.68, 1.25, 0.96, 0.76];
   const BASE_GEAR_THRESH = [52, 98, 148, 202, 260, 345];
 
-  // Calibrated for planted everyday grip, realistic braking (~1.3-1.6g), & controllable handbrake drifts
+  // Tuned for crisp turn-in, planted stability (zero unwanted coasting drift) & controllable handbrake slides
   const HANDLING_PROFILES = {
     gt: {
       mass: 1480,
-      Iz: 2450,
+      Iz: 2350,
       cgHeight: 0.46,
-      tireMu: 1.68,          // Planted sports-tire cornering grip
-      brakeMu: 1.42,         // Realistic ~1.4g dry braking (~28m from 100 km/h)
-      rearMuMult: 1.1,       // Natural stability so coasting turns never spin out
-      offroadMu: 0.98,
-      wetMuDrop: 0.32,
-      maxDriveForce: 15200,
-      nitroForce: 6800,
-      maxBrakeForce: 23500,
-      brakeBiasFront: 0.65,
+      tireMu: 1.9,           // Strong, planted sports-tire cornering bite
+      brakeMu: 1.62,         // Responsive dry braking (~1.6g), longer in rain
+      rearMuMult: 1.08,      // Stable rear tracking when coasting or cruising
+      offroadMu: 1.05,
+      wetMuDrop: 0.3,
+      maxDriveForce: 16200,
+      nitroForce: 7200,
+      maxBrakeForce: 25500,
+      brakeBiasFront: 0.64,
       awdFrontSplit: 0.15,
-      aeroDownforce: 1.15,
+      aeroDownforce: 1.25,
       aeroDrag: 0.4,
-      pacejkaB: 10.5,
-      pacejkaC: 1.14,        // Smooth plateau — no sudden snap-oversteer past peak
+      pacejkaB: 13.5,        // Fast, immediate turn-in response
+      pacejkaC: 1.15,        // Smooth plateau (no snap oversteer)
       tcsAllowSlip: 0.1,
     },
     muscle: {
       mass: 1680,
-      Iz: 2900,
+      Iz: 2750,
       cgHeight: 0.52,
-      tireMu: 1.56,
-      brakeMu: 1.32,
-      rearMuMult: 1.02,      // Stable when coasting; steps out cleanly on full throttle or handbrake
-      offroadMu: 0.92,
-      wetMuDrop: 0.36,
-      maxDriveForce: 18400,
-      nitroForce: 7400,
-      maxBrakeForce: 24500,
-      brakeBiasFront: 0.67,
+      tireMu: 1.78,
+      brakeMu: 1.5,
+      rearMuMult: 1.0,       // Clean grip when coasting; kicks out cleanly on full throttle / handbrake
+      offroadMu: 0.98,
+      wetMuDrop: 0.34,
+      maxDriveForce: 19400,
+      nitroForce: 7800,
+      maxBrakeForce: 26800,
+      brakeBiasFront: 0.66,
       awdFrontSplit: 0.0,
-      aeroDownforce: 0.65,
+      aeroDownforce: 0.72,
       aeroDrag: 0.45,
-      pacejkaB: 9.2,
-      pacejkaC: 1.16,
+      pacejkaB: 12.0,
+      pacejkaC: 1.18,
       tcsAllowSlip: 0.42,
     },
     supercar: {
       mass: 1360,
-      Iz: 2200,
+      Iz: 2100,
       cgHeight: 0.38,
-      tireMu: 2.02,          // Wide semi-slick track grip
-      brakeMu: 1.68,         // Carbon-ceramic brakes
-      rearMuMult: 1.12,
-      offroadMu: 0.85,
-      wetMuDrop: 0.36,
-      maxDriveForce: 20400,
-      nitroForce: 8200,
-      maxBrakeForce: 26500,
-      brakeBiasFront: 0.63,
+      tireMu: 2.28,          // Razor-sharp track-compound grip
+      brakeMu: 1.92,         // Carbon-ceramic stopping power
+      rearMuMult: 1.09,
+      offroadMu: 0.9,
+      wetMuDrop: 0.34,
+      maxDriveForce: 21200,
+      nitroForce: 8600,
+      maxBrakeForce: 29000,
+      brakeBiasFront: 0.62,
       awdFrontSplit: 0.35,
-      aeroDownforce: 2.45,   // Glued on high-speed viaduct sweepers
+      aeroDownforce: 2.65,   // High-speed cornering glue on Coastal Viaduct
       aeroDrag: 0.36,
-      pacejkaB: 12.2,
-      pacejkaC: 1.14,
+      pacejkaB: 15.2,
+      pacejkaC: 1.15,
       tcsAllowSlip: 0.08,
     },
     suv: {
       mass: 2220,
-      Iz: 4200,
+      Iz: 4050,
       cgHeight: 0.7,
-      tireMu: 1.48,
-      brakeMu: 1.24,
-      rearMuMult: 1.12,
-      offroadMu: 1.42,       // Planted on grass & wet shoulders
-      wetMuDrop: 0.22,
-      maxDriveForce: 19600,
-      nitroForce: 7000,
-      maxBrakeForce: 30000,
-      brakeBiasFront: 0.66,
+      tireMu: 1.66,
+      brakeMu: 1.44,
+      rearMuMult: 1.1,
+      offroadMu: 1.55,       // Strong off-road grass & wet-shoulder grip
+      wetMuDrop: 0.2,
+      maxDriveForce: 20400,
+      nitroForce: 7400,
+      maxBrakeForce: 33000,
+      brakeBiasFront: 0.65,
       awdFrontSplit: 0.5,
-      aeroDownforce: 0.35,
+      aeroDownforce: 0.4,
       aeroDrag: 0.64,
-      pacejkaB: 8.8,
+      pacejkaB: 11.4,
       pacejkaC: 1.12,
       tcsAllowSlip: 0.08,
     },
     police: {
       mass: 1700,
-      Iz: 2800,
+      Iz: 2680,
       cgHeight: 0.5,
-      tireMu: 1.76,
-      brakeMu: 1.48,
-      rearMuMult: 1.1,
-      offroadMu: 1.12,
-      wetMuDrop: 0.28,
-      maxDriveForce: 18800,
-      nitroForce: 7800,
-      maxBrakeForce: 28500,
-      brakeBiasFront: 0.64,
+      tireMu: 2.0,
+      brakeMu: 1.72,
+      rearMuMult: 1.08,
+      offroadMu: 1.2,
+      wetMuDrop: 0.26,
+      maxDriveForce: 19800,
+      nitroForce: 8200,
+      maxBrakeForce: 31000,
+      brakeBiasFront: 0.63,
       awdFrontSplit: 0.4,
-      aeroDownforce: 1.05,
+      aeroDownforce: 1.15,
       aeroDrag: 0.42,
-      pacejkaB: 10.8,
-      pacejkaC: 1.14,
+      pacejkaB: 13.8,
+      pacejkaC: 1.15,
       tcsAllowSlip: 0.1,
     },
   };
@@ -1455,7 +1455,7 @@
     slipAmount: 0,
     surfaceLabel: "DRY ASPHALT",
     surfaceClass: "dry",
-    currentGrip: 1.68,
+    currentGrip: 1.9,
     wetUnderCar: 0,
   };
 
@@ -1716,7 +1716,7 @@
     }
   }
 
-  // Smooth Pacejka tire curve (progressive grip buildup, stable plateau without sudden grip drop)
+  // Smooth Pacejka tire curve (fast initial bite, high plateau without drop-off)
   function pacejkaNorm(slipAngle, B, C) {
     const E = 0.2;
     const x = B * slipAngle;
@@ -1765,7 +1765,7 @@
       } else {
         wantBrake = 1;
         car.reverseHoldTimer += dt;
-        if (car.reverseHoldTimer >= 0.18) {
+        if (car.reverseHoldTimer >= 0.16) {
           wantBrake = 0;
           wantReverse = 1;
         }
@@ -1778,9 +1778,9 @@
       car.reverseHoldTimer = 0;
     }
 
-    // Smooth pedal pressure ramp
-    const thrRate = wantThrottle > car.throttlePedal ? 9.5 : 16.0;
-    const brkRate = wantBrake > car.brakePedal ? 9.5 : 18.0;
+    // Smooth hydraulic pedal pressure ramp
+    const thrRate = wantThrottle > car.throttlePedal ? 10.5 : 16.0;
+    const brkRate = wantBrake > car.brakePedal ? 11.0 : 18.0;
     car.throttlePedal = THREE.MathUtils.lerp(car.throttlePedal, wantThrottle, 1 - Math.exp(-thrRate * dt));
     car.brakePedal = THREE.MathUtils.lerp(car.brakePedal, wantBrake, 1 - Math.exp(-brkRate * dt));
 
@@ -1803,7 +1803,7 @@
     car.wetUnderCar = 0;
 
     if (surfStart.overWater) {
-      surfaceMu = 0.55;
+      surfaceMu = 0.6;
       rollingCoeff = 0.22;
       car.wetUnderCar = 1.0;
       car.surfaceLabel = "WATER";
@@ -1819,8 +1819,8 @@
       const effWet = Math.max(roadMoisture * 0.58, puddleVal);
       car.wetUnderCar = effWet;
 
-      const wetFactor = 1.0 - (roadMoisture * 0.12 + puddleVal * 0.22) * (hp.wetMuDrop / 0.32);
-      surfaceMu = hp.tireMu * Math.max(0.64, wetFactor);
+      const wetFactor = 1.0 - (roadMoisture * 0.12 + puddleVal * 0.22) * (hp.wetMuDrop / 0.3);
+      surfaceMu = hp.tireMu * Math.max(0.65, wetFactor);
       rollingCoeff = 0.015 + effWet * 0.016;
 
       if (surfStart.surfaceType === "BRIDGE") {
@@ -1839,39 +1839,38 @@
     } else {
       const grassWet = roadMoisture * 0.4;
       car.wetUnderCar = grassWet;
-      surfaceMu = Math.max(0.75, hp.offroadMu * (1.0 - grassWet * 0.15));
+      surfaceMu = Math.max(0.8, hp.offroadMu * (1.0 - grassWet * 0.15));
       rollingCoeff = sp.id === "suv" ? 0.042 : 0.075;
       car.surfaceLabel = "OFF-ROAD GRASS";
       car.surfaceClass = "offroad";
     }
     car.currentGrip = surfaceMu;
 
-    // PHYSICS-MATCHED STEERING ANGLE:
-    // Limits keyboard full-lock angle to the tire's real cornering grip so slow & medium turns NEVER drift involuntarily!
+    // SLIP-AWARE STEERING ANGLE:
+    // Geometric turn angle (L * a_y / v^2) PLUS the optimal tire slip angle (~0.12 rad) needed to reach full grip!
     const halfA = sp.wheelZ;
     const halfB = sp.wheelZ;
     const wheelbase = halfA + halfB;
     const initSpeed = Math.hypot(car.vx, car.vz);
 
-    // Maximum lateral acceleration the dry tires + aero downforce can hold cleanly without sliding
-    const dryLatBudget = (hp.tireMu * GRAVITY_PHYS + (hp.aeroDownforce * initSpeed * initSpeed * hp.tireMu) / hp.mass) * 0.86;
-    const gripMatchedSteer = Math.atan((wheelbase * dryLatBudget) / Math.max(24, initSpeed * initSpeed));
+    const maxLatAccel = hp.tireMu * GRAVITY_PHYS + (hp.aeroDownforce * initSpeed * initSpeed * hp.tireMu) / hp.mass;
+    const geoSteer = Math.atan((wheelbase * maxLatAccel) / Math.max(12, initSpeed * initSpeed));
+    const speedBlend = THREE.MathUtils.clamp((initSpeed - 3.0) / 14.0, 0.0, 1.0);
+    const slipAllowance = 0.125 * speedBlend; // Lets front tires reach peak cornering force at every speed!
 
-    // Allow extra steering angle during intentional handbrake drifts or high-torque drift-car slides
-    const driftUnlock = handbrake ? 1.55 : sp.id === "muscle" && car.throttlePedal > 0.5 && initSpeed > 12 ? 1.2 : 1.0;
-    const maxSteer = THREE.MathUtils.clamp(gripMatchedSteer * driftUnlock, 0.032, 0.56);
+    const driftBonus = handbrake ? 0.2 : sp.id === "muscle" && car.throttlePedal > 0.5 && initSpeed > 12 ? 0.06 : 0.0;
+    const maxSteer = THREE.MathUtils.clamp(geoSteer + slipAllowance + driftBonus, 0.12, 0.62);
 
-    const steerInRate = THREE.MathUtils.lerp(9.5, 5.5, Math.min(1, initSpeed / 65));
-    const steerReturnRate = 14.0;
+    const steerInRate = THREE.MathUtils.lerp(11.5, 6.8, Math.min(1, initSpeed / 70));
+    const steerReturnRate = 15.0;
 
     let targetSteer = rawSteerInput * maxSteer;
-    // Gentle self-aligning countersteer only when actively sliding at speed
-    if (rawSteerInput === 0 && car.grounded && initSpeed > 9 && car.drifting) {
+    if (rawSteerInput === 0 && car.grounded && initSpeed > 10 && car.drifting) {
       const initRx = Math.cos(car.heading);
       const initRz = -Math.sin(car.heading);
       const vLatNow = car.vx * initRx + car.vz * initRz;
       const bodySlip = Math.atan2(vLatNow, Math.max(Math.abs(initVLong), 5.0));
-      targetSteer = THREE.MathUtils.clamp(-bodySlip * 0.5, -0.45, 0.45);
+      targetSteer = THREE.MathUtils.clamp(-bodySlip * 0.52, -0.45, 0.45);
     }
 
     const activeSteerRate = rawSteerInput !== 0 ? steerInRate : steerReturnRate;
@@ -1953,8 +1952,8 @@
           brakeForceF = totalBrakeCmd * hp.brakeBiasFront;
           brakeForceR = totalBrakeCmd * (1.0 - hp.brakeBiasFront);
 
-          const absCapF = maxLongGripF * 0.92;
-          const absCapR = maxLongGripR * 0.88;
+          const absCapF = maxLongGripF * 0.94;
+          const absCapR = maxLongGripR * 0.9;
           if ((brakeForceF > absCapF || brakeForceR > absCapR) && speed > 4.5) {
             car.absActive = true;
             const pulse = 0.95 + 0.05 * Math.sin(elapsed * 52);
@@ -1986,25 +1985,25 @@
         }
 
         if (car.throttlePedal > 0.2 && !handbrake) {
-          const rearTcsCap = maxLongGripR * (0.92 + hp.tcsAllowSlip);
+          const rearTcsCap = maxLongGripR * (0.94 + hp.tcsAllowSlip);
           if (fLongRearTire > rearTcsCap) {
             if (hp.tcsAllowSlip < 0.25) {
               car.tcsActive = true;
-              fLongRearTire = maxLongGripR * 0.92;
+              fLongRearTire = maxLongGripR * 0.94;
             } else {
-              fLongRearTire = maxLongGripR * 0.98;
+              fLongRearTire = maxLongGripR * 1.0;
             }
           }
-          if (fLongFrontTire > maxLongGripF * 0.92) {
+          if (fLongFrontTire > maxLongGripF * 0.94) {
             car.tcsActive = true;
-            fLongFrontTire = maxLongGripF * 0.92;
+            fLongFrontTire = maxLongGripF * 0.94;
           }
         }
 
         fLongFrontTire = THREE.MathUtils.clamp(fLongFrontTire, -maxLongGripF, maxLongGripF);
         fLongRearTire = THREE.MathUtils.clamp(fLongRearTire, -maxLongGripR, maxLongGripR);
 
-        // 3) Tire Slip Angles & Elliptical Friction Circle
+        // 3) Tire Slip Angles & Elliptical Friction Circle (keeps ~75% steering bite while braking!)
         const vLatF = vLat - car.yawRate * halfA;
         const vLatR = vLat + car.yawRate * halfB;
         lastVLatR = vLatR;
@@ -2015,9 +2014,9 @@
         const vtLongF = vLong * cosD - vLatF * sinD;
         const vtLatF = vLong * sinD + vLatF * cosD;
 
-        const regDenomF = Math.max(Math.abs(vtLongF), 2.5);
-        const regDenomR = Math.max(Math.abs(vLong), 2.5);
-        const lowSpeedAtten = Math.min(1.0, speed / 2.2);
+        const regDenomF = Math.max(Math.abs(vtLongF), 2.2);
+        const regDenomR = Math.max(Math.abs(vLong), 2.2);
+        const lowSpeedAtten = Math.min(1.0, speed / 2.0);
 
         const alphaF = Math.atan2(vtLatF, regDenomF);
         const alphaR = Math.atan2(vLatR, regDenomR);
@@ -2026,22 +2025,19 @@
         const longRatioF = Math.min(1.0, Math.abs(fLongFrontTire) / Math.max(1, maxLongGripF));
         const longRatioR = Math.min(1.0, Math.abs(fLongRearTire) / Math.max(1, maxLongGripR));
 
-        const latRetainF = Math.sqrt(Math.max(0.55, 1.0 - 0.42 * longRatioF * longRatioF));
-        const rearCoupling = sp.id === "muscle" && car.throttlePedal > 0.4 ? 0.65 : 0.38;
-        let latRetainR = Math.sqrt(Math.max(0.45, 1.0 - rearCoupling * longRatioR * longRatioR));
+        const latRetainF = Math.sqrt(Math.max(0.58, 1.0 - 0.36 * longRatioF * longRatioF));
+        const rearCoupling = sp.id === "muscle" && car.throttlePedal > 0.4 ? 0.62 : 0.34;
+        let latRetainR = Math.sqrt(Math.max(0.48, 1.0 - rearCoupling * longRatioR * longRatioR));
 
-        // Handbrake drops rear lateral grip to initiate smooth, controlled drifts
-        if (handbrake) latRetainR *= 0.25;
+        if (handbrake) latRetainR *= 0.24;
 
         const availLatF = maxLatGripF * latRetainF;
         const availLatR = maxLatGripR * latRetainR;
 
         const fLatFrontTire = pacejkaNorm(alphaF, hp.pacejkaB, hp.pacejkaC) * availLatF * lowSpeedAtten;
-        // Rear axle has higher cornering stiffness than front -> natural stable tracking when coasting!
-        const fLatRearCar = pacejkaNorm(alphaR, hp.pacejkaB * 1.18, hp.pacejkaC) * availLatR * lowSpeedAtten;
+        const fLatRearCar = pacejkaNorm(alphaR, hp.pacejkaB * 1.12, hp.pacejkaC) * availLatR * lowSpeedAtten;
 
-        // Avoid unrealistic heavy scrub-braking from steered front tires at low/medium speeds
-        const fLongFrontCar = fLongFrontTire * cosD + fLatFrontTire * sinD * 0.35;
+        const fLongFrontCar = fLongFrontTire * cosD + fLatFrontTire * sinD * 0.28;
         const fLatFrontCar = -fLongFrontTire * sinD + fLatFrontTire * cosD;
 
         // 4) Aero Drag, Rolling Resistance & Bridge Slope Gravity
@@ -2053,8 +2049,8 @@
         totalFLong = fLongFrontCar + fLongRearTire + fAero + fRoll + fSlope;
         totalFLat = fLatFrontCar + fLatRearCar + fWaterLatDrag;
 
-        // Light natural yaw damping (lets rear tire physics stabilize turns cleanly without fighting steering)
-        const yawDamp = -car.yawRate * hp.Iz * (handbrake ? 0.25 : 0.55);
+        // Minimal artificial yaw damping — tires provide sharp turn-in and clean straightening
+        const yawDamp = -car.yawRate * hp.Iz * (handbrake ? 0.15 : 0.32);
         yawTorque = -halfA * fLatFrontCar + halfB * fLatRearCar + yawDamp;
       } else {
         totalFLong = -hp.aeroDrag * 0.45 * vLong * Math.abs(vLong);
@@ -2071,12 +2067,11 @@
       car.vx += (aLong * fx + aLat * rx) * subDt;
       car.vz += (aLong * fz + aLat * rz) * subDt;
       car.yawRate += (yawTorque / hp.Iz) * subDt;
-      car.yawRate = THREE.MathUtils.clamp(car.yawRate, -3.5, 3.5);
+      car.yawRate = THREE.MathUtils.clamp(car.yawRate, -3.8, 3.8);
       car.heading += car.yawRate * subDt;
 
-      // 6) ZERO-SLIP LOW-SPEED ROLLING CONSTRAINT (< 9.5 m/s / ~34 km/h when off handbrake)
-      // Guarantees completely crisp, non-drifting slow-speed city turns!
-      if (car.grounded && !car.inWater && !handbrake && speed < 9.5 && speed > 0.08) {
+      // 6) ZERO-SLIP LOW-SPEED ROLLING CONSTRAINT (< 9.0 m/s / ~32 km/h when off handbrake)
+      if (car.grounded && !car.inWater && !handbrake && speed < 9.0 && speed > 0.08) {
         const nfx2 = -Math.sin(car.heading);
         const nfz2 = -Math.cos(car.heading);
         const nrx2 = Math.cos(car.heading);
@@ -2085,10 +2080,9 @@
         const curVLong = car.vx * nfx2 + car.vz * nfz2;
         const curVLat = car.vx * nrx2 + car.vz * nrz2;
 
-        // Pure Ackermann rolling kinematics: rear axle has zero sideways velocity (curVLat = -kinYaw * halfB)
         const kinYaw = (curVLong / wheelbase) * Math.tan(car.steerAngle);
         const kinVLat = -kinYaw * halfB;
-        const lowBlend = Math.pow(1.0 - speed / 9.5, 1.35);
+        const lowBlend = Math.pow(1.0 - speed / 9.0, 1.35);
         const relax = 1.0 - Math.exp(-22.0 * lowBlend * subDt);
 
         car.yawRate = THREE.MathUtils.lerp(car.yawRate, kinYaw, relax);
@@ -2211,12 +2205,12 @@
     const targetRpm = 850 + gearRatio * 7100 + (car.throttlePedal > 0.1 && newGearNum <= 1 ? 750 * car.throttlePedal : 0);
     car.rpm = THREE.MathUtils.lerp(car.rpm, targetRpm, 12 * dt);
 
-    // Only flag DRIFT when the rear axle is genuinely sliding laterally at speed (or on handbrake)
+    // Flag DRIFT only on real rear-axle slides or handbrake drifts
     car.drifting =
       car.grounded &&
       !car.inWater &&
       absSpeed > 9.0 &&
-      ((Math.abs(lastVLatR) > 2.6 && car.slipAmount > 0.23) || (handbrake && absSpeed > 9.5));
+      ((Math.abs(lastVLatR) > 2.6 && car.slipAmount > 0.22) || (handbrake && absSpeed > 9.5));
 
     const rearX = car.x - nfx * sp.wheelZ;
     const rearZ = car.z - nfz * sp.wheelZ;
@@ -2253,9 +2247,9 @@
 
     car.slopePitch = THREE.MathUtils.lerp(car.slopePitch, car.grounded ? latestSurf.slopePitch : 0, 10 * dt);
     const dynamicPitch = car.grounded
-      ? THREE.MathUtils.clamp(car.accelLong * 0.005 * sp.rollMult, -0.095, 0.075)
+      ? THREE.MathUtils.clamp(car.accelLong * 0.0046 * sp.rollMult, -0.095, 0.075)
       : THREE.MathUtils.clamp(car.vy * 0.018, -0.35, 0.35);
-    const targetRoll = THREE.MathUtils.clamp(car.accelLat * 0.0052 * sp.rollMult, -0.16, 0.16);
+    const targetRoll = THREE.MathUtils.clamp(car.accelLat * 0.0048 * sp.rollMult, -0.16, 0.16);
 
     car.pitch = THREE.MathUtils.lerp(car.pitch, dynamicPitch, 10 * dt);
     car.roll = THREE.MathUtils.lerp(car.roll, targetRoll, 10 * dt);
@@ -2646,7 +2640,7 @@
 
     surfacePill.textContent = car.surfaceLabel;
     surfacePill.className = `surface-pill ${car.surfaceClass}`;
-    gripReadout.textContent = `GRIP ${Math.round(Math.min(130, (car.currentGrip / 1.68) * 100))}%`;
+    gripReadout.textContent = `GRIP ${Math.round(Math.min(130, (car.currentGrip / 1.9) * 100))}%`;
 
     zoneEl.textContent = world.getZoneName(car.x, car.z);
 
