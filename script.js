@@ -12,64 +12,70 @@
   const TIME_PRESETS = [
     {
       name: "SUNSET",
-      sky: 0xd96b43,
+      skyTop: 0x1e2952,
+      skyHorizon: 0xf07848,
+      skyBottom: 0x3b1d2e,
       fog: 0xb85247,
-      fogDensity: 0.00175,
-      sunColor: 0xff9a52,
-      sunIntensity: 1.35,
-      sunPos: [-240, 75, -180],
+      fogDensity: 0.00165,
+      sunColor: 0xffa45b,
+      sunIntensity: 1.4,
+      sunPos: [-240, 72, -180],
       hemiSky: 0xfdba74,
       hemiGround: 0x1e293b,
-      hemiIntensity: 0.6,
-      ambientRoad: 0x3b2c35,
-      windowGlow: 0.7,
-      neonGlow: 1.8,
+      hemiIntensity: 0.62,
+      ambientRoad: 0x45303a,
+      windowGlow: 0.85,
+      neonGlow: 2.2,
       headlights: true,
-      wetness: 0.92,
-      exposure: 1.12,
+      wetness: 0.96,
+      exposure: 1.15,
     },
     {
       name: "NIGHT",
-      sky: 0x050914,
-      fog: 0x080f22,
-      fogDensity: 0.0023,
+      skyTop: 0x030612,
+      skyHorizon: 0x101e3d,
+      skyBottom: 0x040710,
+      fog: 0x081024,
+      fogDensity: 0.0022,
       sunColor: 0x60a5fa,
-      sunIntensity: 0.35,
+      sunIntensity: 0.38,
       sunPos: [100, 220, -160],
       hemiSky: 0x1e3a5f,
       hemiGround: 0x050811,
       hemiIntensity: 0.45,
-      ambientRoad: 0x121c33,
-      windowGlow: 1.35,
-      neonGlow: 2.6,
+      ambientRoad: 0x16223d,
+      windowGlow: 1.45,
+      neonGlow: 2.8,
       headlights: true,
       wetness: 1.0,
-      exposure: 1.18,
+      exposure: 1.22,
     },
     {
       name: "DAY",
-      sky: 0x7bc5f0,
+      skyTop: 0x2563eb,
+      skyHorizon: 0x93d5fa,
+      skyBottom: 0x60a5fa,
       fog: 0x9bd2f5,
-      fogDensity: 0.00125,
+      fogDensity: 0.00115,
       sunColor: 0xfff6e5,
-      sunIntensity: 1.4,
+      sunIntensity: 1.45,
       sunPos: [180, 260, 140],
       hemiSky: 0xdbeafe,
       hemiGround: 0x3f6212,
-      hemiIntensity: 0.72,
-      ambientRoad: 0x4b5563,
+      hemiIntensity: 0.75,
+      ambientRoad: 0x525c6b,
       windowGlow: 0.08,
-      neonGlow: 0.4,
+      neonGlow: 0.45,
       headlights: false,
-      wetness: 0.65,
-      exposure: 1.05,
+      wetness: 0.78,
+      exposure: 1.06,
     },
   ];
 
   let rtEnabled = true;
 
   // =========================================================================
-  // 2. THREE.JS SCENE, RENDERER & REAL-TIME REFLECTION PIPELINE
+  // 2. THREE.JS SCENE, RENDERER & LIVE REFLECTION TARGETS
   // =========================================================================
   const container = document.getElementById("canvas-container");
   const scene = new THREE.Scene();
@@ -78,7 +84,7 @@
     65,
     window.innerWidth / window.innerHeight,
     0.2,
-    1200
+    1300
   );
   const mirrorCamera = camera.clone();
 
@@ -91,11 +97,14 @@
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
+  renderer.toneMappingExposure = 1.15;
   container.appendChild(renderer.domElement);
 
-  // Planar Reflection Render Target (mirrors skyscrapers, sky, neon, & car onto wet roads)
-  const reflScale = 0.55;
+  const drawingBufferSize = new THREE.Vector2();
+  renderer.getDrawingBufferSize(drawingBufferSize);
+
+  // Planar mirror reflection render target for wet roads
+  const reflScale = 0.7;
   const reflTarget = new THREE.WebGLRenderTarget(
     Math.max(256, Math.floor(window.innerWidth * reflScale)),
     Math.max(256, Math.floor(window.innerHeight * reflScale)),
@@ -106,20 +115,57 @@
     }
   );
 
-  // Live 360-degree CubeCamera for ray-traced-style clearcoat car paint reflections
+  // Live 360-degree CubeCamera for car paint, glass & chrome reflections
   const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
     generateMipmaps: true,
     minFilter: THREE.LinearMipmapLinearFilter,
   });
-  const cubeCamera = new THREE.CubeCamera(0.5, 520, cubeRenderTarget);
+  const cubeCamera = new THREE.CubeCamera(0.5, 560, cubeRenderTarget);
   scene.add(cubeCamera);
 
+  // Gradient Sky Dome (shows up sharply in wet road & car reflections)
+  const skyUniforms = {
+    uTopColor: { value: new THREE.Color(0x1e2952) },
+    uHorizonColor: { value: new THREE.Color(0xf07848) },
+    uBottomColor: { value: new THREE.Color(0x3b1d2e) },
+  };
+  const skyDome = new THREE.Mesh(
+    new THREE.SphereGeometry(950, 24, 16),
+    new THREE.ShaderMaterial({
+      uniforms: skyUniforms,
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+      vertexShader: `
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uTopColor;
+        uniform vec3 uHorizonColor;
+        uniform vec3 uBottomColor;
+        varying vec3 vDir;
+        void main() {
+          float h = vDir.y;
+          vec3 col = h >= 0.0
+            ? mix(uHorizonColor, uTopColor, pow(clamp(h, 0.0, 1.0), 0.55))
+            : mix(uHorizonColor, uBottomColor, pow(clamp(-h, 0.0, 1.0), 0.6));
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    })
+  );
+  scene.add(skyDome);
+
   // Lights
-  const hemiLight = new THREE.HemisphereLight(0xfdba74, 0x1e293b, 0.6);
+  const hemiLight = new THREE.HemisphereLight(0xfdba74, 0x1e293b, 0.62);
   scene.add(hemiLight);
 
-  const sunLight = new THREE.DirectionalLight(0xff9a52, 1.35);
-  sunLight.position.set(-240, 75, -180);
+  const sunLight = new THREE.DirectionalLight(0xffa45b, 1.4);
+  sunLight.position.set(-240, 72, -180);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.set(2048, 2048);
   sunLight.shadow.camera.near = 20;
@@ -132,9 +178,8 @@
   scene.add(sunLight);
   scene.add(sunLight.target);
 
-  // Visible Sun / Moon Disc in the Sky (shows up sharply in wet road & car reflections)
   const sunDisc = new THREE.Mesh(
-    new THREE.SphereGeometry(28, 24, 24),
+    new THREE.SphereGeometry(32, 24, 24),
     new THREE.MeshBasicMaterial({ color: 0xffd199, fog: false })
   );
   scene.add(sunDisc);
@@ -167,18 +212,16 @@
     c.height = 256;
     const ctx = c.getContext("2d");
 
-    ctx.fillStyle = "#1c1f26";
+    ctx.fillStyle = "#22262f";
     ctx.fillRect(0, 0, 256, 256);
 
-    // Asphalt grain
     for (let i = 0; i < 2200; i++) {
-      const v = 22 + Math.floor(Math.random() * 24);
+      const v = 26 + Math.floor(Math.random() * 24);
       ctx.fillStyle = `rgb(${v},${v},${v + 5})`;
       ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
     }
 
-    // Crisp side lines + yellow center dashes
-    ctx.fillStyle = "#cbd5e1";
+    ctx.fillStyle = "#e2e8f0";
     ctx.fillRect(10, 0, 5, 256);
     ctx.fillRect(241, 0, 5, 256);
 
@@ -253,39 +296,36 @@
   }
 
   // =========================================================================
-  // 4. CUSTOM GLSL RAY-TRACED-STYLE WET ROAD REFLECTION SHADER
+  // 4. REAL-TIME PLANAR REFLECTION ROAD SHADER (DIRECT LIVE TEXTURE BINDING)
   // =========================================================================
   const roadTexBase = createRoadTexture();
 
-  const sharedRoadUniforms = {
-    uRoadMap: { value: roadTexBase },
-    uReflMap: { value: reflTarget.texture },
-    uResolution: {
-      value: new THREE.Vector2(renderer.domElement.width, renderer.domElement.height),
-    },
-    uRTEnabled: { value: 1.0 },
-    uWetness: { value: 0.92 },
-    uSunDir: { value: new THREE.Vector3(-0.6, 0.3, -0.5).normalize() },
-    uSunColor: { value: new THREE.Color(0xff9a52) },
-    uAmbientColor: { value: new THREE.Color(0x3b2c35) },
-    uFogColor: { value: new THREE.Color(0xb85247) },
-    uFogDensity: { value: 0.00175 },
-    uCarPos: { value: new THREE.Vector3(0, 0, 20) },
-    uCarForward: { value: new THREE.Vector3(0, 0, -1) },
-    uHeadlightsOn: { value: 1.0 },
-    uBrakeIntensity: { value: 0.4 },
-    uNitroActive: { value: 0.0 },
-  };
-
   function createReflectiveRoadMaterial(isIntersection) {
     return new THREE.ShaderMaterial({
-      uniforms: THREE.UniformsUtils.merge([
-        sharedRoadUniforms,
-        {
-          uUvScale: { value: isIntersection ? new THREE.Vector2(1.0, 1.0) : new THREE.Vector2(1.0, 56.0) },
-          uIsIntersection: { value: isIntersection ? 1.0 : 0.0 },
+      uniforms: {
+        uRoadMap: { value: roadTexBase },
+        // Direct live reference — NOT cloned through UniformsUtils.merge!
+        uReflMap: { value: reflTarget.texture },
+        uResolution: { value: drawingBufferSize.clone() },
+        uUvScale: {
+          value: isIntersection
+            ? new THREE.Vector2(1.0, 1.0)
+            : new THREE.Vector2(1.0, 56.0),
         },
-      ]),
+        uIsIntersection: { value: isIntersection ? 1.0 : 0.0 },
+        uRTEnabled: { value: 1.0 },
+        uWetness: { value: 0.96 },
+        uSunDir: { value: new THREE.Vector3(-0.6, 0.3, -0.5).normalize() },
+        uSunColor: { value: new THREE.Color(0xffa45b) },
+        uAmbientColor: { value: new THREE.Color(0x45303a) },
+        uFogColor: { value: new THREE.Color(0xb85247) },
+        uFogDensity: { value: 0.00165 },
+        uCarPos: { value: new THREE.Vector3(0, 0, 20) },
+        uCarForward: { value: new THREE.Vector3(0, 0, -1) },
+        uHeadlightsOn: { value: 1.0 },
+        uBrakeIntensity: { value: 0.45 },
+        uNitroActive: { value: 0.0 },
+      },
       vertexShader: `
         varying vec2 vUv;
         varying vec3 vWorldPos;
@@ -318,7 +358,6 @@
         varying vec2 vUv;
         varying vec3 vWorldPos;
 
-        // Smooth procedural noise for organic puddles & asphalt micro-roughness
         float hash21(vec2 p) {
           p = fract(p * vec2(123.34, 456.21));
           p += dot(p, p + 45.32);
@@ -338,69 +377,70 @@
 
         void main() {
           vec3 albedo = uIsIntersection > 0.5
-            ? vec3(0.11, 0.125, 0.155)
+            ? vec3(0.14, 0.16, 0.2)
             : texture2D(uRoadMap, vUv * uUvScale).rgb;
 
-          // Puddle patches & asphalt micro-bump
-          float p1 = noise2D(vWorldPos.xz * 0.045);
-          float p2 = noise2D(vWorldPos.xz * 0.13);
-          float puddle = smoothstep(0.36, 0.68, p1 * 0.68 + p2 * 0.32) * uWetness;
-
-          float microX = (noise2D(vWorldPos.xz * 2.1) - 0.5);
-          float microZ = (noise2D(vWorldPos.xz * 2.1 + 19.7) - 0.5);
-          float roughAmt = mix(0.18, 0.015, puddle);
-          vec3 N = normalize(vec3(microX * roughAmt, 1.0, microZ * roughAmt));
-
-          vec3 V = normalize(cameraPosition - vWorldPos);
           vec3 L = normalize(uSunDir);
+          vec3 V = normalize(cameraPosition - vWorldPos);
+          vec3 color;
 
-          // Base diffuse + sun glossy reflection (Blinn-Phong)
-          float NdotL = max(dot(N, L), 0.0);
-          vec3 H = normalize(L + V);
-          float specPower = mix(24.0, 220.0, puddle);
-          float spec = pow(max(dot(N, H), 0.0), specPower) * mix(0.25, 1.5, puddle);
-
-          // Darken wet asphalt realistically
-          vec3 wetAlbedo = albedo * mix(1.0, 0.58, puddle);
-          vec3 color = wetAlbedo * (uAmbientColor + uSunColor * NdotL * 0.85) + uSunColor * spec * 0.65;
-
-          // Dynamic car headlight pool projected onto road
-          vec3 toFrag = vWorldPos - uCarPos;
-          float carDist = length(toFrag.xz);
-          if (uHeadlightsOn > 0.5 && carDist < 58.0) {
-            vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
-            float cone = dot(dir2, normalize(uCarForward.xz));
-            float beam = smoothstep(0.68, 0.96, cone) * smoothstep(58.0, 3.0, carDist);
-            color += vec3(1.0, 0.94, 0.82) * beam * (0.45 + puddle * 0.35);
-          }
-
-          // Dynamic taillight / brake glow & nitro underglow reflected on asphalt
-          vec3 rearPos = uCarPos - uCarForward * 2.3;
-          float rearDist = length(vWorldPos.xz - rearPos.xz);
-          if (rearDist < 14.0) {
-            float tailFalloff = smoothstep(14.0, 0.6, rearDist);
-            color += vec3(1.0, 0.1, 0.08) * tailFalloff * uBrakeIntensity * (0.32 + puddle * 0.5);
-            if (uNitroActive > 0.5) {
-              color += vec3(0.15, 0.72, 1.0) * tailFalloff * (0.5 + puddle * 0.75);
-            }
-          }
-
-          // Real-Time Planar Mirror Reflection with Schlick Fresnel
           if (uRTEnabled > 0.5) {
-            vec2 screenUv = gl_FragCoord.xy / uResolution;
+            // Wet puddles & asphalt micro-roughness
+            float p1 = noise2D(vWorldPos.xz * 0.045);
+            float p2 = noise2D(vWorldPos.xz * 0.13);
+            float puddle = smoothstep(0.32, 0.65, p1 * 0.68 + p2 * 0.32) * uWetness;
+
+            float microX = noise2D(vWorldPos.xz * 2.1) - 0.5;
+            float microZ = noise2D(vWorldPos.xz * 2.1 + 19.7) - 0.5;
+            float roughAmt = mix(0.14, 0.012, puddle);
+            vec3 N = normalize(vec3(microX * roughAmt, 1.0, microZ * roughAmt));
+
+            float NdotL = max(dot(N, L), 0.0);
+            vec3 H = normalize(L + V);
+            float specPower = mix(28.0, 260.0, puddle);
+            float spec = pow(max(dot(N, H), 0.0), specPower) * mix(0.25, 1.65, puddle);
+
+            vec3 wetAlbedo = albedo * mix(0.95, 0.5, puddle);
+            color = wetAlbedo * (uAmbientColor + uSunColor * NdotL * 0.85) + uSunColor * spec * 0.7;
+
+            // Dynamic headlight pool on wet road
+            vec3 toFrag = vWorldPos - uCarPos;
+            float carDist = length(toFrag.xz);
+            if (uHeadlightsOn > 0.5 && carDist < 62.0) {
+              vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
+              float cone = dot(dir2, normalize(uCarForward.xz));
+              float beam = smoothstep(0.66, 0.96, cone) * smoothstep(62.0, 2.5, carDist);
+              color += vec3(1.0, 0.94, 0.82) * beam * (0.5 + puddle * 0.45);
+            }
+
+            // Dynamic brake & nitro reflection pool behind car
+            vec3 rearPos = uCarPos - uCarForward * 2.3;
+            float rearDist = length(vWorldPos.xz - rearPos.xz);
+            if (rearDist < 15.0) {
+              float tailFalloff = smoothstep(15.0, 0.5, rearDist);
+              color += vec3(1.0, 0.1, 0.08) * tailFalloff * uBrakeIntensity * (0.35 + puddle * 0.6);
+              if (uNitroActive > 0.5) {
+                color += vec3(0.15, 0.78, 1.0) * tailFalloff * (0.6 + puddle * 0.85);
+              }
+            }
+
+            // Live Planar Mirror Reflection with Fresnel
+            vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
             vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
-            // Distort reflection slightly by asphalt roughness (sharp in puddles, softer on dry road)
-            float distort = mix(0.018, 0.002, puddle);
+            float distort = mix(0.015, 0.0018, puddle);
             reflUv += vec2(microX, microZ) * distort;
             reflUv = clamp(reflUv, vec2(0.002), vec2(0.998));
 
-            vec3 reflColor = texture2D(uReflMap, reflUv).rgb;
-            float fresnel = 0.08 + 0.92 * pow(1.0 - max(dot(N, V), 0.0), 3.0);
-            float reflStrength = clamp(mix(0.18, 0.84, puddle) * (0.55 + fresnel * 0.7), 0.0, 0.88);
+            vec3 reflColor = texture2D(uReflMap, reflUv).rgb * 1.15;
+            float fresnel = 0.14 + 0.86 * pow(1.0 - max(dot(N, V), 0.0), 2.6);
+            float reflStrength = clamp(mix(0.24, 0.92, puddle) * (0.55 + fresnel * 0.65), 0.0, 0.92);
             color = mix(color, reflColor, reflStrength);
+          } else {
+            // RT OFF: flat matte dry asphalt, no reflections, no puddles, no bounce glow
+            float NdotL = max(L.y, 0.0);
+            color = albedo * (uAmbientColor * 1.15 + uSunColor * NdotL * 0.85);
           }
 
-          // Match Three.js FogExp2 seamlessly
           float depth = length(cameraPosition - vWorldPos);
           float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * depth * depth);
           color = mix(color, uFogColor, clamp(fogFactor, 0.0, 1.0));
@@ -412,14 +452,13 @@
     });
   }
 
-  // Keep shared uniform references synchronized across both road materials
   const roadMatStrip = createReflectiveRoadMaterial(false);
   const roadMatInter = createReflectiveRoadMaterial(true);
   const allRoadMats = [roadMatStrip, roadMatInter];
 
   function setRoadUniform(name, val) {
     allRoadMats.forEach((m) => {
-      if (m.uniforms[name].value.copy) {
+      if (m.uniforms[name].value && typeof m.uniforms[name].value.copy === "function") {
         m.uniforms[name].value.copy(val);
       } else {
         m.uniforms[name].value = val;
@@ -428,7 +467,7 @@
   }
 
   // =========================================================================
-  // 5. OPEN WORLD GENERATION (ROADS, NEON SKYSCRAPERS, RAMPS, TREES)
+  // 5. OPEN WORLD GENERATION
   // =========================================================================
   const buildings = [];
   const ramps = [];
@@ -457,7 +496,6 @@
   const roadLength = 896;
   const roadShadowMat = new THREE.ShadowMaterial({ opacity: 0.36 });
 
-  // North-South roads
   roadLines.forEach((x) => {
     const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_WIDTH, roadLength), roadMatStrip);
     road.rotation.x = -Math.PI / 2;
@@ -471,7 +509,6 @@
     roadShadowGroup.add(sh);
   });
 
-  // East-West roads
   roadLines.forEach((z) => {
     const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_WIDTH, roadLength), roadMatStrip);
     road.rotation.x = -Math.PI / 2;
@@ -487,7 +524,6 @@
     roadShadowGroup.add(sh);
   });
 
-  // Intersections
   const interGeo = new THREE.PlaneGeometry(ROAD_WIDTH + 0.5, ROAD_WIDTH + 0.5);
   roadLines.forEach((x) => {
     roadLines.forEach((z) => {
@@ -533,7 +569,7 @@
   addRamp(-275, 55, 14, 5.5, 24, Math.PI / 2);
   addRamp(55, 275, 14, 5.0, 22, -Math.PI / 2);
 
-  // Materials for City & Foliage
+  // City Buildings, Neon Crowns & Streetlamps
   const palette = [
     { wall: "#273449", win: "#fef08a" },
     { wall: "#334155", win: "#7dd3fc" },
@@ -548,7 +584,7 @@
       new THREE.MeshStandardMaterial({
         color: hex,
         emissive: hex,
-        emissiveIntensity: 1.8,
+        emissiveIntensity: 2.2,
         roughness: 0.2,
       })
     );
@@ -560,7 +596,7 @@
       map: tex,
       emissiveMap: tex,
       emissive: new THREE.Color(0xfff1c9),
-      emissiveIntensity: 0.7,
+      emissiveIntensity: 0.85,
       roughness: 0.35,
       metalness: 0.35,
     });
@@ -575,7 +611,7 @@
   const bulbMat = new THREE.MeshStandardMaterial({
     color: 0xfef08a,
     emissive: 0xfde047,
-    emissiveIntensity: 2.2,
+    emissiveIntensity: 2.4,
   });
 
   function addTree(x, z, scale = 1) {
@@ -603,7 +639,7 @@
     pole.position.y = 4.25;
     g.add(pole);
 
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.48, 8, 8), bulbMat);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 8), bulbMat);
     bulb.position.y = 8.6;
     g.add(bulb);
 
@@ -670,12 +706,16 @@
         mesh.receiveShadow = true;
         scene.add(mesh);
 
-        // Glowing rooftop neon crown on tall downtown towers (creates dramatic wet road reflections)
-        if (isDowntown && h > 44) {
+        if (isDowntown && h > 40) {
           const neonMat = neonMaterials[Math.floor(rand() * neonMaterials.length)];
-          const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.5, 0.9, d + 0.5), neonMat);
+          const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 1.0, d + 0.6), neonMat);
           rim.position.set(px, h - 0.6, pz);
           scene.add(rim);
+
+          // Lower street-level neon accent strip for vibrant road reflections
+          const baseStrip = new THREE.Mesh(new THREE.BoxGeometry(w + 0.4, 0.7, d + 0.4), neonMat);
+          baseStrip.position.set(px, 6.5, pz);
+          scene.add(baseStrip);
         }
 
         buildings.push({
@@ -693,7 +733,6 @@
     }
   }
 
-  // Outer perimeter mountains (positioned cleanly at y >= 0 for crisp planar reflections)
   const mountainMat = new THREE.MeshStandardMaterial({ color: 0x2f4232, roughness: 0.95 });
   for (let i = 0; i < 48; i++) {
     const a = (i / 48) * Math.PI * 2;
@@ -705,7 +744,7 @@
   }
 
   // =========================================================================
-  // 6. PLAYER CAR 3D MODEL (CLEARCOAT METALLIC PBR + LIVE CUBEMAP REFLECTIONS)
+  // 6. PLAYER CAR 3D MODEL
   // =========================================================================
   const carGroup = new THREE.Group();
   const carTiltGroup = new THREE.Group();
@@ -714,21 +753,21 @@
 
   const bodyMat = new THREE.MeshPhysicalMaterial({
     color: 0xe11d48,
-    metalness: 0.82,
-    roughness: 0.14,
+    metalness: 0.85,
+    roughness: 0.12,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.05,
+    clearcoatRoughness: 0.04,
     envMap: cubeRenderTarget.texture,
-    envMapIntensity: 1.5,
+    envMapIntensity: 1.8,
   });
 
   const cabinMat = new THREE.MeshPhysicalMaterial({
     color: 0x0a1020,
-    metalness: 0.92,
-    roughness: 0.06,
+    metalness: 0.94,
+    roughness: 0.05,
     clearcoat: 1.0,
     envMap: cubeRenderTarget.texture,
-    envMapIntensity: 1.85,
+    envMapIntensity: 2.0,
   });
 
   const trimMat = new THREE.MeshStandardMaterial({
@@ -737,7 +776,6 @@
     roughness: 0.4,
   });
 
-  // Chassis & Hood
   const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.12, 0.62, 4.55), bodyMat);
   chassis.position.y = 0.62;
   chassis.castShadow = true;
@@ -749,7 +787,6 @@
   cabin.castShadow = true;
   carTiltGroup.add(cabin);
 
-  // Rear Spoiler
   const spoilerWing = new THREE.Mesh(new THREE.BoxGeometry(2.08, 0.1, 0.44), trimMat);
   spoilerWing.position.set(0, 1.22, 2.04);
   spoilerWing.castShadow = true;
@@ -761,7 +798,6 @@
     carTiltGroup.add(strut);
   });
 
-  // Emissive Headlights & Brake Lights
   const headlightMat = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     emissive: 0xfffbeb,
@@ -777,7 +813,7 @@
   const beamMat = new THREE.MeshBasicMaterial({
     color: 0xfff6d6,
     transparent: true,
-    opacity: 0.085,
+    opacity: 0.09,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
@@ -788,7 +824,6 @@
     hl.position.set(lx, 0.68, -2.28);
     carTiltGroup.add(hl);
 
-    // Volumetric Headlight Light Cone
     const cone = new THREE.Mesh(new THREE.ConeGeometry(2.4, 15, 16, 1, true), beamMat);
     cone.rotation.x = Math.PI / 2;
     cone.position.set(lx, 0.66, -9.8);
@@ -800,7 +835,6 @@
     carTiltGroup.add(tl);
   });
 
-  // Real Spotlight + Rear Brake/Nitro Dynamic Point Light
   const headSpot = new THREE.SpotLight(0xfff8e7, 3.0, 105, Math.PI / 4.8, 0.48, 1.15);
   headSpot.position.set(0, 0.95, -2.0);
   const headTarget = new THREE.Object3D();
@@ -813,7 +847,6 @@
   rearGlowLight.position.set(0, 0.7, 2.8);
   carTiltGroup.add(rearGlowLight);
 
-  // Nitro Flames
   const flameMat = new THREE.MeshBasicMaterial({
     color: 0x38bdf8,
     transparent: true,
@@ -828,7 +861,6 @@
     return cone;
   });
 
-  // Wheels
   const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.34, 16);
   wheelGeo.rotateZ(Math.PI / 2);
   const tireMat = new THREE.MeshStandardMaterial({ color: 0x0f1218, roughness: 0.88 });
@@ -837,6 +869,7 @@
     metalness: 0.95,
     roughness: 0.12,
     envMap: cubeRenderTarget.texture,
+    envMapIntensity: 1.5,
   });
 
   const wheelMeshes = [];
@@ -890,7 +923,7 @@
   }
 
   // =========================================================================
-  // 7. FULL PROCEDURAL WEB AUDIO SOUND ENGINE
+  // 7. FULL PROCEDURAL WEB AUDIO ENGINE
   // =========================================================================
   const soundBtn = document.getElementById("btn-sound");
   const soundLabel = document.getElementById("sound-label");
@@ -900,25 +933,20 @@
     masterGain: null,
     enabled: false,
     userMuted: false,
-    // Engine channels
     oscSub: null,
     oscMain: null,
     oscHarm: null,
     engineFilter: null,
     engineGain: null,
-    // Tire screech
     screechFilter: null,
     screechGain: null,
-    // Wind & Nitro
     windGain: null,
     nitroNoiseGain: null,
     turboOsc: null,
     turboGain: null,
-    // Horn
     hornOsc1: null,
     hornOsc2: null,
     hornGain: null,
-    // Reusable noise buffer
     noiseBuffer: null,
 
     init() {
@@ -933,14 +961,12 @@
       this.masterGain.gain.value = 0.72;
       this.masterGain.connect(ctx.destination);
 
-      // Shared white noise buffer
       const bufLen = ctx.sampleRate * 2;
       const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
       const data = buf.getChannelData(0);
       for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
       this.noiseBuffer = buf;
 
-      // Subtle soft-clipper for warm V8 growl
       const shaper = ctx.createWaveShaper();
       const curve = new Float32Array(256);
       for (let i = 0; i < 256; i++) {
@@ -985,7 +1011,7 @@
       this.oscMain.start();
       this.oscHarm.start();
 
-      // Tire Drift Screech
+      // Drift screech
       const screechSrc = ctx.createBufferSource();
       screechSrc.buffer = buf;
       screechSrc.loop = true;
@@ -1003,7 +1029,7 @@
       this.screechGain.connect(this.masterGain);
       screechSrc.start();
 
-      // High-Speed Wind Rush
+      // Wind rush
       const windSrc = ctx.createBufferSource();
       windSrc.buffer = buf;
       windSrc.loop = true;
@@ -1020,7 +1046,7 @@
       this.windGain.connect(this.masterGain);
       windSrc.start();
 
-      // Nitro Jet Roar + Turbo Whistle
+      // Nitro jet + turbo
       const nitroSrc = ctx.createBufferSource();
       nitroSrc.buffer = buf;
       nitroSrc.loop = true;
@@ -1048,14 +1074,14 @@
       this.turboGain.connect(this.masterGain);
       this.turboOsc.start();
 
-      // Dual-tone Car Horn
+      // Dual-tone horn
       this.hornOsc1 = ctx.createOscillator();
       this.hornOsc1.type = "sawtooth";
-      this.hornOsc1.frequency.value = 392; // G4
+      this.hornOsc1.frequency.value = 392;
 
       this.hornOsc2 = ctx.createOscillator();
       this.hornOsc2.type = "sawtooth";
-      this.hornOsc2.frequency.value = 493.88; // B4
+      this.hornOsc2.frequency.value = 493.88;
 
       const hornFilter = ctx.createBiquadFilter();
       hornFilter.type = "lowpass";
@@ -1105,7 +1131,6 @@
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
 
-      // Engine pitch & tone driven directly by gearbox RPM
       const normRpm = THREE.MathUtils.clamp((rpm - 800) / 7200, 0, 1);
       const baseFreq = 34 + normRpm * 92 + (usingNitro ? 14 : 0);
 
@@ -1119,23 +1144,17 @@
       const loadVol = 0.09 + normRpm * 0.11 + (throttle > 0 ? 0.045 : 0);
       this.engineGain.gain.setTargetAtTime(loadVol, now, 0.05);
 
-      // Drift tire screech
-      const screechLevel = drifting
-        ? Math.min(0.18, Math.abs(lateralSpeed) * 0.011)
-        : 0;
+      const screechLevel = drifting ? Math.min(0.18, Math.abs(lateralSpeed) * 0.011) : 0;
       this.screechFilter.frequency.setTargetAtTime(1400 + Math.min(600, absSpeed * 8), now, 0.05);
       this.screechGain.gain.setTargetAtTime(screechLevel, now, 0.04);
 
-      // High-speed aerodynamic wind rush
       const windLevel = absSpeed > 22 ? Math.min(0.15, (absSpeed - 22) * 0.0024) : 0;
       this.windGain.gain.setTargetAtTime(windLevel, now, 0.08);
 
-      // Nitro whoosh & turbo whine
       this.nitroNoiseGain.gain.setTargetAtTime(usingNitro ? 0.19 : 0, now, 0.06);
       this.turboOsc.frequency.setTargetAtTime(2200 + normRpm * 2400, now, 0.06);
       this.turboGain.gain.setTargetAtTime(usingNitro ? 0.045 : normRpm > 0.65 ? 0.012 : 0, now, 0.07);
 
-      // Car Horn
       this.hornGain.gain.setTargetAtTime(hornPressed ? 0.13 : 0, now, 0.018);
     },
 
@@ -1167,7 +1186,6 @@
       const now = this.ctx.currentTime;
       const vol = THREE.MathUtils.clamp(strength / 35, 0.08, 0.42);
 
-      // Low thud
       const osc = this.ctx.createOscillator();
       osc.type = "sine";
       osc.frequency.setValueAtTime(115, now);
@@ -1182,7 +1200,6 @@
       osc.start(now);
       osc.stop(now + 0.25);
 
-      // Crunch noise
       const src = this.ctx.createBufferSource();
       src.buffer = this.noiseBuffer;
       const lp = this.ctx.createBiquadFilter();
@@ -1202,7 +1219,7 @@
   };
 
   // =========================================================================
-  // 8. INPUT HANDLING
+  // 8. INPUT HANDLING (WITH REPEAT GUARD & BUTTON BLUR)
   // =========================================================================
   const keys = {};
 
@@ -1214,6 +1231,9 @@
       e.preventDefault();
     }
     if (code !== "KeyM") audio.unlockAuto();
+
+    // Ignore key-repeat so holding T / C / N / M / R doesn't double-toggle
+    if (e.repeat) return;
 
     if (code === "KeyT") toggleRayTracing();
     if (code === "KeyC") cycleCamera();
@@ -1467,7 +1487,6 @@
 
     resolveBuildingCollisions();
 
-    // Automatic 6-Speed Gearbox & RPM Calculation
     const kmh = Math.abs(forwardSpeed) * 3.6;
     let gearStr = "N";
     let gearNum = 0;
@@ -1498,7 +1517,6 @@
     const targetRpm = 850 + gearRatio * 7100 + (throttle > 0 && gearNum === 0 ? 1400 : 0);
     car.rpm = THREE.MathUtils.lerp(car.rpm, targetRpm, 12 * dt);
 
-    // Drift & Smoke
     car.drifting = car.grounded && Math.abs(lateralSpeed) > 5.5 && Math.abs(forwardSpeed) > 10;
     if (car.drifting && Math.random() < 0.75) {
       const rearX = car.x - nfx * 1.4;
@@ -1507,7 +1525,6 @@
       spawnSmoke(rearX - nrx * 0.9, car.y + 0.25, rearZ - nrz * 0.9);
     }
 
-    // Wheel rotation, steering & suspension tilt
     car.steerAngle = THREE.MathUtils.lerp(car.steerAngle, steerInput * 0.48, 12 * dt);
     frontWheelPivots.forEach((p) => (p.rotation.y = car.steerAngle));
     wheelMeshes.forEach((w) => (w.rotation.x -= (forwardSpeed * dt) / 0.42));
@@ -1525,19 +1542,16 @@
     carTiltGroup.rotation.x = car.pitch;
     carTiltGroup.rotation.z = car.roll;
 
-    // Brake & Nitro dynamic lights + road shader uniforms
     const braking = (throttle < 0 && forwardSpeed > 1) || handbrake;
-    const brakeGlow = braking ? 2.6 : 0.55;
-    brakeLightMat.emissiveIntensity = brakeGlow;
+    brakeLightMat.emissiveIntensity = braking ? 2.6 : 0.55;
     rearGlowLight.color.setHex(usingNitro ? 0x38bdf8 : 0xff2222);
-    rearGlowLight.intensity = usingNitro ? 2.8 : braking ? 2.2 : 0.75;
+    rearGlowLight.intensity = rtEnabled ? (usingNitro ? 2.8 : braking ? 2.2 : 0.75) : 0;
 
     setRoadUniform("uCarPos", carGroup.position);
     setRoadUniform("uCarForward", new THREE.Vector3(nfx, 0, nfz));
     setRoadUniform("uBrakeIntensity", braking ? 1.4 : 0.45);
     setRoadUniform("uNitroActive", usingNitro ? 1.0 : 0.0);
 
-    // Update smoke
     for (let i = 0; i < smokePool.length; i++) {
       const p = smokePool[i];
       if (p.life > 0) {
@@ -1552,8 +1566,8 @@
       }
     }
 
-    // Move shadow camera & sky disc with player
     const preset = TIME_PRESETS[timeIndex];
+    skyDome.position.set(car.x, 0, car.z);
     sunLight.position.set(
       car.x + preset.sunPos[0] * 0.5,
       preset.sunPos[1] * 0.6,
@@ -1566,7 +1580,6 @@
       car.z + preset.sunPos[2] * 2.2
     );
 
-    // Update Web Audio engine
     audio.update(
       car.rpm,
       Math.abs(forwardSpeed),
@@ -1581,23 +1594,49 @@
   }
 
   // =========================================================================
-  // 10. CAMERA, RT REFLECTION PASSES & TIME OF DAY
+  // 10. CAMERA, RT REFLECTION TOGGLE & TIME OF DAY
   // =========================================================================
   let cameraModeIdx = 0;
   let timeIndex = 0;
   const camPosCurrent = new THREE.Vector3(0, 5.5, 31);
   const camLookCurrent = new THREE.Vector3(0, 1.4, 14);
 
-  function toggleRayTracing() {
-    rtEnabled = !rtEnabled;
+  function applyRTState() {
+    const p = TIME_PRESETS[timeIndex];
     const rtBtn = document.getElementById("btn-rt");
     document.getElementById("rt-label").textContent = rtEnabled ? "ON" : "OFF";
     rtBtn.classList.toggle("active", rtEnabled);
 
+    // 1. Road planar reflections, puddles & dynamic light bounce
     setRoadUniform("uRTEnabled", rtEnabled ? 1.0 : 0.0);
-    bodyMat.envMapIntensity = rtEnabled ? 1.5 : 0.0;
-    cabinMat.envMapIntensity = rtEnabled ? 1.85 : 0.0;
-    showBanner(rtEnabled ? "RT REFLECTIONS ENABLED" : "RT REFLECTIONS OFF");
+
+    // 2. Car paint, glass & chrome CubeCamera reflections
+    bodyMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
+    bodyMat.envMapIntensity = rtEnabled ? 1.8 : 0.0;
+    bodyMat.clearcoat = rtEnabled ? 1.0 : 0.0;
+    bodyMat.roughness = rtEnabled ? 0.12 : 0.58;
+    bodyMat.needsUpdate = true;
+
+    cabinMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
+    cabinMat.envMapIntensity = rtEnabled ? 2.0 : 0.0;
+    cabinMat.roughness = rtEnabled ? 0.05 : 0.45;
+    cabinMat.needsUpdate = true;
+
+    rimMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
+    rimMat.envMapIntensity = rtEnabled ? 1.5 : 0.0;
+    rimMat.needsUpdate = true;
+
+    // 3. Real-time shadows & volumetric beams
+    sunLight.castShadow = rtEnabled;
+    roadShadowGroup.visible = rtEnabled;
+    volumetricBeams.forEach((b) => (b.visible = rtEnabled && p.headlights));
+    headSpot.intensity = rtEnabled && p.headlights ? 3.2 : p.headlights ? 1.2 : 0;
+  }
+
+  function toggleRayTracing() {
+    rtEnabled = !rtEnabled;
+    applyRTState();
+    showBanner(rtEnabled ? "RT REFLECTIONS: ON" : "RT REFLECTIONS: OFF");
   }
 
   function cycleCamera() {
@@ -1607,9 +1646,13 @@
 
   function applyTimePreset(idx) {
     const p = TIME_PRESETS[idx];
-    scene.background = new THREE.Color(p.sky);
+    scene.background = new THREE.Color(p.skyHorizon);
     scene.fog = new THREE.FogExp2(p.fog, p.fogDensity);
     renderer.toneMappingExposure = p.exposure;
+
+    skyUniforms.uTopColor.value.setHex(p.skyTop);
+    skyUniforms.uHorizonColor.value.setHex(p.skyHorizon);
+    skyUniforms.uBottomColor.value.setHex(p.skyBottom);
 
     sunLight.color.setHex(p.sunColor);
     sunLight.intensity = p.sunIntensity;
@@ -1622,12 +1665,8 @@
     buildingMaterials.forEach((m) => (m.emissiveIntensity = p.windowGlow));
     neonMaterials.forEach((m) => (m.emissiveIntensity = p.neonGlow));
     bulbMat.emissiveIntensity = p.headlights ? 2.4 : 0.15;
-
-    headSpot.intensity = p.headlights ? 3.2 : 0;
     headlightMat.emissiveIntensity = p.headlights ? 2.8 : 0.4;
-    volumetricBeams.forEach((b) => (b.visible = p.headlights));
 
-    // Sync wet road reflection shader lighting
     setRoadUniform("uSunDir", new THREE.Vector3(...p.sunPos).normalize());
     setRoadUniform("uSunColor", new THREE.Color(p.sunColor));
     setRoadUniform("uAmbientColor", new THREE.Color(p.ambientRoad));
@@ -1637,6 +1676,7 @@
     setRoadUniform("uWetness", p.wetness);
 
     document.getElementById("time-label").textContent = p.name;
+    applyRTState();
   }
 
   function cycleTimeOfDay() {
@@ -1684,7 +1724,7 @@
   function renderRTPasses() {
     if (!rtEnabled) return;
 
-    // Pass 1: Planar Mirror Reflection for all wet asphalt roads
+    // Pass 1: Live planar mirror reflection for wet roads
     mirrorCamera.fov = camera.fov;
     mirrorCamera.aspect = camera.aspect;
     mirrorCamera.near = camera.near;
@@ -1706,9 +1746,9 @@
 
     ground.visible = true;
     roadGroup.visible = true;
-    roadShadowGroup.visible = true;
+    roadShadowGroup.visible = rtEnabled;
 
-    // Pass 2: Dynamic 360-degree CubeCamera Reflection on the car paint (every 2 frames for 60fps smoothness)
+    // Pass 2: Live 360-degree CubeCamera reflection on car body & glass
     if (frameCounter % 2 === 0) {
       carGroup.visible = false;
       cubeCamera.position.set(car.x, car.y + 1.15, car.z);
@@ -1718,7 +1758,7 @@
   }
 
   // =========================================================================
-  // 11. HUD TELEMETRY & REAL-TIME MINIMAP
+  // 11. HUD TELEMETRY & MINIMAP
   // =========================================================================
   const speedEl = document.getElementById("speed-value");
   const gearEl = document.getElementById("gear-value");
@@ -1816,13 +1856,22 @@
   }
 
   // =========================================================================
-  // 12. BUTTONS, RESIZE & MAIN LOOP
+  // 12. BUTTONS (BLUR AFTER CLICK SO SPACE NEVER RE-TOGGLES), RESIZE & LOOP
   // =========================================================================
-  document.getElementById("btn-rt").addEventListener("click", toggleRayTracing);
-  document.getElementById("btn-camera").addEventListener("click", cycleCamera);
-  document.getElementById("btn-time").addEventListener("click", cycleTimeOfDay);
-  document.getElementById("btn-sound").addEventListener("click", () => audio.toggle());
-  document.getElementById("btn-reset").addEventListener("click", resetCar);
+  function bindButton(id, handler) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      handler();
+    });
+  }
+
+  bindButton("btn-rt", toggleRayTracing);
+  bindButton("btn-camera", cycleCamera);
+  bindButton("btn-time", cycleTimeOfDay);
+  bindButton("btn-sound", () => audio.toggle());
+  bindButton("btn-reset", resetCar);
 
   window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -1833,13 +1882,10 @@
       Math.max(256, Math.floor(window.innerWidth * reflScale)),
       Math.max(256, Math.floor(window.innerHeight * reflScale))
     );
-    setRoadUniform(
-      "uResolution",
-      new THREE.Vector2(renderer.domElement.width, renderer.domElement.height)
-    );
+    renderer.getDrawingBufferSize(drawingBufferSize);
+    setRoadUniform("uResolution", drawingBufferSize);
   });
 
-  // Start in SUNSET preset to immediately showcase wet reflections & neon lighting
   applyTimePreset(0);
   const clock = new THREE.Clock();
 
