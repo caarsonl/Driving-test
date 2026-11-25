@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Horizon Drive 3D — RT Reflections & Audio Edition</title>
+  <title>Horizon Drive 3D — Weather, Water & RT Reflections</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -15,20 +15,23 @@
     <div class="hud-top">
       <div class="brand-badge">
         <span class="title">HORIZON DRIVE 3D</span>
-        <span class="subtitle" id="status-zone">DOWNTOWN CORE</span>
+        <span class="subtitle" id="status-zone">DOWNTOWN WATERFRONT</span>
       </div>
 
       <div class="toolbar">
         <button id="btn-rt" class="hud-btn active" title="Toggle Real-Time Reflections (T)">
           RT REFLECTIONS: <span id="rt-label">ON</span>
         </button>
-        <button id="btn-camera" class="hud-btn" title="Switch Camera (C)">
-          CAM: <span id="cam-label">CHASE</span>
+        <button id="btn-weather" class="hud-btn active" title="Cycle Weather (V)">
+          WEATHER: <span id="weather-label">RAIN</span>
         </button>
         <button id="btn-time" class="hud-btn" title="Cycle Time of Day (N)">
           TIME: <span id="time-label">SUNSET</span>
         </button>
-        <button id="btn-sound" class="hud-btn" title="Toggle Engine Audio (M)">
+        <button id="btn-camera" class="hud-btn" title="Switch Camera (C)">
+          CAM: <span id="cam-label">CHASE</span>
+        </button>
+        <button id="btn-sound" class="hud-btn" title="Toggle Audio (M)">
           AUDIO: <span id="sound-label">CLICK / DRIVE</span>
         </button>
         <button id="btn-reset" class="hud-btn accent" title="Reset Car Position (R)">
@@ -45,13 +48,13 @@
       <!-- Minimap -->
       <div class="minimap-panel">
         <canvas id="minimap" width="180" height="180"></canvas>
-        <div class="minimap-coords" id="coords-display">X: 0 | Z: 0</div>
+        <div class="minimap-coords" id="coords-display">X: 0 | Z: 20</div>
       </div>
 
       <!-- Controls Legend -->
       <div class="controls-panel">
         <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>Arrows</kbd> Drive &nbsp;|&nbsp; <kbd>Space</kbd> Drift &nbsp;|&nbsp; <kbd>Shift</kbd> Nitro</div>
-        <div><kbd>T</kbd> RT Reflections &nbsp;|&nbsp; <kbd>C</kbd> Camera &nbsp;|&nbsp; <kbd>N</kbd> Time &nbsp;|&nbsp; <kbd>H</kbd> Horn &nbsp;|&nbsp; <kbd>M</kbd> Audio &nbsp;|&nbsp; <kbd>R</kbd> Reset</div>
+        <div><kbd>T</kbd> RT Reflections &nbsp;|&nbsp; <kbd>V</kbd> Weather &nbsp;|&nbsp; <kbd>N</kbd> Time &nbsp;|&nbsp; <kbd>C</kbd> Camera &nbsp;|&nbsp; <kbd>H</kbd> Horn &nbsp;|&nbsp; <kbd>M</kbd> Audio &nbsp;|&nbsp; <kbd>R</kbd> Reset</div>
       </div>
 
       <!-- Speedometer & Gauges -->
