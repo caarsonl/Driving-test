@@ -20,7 +20,7 @@
   const container = document.getElementById("canvas-container");
   const scene = new THREE.Scene();
 
-  const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.2, 3200);
+  const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.2, 3600);
   const mirrorCamera = camera.clone();
 
   const renderer = new THREE.WebGLRenderer({
@@ -38,7 +38,6 @@
   const drawingBufferSize = new THREE.Vector2();
   renderer.getDrawingBufferSize(drawingBufferSize);
 
-  // High-resolution planar RT reflection target for silky wet roads & ocean water
   const reflScale = 0.85;
   const reflTarget = new THREE.WebGLRenderTarget(
     Math.max(384, Math.floor(window.innerWidth * reflScale)),
@@ -50,7 +49,6 @@
     }
   );
 
-  // 512px Live 360-degree CubeCamera for razor-sharp metallic clearcoat reflections
   const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(512, {
     generateMipmaps: true,
     minFilter: THREE.LinearMipmapLinearFilter,
@@ -84,7 +82,6 @@
       }
     `;
 
-    // Pass 1: Bright emissive/highlight extraction + Horizontal 9-tap Gaussian blur
     const brightBlurHMat = new THREE.ShaderMaterial({
       uniforms: {
         tScene: { value: sceneTarget.texture },
@@ -120,7 +117,6 @@
       `,
     });
 
-    // Pass 2: Vertical 9-tap Gaussian blur
     const blurVMat = new THREE.ShaderMaterial({
       uniforms: {
         tBloom: { value: bloomTargetA.texture },
@@ -149,7 +145,6 @@
       `,
     });
 
-    // Pass 3: Real-Time FXAA Edge Smoothing + Bloom + Impact/Nitro Chroma + Vignette
     const compositeMat = new THREE.ShaderMaterial({
       uniforms: {
         tScene: { value: sceneTarget.texture },
@@ -171,7 +166,6 @@
         uniform float uVignette;
         varying vec2 vUv;
 
-        // Smooth FXAA 3.11-style luminance edge anti-aliasing (eliminates jagged road/house edges!)
         vec3 sampleFXAA(vec2 uv) {
           vec3 lumaW = vec3(0.299, 0.587, 0.114);
           vec3 rgbNW = texture2D(tScene, uv + vec2(-1.0, -1.0) * uInvRes).rgb;
@@ -235,7 +229,7 @@
           col = mix(vec3(luma), col, 1.08);
           col = pow(max(col, vec3(0.0)), vec3(1.02));
 
-          float vig = smoothstep(0.94, 0.34, dist);
+          float vig = 1.0 - smoothstep(0.34, 0.94, dist);
           col *= mix(1.0 - uVignette, 1.0, vig);
 
           gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
@@ -312,7 +306,7 @@
   const world = buildWorld(scene, reflTarget, drawingBufferSize);
 
   // =========================================================================
-  // 2. 9 ORIGINAL COPYRIGHT-FREE VEHICLES (DISTINCT AERO, AUDIO & MODELS)
+  // 2. 13 ORIGINAL COPYRIGHT-FREE VEHICLES (DISTINCT AERO, AUDIO & MODELS)
   // =========================================================================
   const VEHICLE_SPECS = {
     gt: {
@@ -419,6 +413,84 @@
       isPolice: false,
       isSixWheel: false,
     },
+    lmp: {
+      id: "lmp",
+      name: "Solstice LMP-1",
+      defaultColor: "#f8fafc",
+      aeroNote: "Endurance Prototype · Dorsal Fin, Venturi Tunnels & DRS (CdA 0.56)",
+      stats: { speed: 98, accel: 97, grip: 98, aero: 97, drift: 58 },
+      topSpeed: 95,
+      nitroTopSpeed: 115,
+      suspStiffness: 84,
+      suspDamping: 13.8,
+      suspTravel: 0.13,
+      rollMult: 0.42,
+      soundType: "v10",
+      enginePitch: 1.52,
+      engineHarmonic: 0.22,
+      wheelRadius: 0.39,
+      wheelWidth: 0.44,
+      wheelX: 1.12,
+      wheelZ: 1.56,
+      bodyLen: 4.92,
+      bodyW: 2.22,
+      hoodEyeY: 1.24,
+      hasActiveAero: true,
+      isPolice: false,
+      isSixWheel: false,
+    },
+    gt3: {
+      id: "gt3",
+      name: "Stratos GT3-R",
+      defaultColor: "#10b981",
+      aeroNote: "FIA GT3 Package · Dive-Plane Canards & Swan-Neck Wing (CdA 0.72)",
+      stats: { speed: 91, accel: 90, grip: 96, aero: 90, drift: 70 },
+      topSpeed: 85,
+      nitroTopSpeed: 104,
+      suspStiffness: 74,
+      suspDamping: 12.6,
+      suspTravel: 0.15,
+      rollMult: 0.58,
+      soundType: "v10",
+      enginePitch: 1.28,
+      engineHarmonic: 0.26,
+      wheelRadius: 0.41,
+      wheelWidth: 0.4,
+      wheelX: 1.14,
+      wheelZ: 1.4,
+      bodyLen: 4.62,
+      bodyW: 2.24,
+      hoodEyeY: 1.44,
+      hasActiveAero: true,
+      isPolice: false,
+      isSixWheel: false,
+    },
+    drift: {
+      id: "drift",
+      name: "Kitsune S-Drift",
+      defaultColor: "#7c3aed",
+      aeroNote: "Widebody Pro-Drift · Extended Steering Lock & Twin-Turbo (CdA 0.78)",
+      stats: { speed: 84, accel: 89, grip: 76, aero: 66, drift: 100 },
+      topSpeed: 79,
+      nitroTopSpeed: 98,
+      suspStiffness: 52,
+      suspDamping: 9.2,
+      suspTravel: 0.2,
+      rollMult: 0.94,
+      soundType: "turbo",
+      enginePitch: 1.22,
+      engineHarmonic: 0.32,
+      wheelRadius: 0.41,
+      wheelWidth: 0.4,
+      wheelX: 1.12,
+      wheelZ: 1.38,
+      bodyLen: 4.5,
+      bodyW: 2.18,
+      hoodEyeY: 1.46,
+      hasActiveAero: false,
+      isPolice: false,
+      isSixWheel: false,
+    },
     rally: {
       id: "rally",
       name: "Boreal Rally R4",
@@ -468,6 +540,32 @@
       bodyW: 2.16,
       hoodEyeY: 1.48,
       hasActiveAero: true,
+      isPolice: false,
+      isSixWheel: false,
+    },
+    buggy: {
+      id: "buggy",
+      name: "DuneValkyrie X",
+      defaultColor: "#f59e0b",
+      aeroNote: "Open Tubular Exocar · Featherweight Baja Jump Chassis (CdA 1.08)",
+      stats: { speed: 74, accel: 92, grip: 86, aero: 44, drift: 96 },
+      topSpeed: 69,
+      nitroTopSpeed: 88,
+      suspStiffness: 34,
+      suspDamping: 6.8,
+      suspTravel: 0.42,
+      rollMult: 1.25,
+      soundType: "turbo",
+      enginePitch: 1.08,
+      engineHarmonic: 0.34,
+      wheelRadius: 0.52,
+      wheelWidth: 0.44,
+      wheelX: 1.18,
+      wheelZ: 1.42,
+      bodyLen: 4.1,
+      bodyW: 2.26,
+      hoodEyeY: 1.72,
+      hasActiveAero: false,
       isPolice: false,
       isSixWheel: false,
     },
@@ -699,6 +797,164 @@
       drsFlap.position.set(0, 0, -0.08);
       activeWingPivot.add(drsFlap);
       carBodyGroup.add(activeWingPivot);
+    } else if (carId === "lmp") {
+      // SOLSTICE LMP-1 — Closed-Cockpit Endurance Prototype with Shark Fin & Active DRS Wing
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.1, sp.bodyLen), trimMat);
+      floor.position.set(0, baseY - 0.08, 0);
+      carBodyGroup.add(floor);
+
+      const centerDeck = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.34, sp.bodyLen - 0.2), bodyMat);
+      centerDeck.position.set(0, baseY + 0.12, 0.05);
+      centerDeck.castShadow = true;
+      carBodyGroup.add(centerDeck);
+
+      // Sculpted Front & Rear LMP Wheel Arch Fenders
+      [-0.86, 0.86].forEach((fx) => {
+        const frontPod = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.46, 1.55), bodyMat);
+        frontPod.position.set(fx, baseY + 0.18, -halfL + 0.92);
+        frontPod.castShadow = true;
+        carBodyGroup.add(frontPod);
+
+        const rearPod = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.44, 1.75), bodyMat);
+        rearPod.position.set(fx, baseY + 0.17, halfL - 0.92);
+        rearPod.castShadow = true;
+        carBodyGroup.add(rearPod);
+      });
+
+      // Narrow Teardrop Prototype Canopy
+      const bubble = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.46, 1.78), cabinMat);
+      bubble.position.set(0, baseY + 0.52, -0.15);
+      bubble.castShadow = true;
+      carBodyGroup.add(bubble);
+
+      // Iconic LMP Dorsal Shark Fin connecting cockpit to rear wing
+      const sharkFin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.44, 1.75), bodyMat);
+      sharkFin.position.set(0, baseY + 0.52, 1.32);
+      carBodyGroup.add(sharkFin);
+
+      [-0.98, 0.98].forEach((ex) => {
+        const ep = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.62, 0.68), trimMat);
+        ep.position.set(ex, baseY + 0.58, halfL - 0.22);
+        carBodyGroup.add(ep);
+      });
+
+      activeWingPivot = new THREE.Group();
+      activeWingPivot.position.set(0, baseY + 0.78, halfL - 0.24);
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(1.98, 0.08, 0.48), trimMat);
+      wing.castShadow = true;
+      activeWingPivot.add(wing);
+      carBodyGroup.add(activeWingPivot);
+    } else if (carId === "gt3") {
+      // STRATOS GT3-R — Widebody FIA GT3 Track Car with Canards, Vent Hood & Swan-Neck Wing
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.54, sp.bodyLen), bodyMat);
+      chassis.position.y = baseY + 0.19;
+      chassis.castShadow = true;
+      carBodyGroup.add(chassis);
+
+      const splitter = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.16, 0.08, 0.62), trimMat);
+      splitter.position.set(0, baseY - 0.08, -halfL - 0.02);
+      carBodyGroup.add(splitter);
+
+      // Front Aero Dive-Plane Canards
+      [-1, 1].forEach((s) => {
+        const canard = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.42), trimMat);
+        canard.position.set(s * (sp.bodyW * 0.5 + 0.05), baseY + 0.14, -halfL + 0.36);
+        canard.rotation.z = s * 0.22;
+        carBodyGroup.add(canard);
+      });
+
+      const hoodVent = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.06, 0.72), trimMat);
+      hoodVent.position.set(0, baseY + 0.48, -1.18);
+      carBodyGroup.add(hoodVent);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.5, 2.08), cabinMat);
+      cabin.position.set(0, baseY + 0.68, 0.16);
+      cabin.castShadow = true;
+      carBodyGroup.add(cabin);
+
+      // Swan-Neck Track Wing Struts + Endplates
+      [-0.58, 0.58].forEach((sx) => {
+        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.58, 0.28), trimMat);
+        strut.position.set(sx, baseY + 0.72, halfL - 0.18);
+        carBodyGroup.add(strut);
+      });
+
+      activeWingPivot = new THREE.Group();
+      activeWingPivot.position.set(0, baseY + 0.96, halfL - 0.16);
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.08, 0.08, 0.46), trimMat);
+      wing.castShadow = true;
+      activeWingPivot.add(wing);
+      [-sp.bodyW * 0.5 - 0.04, sp.bodyW * 0.5 + 0.04].forEach((ex) => {
+        const ep = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.34, 0.52), bodyMat);
+        ep.position.set(ex, -0.04, 0);
+        activeWingPivot.add(ep);
+      });
+      carBodyGroup.add(activeWingPivot);
+    } else if (carId === "drift") {
+      // KITSUNE S-DRIFT — Sleek Widebody JDM-Inspired Pro-Drift Coupe
+      const body = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.54, sp.bodyLen), bodyMat);
+      body.position.y = baseY + 0.2;
+      body.castShadow = true;
+      carBodyGroup.add(body);
+
+      const intercooler = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.28, 0.14), chromeMat);
+      intercooler.position.set(0, baseY + 0.08, -halfL - 0.02);
+      carBodyGroup.add(intercooler);
+
+      const frontLip = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.08, 0.08, 0.44), trimMat);
+      frontLip.position.set(0, baseY - 0.08, -halfL + 0.05);
+      carBodyGroup.add(frontLip);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.48, 2.02), cabinMat);
+      cabin.position.set(0, baseY + 0.68, 0.18);
+      cabin.castShadow = true;
+      carBodyGroup.add(cabin);
+
+      // Tall Drift Chassis-Mount GT Wing
+      [-0.78, 0.78].forEach((sx) => {
+        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.56, 0.22), trimMat);
+        strut.position.set(sx, baseY + 0.72, halfL - 0.15);
+        carBodyGroup.add(strut);
+      });
+      const driftWing = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.12, 0.08, 0.42), trimMat);
+      driftWing.position.set(0, baseY + 0.98, halfL - 0.15);
+      driftWing.rotation.x = -0.14;
+      carBodyGroup.add(driftWing);
+    } else if (carId === "buggy") {
+      // DUNEVALKYRIE X — Lightweight Open Tubular Baja Exocar
+      const skid = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.34, sp.bodyLen - 0.4), bodyMat);
+      skid.position.set(0, baseY + 0.12, 0.05);
+      skid.castShadow = true;
+      carBodyGroup.add(skid);
+
+      const nose = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.28, 1.15), bodyMat);
+      nose.position.set(0, baseY + 0.26, -1.28);
+      nose.rotation.x = 0.14;
+      carBodyGroup.add(nose);
+
+      // Open Tubular Roll-Cage Pillars & Roof Frame
+      [[-0.68, -0.55], [0.68, -0.55], [-0.68, 0.95], [0.68, 0.95]].forEach(([px, pz]) => {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.92, 6), trimMat);
+        post.position.set(px, baseY + 0.68, pz);
+        carBodyGroup.add(post);
+      });
+      const roofRack = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.09, 1.56), trimMat);
+      roofRack.position.set(0, baseY + 1.12, 0.2);
+      carBodyGroup.add(roofRack);
+
+      const ledBar = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.12, 0.14), headlightMat);
+      ledBar.position.set(0, baseY + 1.2, -0.56);
+      carBodyGroup.add(ledBar);
+
+      // Twin Bucket Seats & Rear Exposed Engine Bay
+      [-0.32, 0.32].forEach((sx) => {
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.56, 0.42), trimMat);
+        seat.position.set(sx, baseY + 0.45, 0.18);
+        carBodyGroup.add(seat);
+      });
+      const engineBlock = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.48, 0.88), chromeMat);
+      engineBlock.position.set(0, baseY + 0.42, 1.38);
+      carBodyGroup.add(engineBlock);
     } else if (carId === "supercar") {
       const lower = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.44, sp.bodyLen), bodyMat);
       lower.position.y = baseY + 0.16;
@@ -974,10 +1230,10 @@
       carBodyGroup.add(activeWingPivot);
     }
 
-    const lightY = carId === "truck" ? baseY + 0.62 : carId === "suv" ? baseY + 0.48 : carId === "formula" ? baseY + 0.1 : baseY + 0.26;
+    const lightY = carId === "truck" ? baseY + 0.62 : carId === "suv" ? baseY + 0.48 : carId === "formula" || carId === "lmp" ? baseY + 0.14 : baseY + 0.26;
     const beamGeo = new THREE.ConeGeometry(1.45, 11.5, 22, 1, true);
     beamGeo.rotateX(Math.PI / 2);
-    const lightSpan = carId === "formula" ? 0.42 : sp.bodyW * 0.34;
+    const lightSpan = carId === "formula" ? 0.42 : carId === "buggy" ? 0.52 : sp.bodyW * 0.34;
 
     [-lightSpan, lightSpan].forEach((lx) => {
       const hl = new THREE.Mesh(new THREE.BoxGeometry(carId === "formula" ? 0.22 : 0.46, 0.15, 0.08), headlightMat);
@@ -1101,7 +1357,7 @@
     m.visible = true;
   }
 
-  // Live Car-to-Puddle Wake & Wet Tire Track Shader Trail Ring Buffer (20 active stamps)
+  // Live Car-to-Puddle Wake & Wet Tire Track Shader Trail Ring Buffer
   const MAX_WATER_TRAILS = 20;
   const trailPosArr = Array.from({ length: MAX_WATER_TRAILS }, () => new THREE.Vector4(0, 0, 0, -999));
   const trailMetaArr = Array.from({ length: MAX_WATER_TRAILS }, () => new THREE.Vector4(1.0, 1.4, 0, 0));
@@ -1182,7 +1438,6 @@
     }
   }
 
-  // Directional Outward Water-Fan Spray when blasting through a road puddle!
   function spawnPuddleFan(x, y, z, outX, outZ, carVx, carVz, speed) {
     const p = particlePool[particleIdx];
     particleIdx = (particleIdx + 1) % particlePool.length;
@@ -1317,7 +1572,7 @@
   }
 
   // =========================================================================
-  // 3. PROCEDURAL WEB AUDIO ENGINE (9-CAR ENGINES, PUDDLE WHOOSH & CRUNCH)
+  // 3. PROCEDURAL WEB AUDIO ENGINE (13-CAR ENGINES, PUDDLE WHOOSH, LAP CHIME)
   // =========================================================================
   const soundBtn = document.getElementById("btn-sound");
   const soundLabel = document.getElementById("sound-label");
@@ -1620,6 +1875,24 @@
       }
     },
 
+    playChime(freq1 = 880, freq2 = 1320) {
+      if (!this.enabled || !this.ctx) return;
+      const now = this.ctx.currentTime;
+      [freq1, freq2].forEach((f, idx) => {
+        const osc = this.ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(f, now + idx * 0.09);
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.001, now + idx * 0.09);
+        g.gain.linearRampToValueAtTime(0.14, now + idx * 0.09 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.28);
+        osc.connect(g);
+        g.connect(this.masterGain);
+        osc.start(now + idx * 0.09);
+        osc.stop(now + idx * 0.09 + 0.3);
+      });
+    },
+
     playGearShiftPop() {
       if (!this.enabled || !this.ctx || !this.noiseBuffer || activeSpec.soundType === "ev") return;
       const now = this.ctx.currentTime;
@@ -1639,7 +1912,6 @@
       src.stop(now + 0.11);
     },
 
-    // Crisp Broadband Puddle Splash Whoosh when tires slice through a standing road puddle
     playPuddleWhoosh(speed) {
       if (!this.enabled || !this.ctx || !this.noiseBuffer) return;
       const now = this.ctx.currentTime;
@@ -1752,7 +2024,7 @@
   };
 
   // =========================================================================
-  // 4. GLOBAL STATE, TWO-STAGE MOISTURE / LINGERING PUDDLES & GARAGE UI
+  // 4. GLOBAL STATE, SMOOTH GRADUAL WEATHER, TWO-STAGE PUDDLES & MODALS
   // =========================================================================
   let rtEnabled = true;
   let trafficEnabled = true;
@@ -1761,13 +2033,14 @@
   let cameraModeIdx = 0;
   let warpIndex = 0;
   let garageOpen = false;
+  let mapOpen = false;
+  let toggleMap = () => {};
+  let onCarSwapped = () => {};
 
-  // Two-stage wetness: open asphalt dries first while standing puddles linger and shrink slowly!
   let roadMoisture = 0.0;
   let puddleLevel = 0.0;
   let moistureTrend = "DRY";
 
-  // Smoothly interpolated live weather state (clouds, drizzle, waves & fog roll in over several seconds!)
   const liveWeather = {
     name: WEATHER_PRESETS[0].name,
     rainCount: 0,
@@ -1796,14 +2069,14 @@
   function showBanner(text) {
     eventBanner.textContent = text;
     eventBanner.classList.add("visible");
-    bannerTimer = 1.5;
+    bannerTimer = 1.65;
   }
 
   function updateLiveWeather(dt) {
     const target = WEATHER_PRESETS[weatherIndex];
-    const tSky = 1 - Math.exp(-0.55 * dt);   // Clouds & sky darken gradually (~4-5s)
-    const tRain = 1 - Math.exp(-0.42 * dt);  // Drizzle builds smoothly into steady rain (~5-6s)
-    const tWave = 1 - Math.exp(-0.35 * dt);  // Ocean swells rise & calm naturally (~6-7s)
+    const tSky = 1 - Math.exp(-0.55 * dt);
+    const tRain = 1 - Math.exp(-0.42 * dt);
+    const tWave = 1 - Math.exp(-0.35 * dt);
 
     liveWeather.name = target.name;
     liveWeather.cloudCover = THREE.MathUtils.lerp(liveWeather.cloudCover, target.cloudCover, tSky);
@@ -1812,7 +2085,6 @@
     liveWeather.fogMult = THREE.MathUtils.lerp(liveWeather.fogMult, target.fogMult, tSky);
     liveWeather.waveStrength = THREE.MathUtils.lerp(liveWeather.waveStrength, target.waveStrength, tWave);
 
-    // Rain starts as light drizzle once clouds gather, and tapers off gently when clearing
     const cloudsReady = target.rainCount > 0 ? THREE.MathUtils.smoothstep(liveWeather.cloudCover, 0.42, 0.72) : 1.0;
     const goalRain = target.rainCount * cloudsReady;
     const goalSplash = target.splashCount * cloudsReady;
@@ -1833,7 +2105,6 @@
     const w = WEATHER_PRESETS[weatherIndex];
     const t = TIME_PRESETS[timeIndex];
 
-    // Wetting scales with actual live falling rain (so road stays dry during the first seconds while clouds roll in!)
     const rainFactor = w.rainIntensity > 0 ? THREE.MathUtils.clamp(liveWeather.rainIntensity / w.rainIntensity, 0, 1) : 1;
 
     if (w.wetRate > 0 && roadMoisture < w.targetMoisture) {
@@ -1842,7 +2113,6 @@
       roadMoisture = Math.max(w.targetMoisture, roadMoisture - t.dryRate * dt);
     }
 
-    // Puddles only start forming AFTER open asphalt is noticeably damp (> 34%) and linger slowly after rain stops
     const pFill = w.puddleFillRate || 0;
     const pTarget = w.targetPuddle || 0;
     const pDry = t.puddleDryRate || 0.012;
@@ -1875,7 +2145,6 @@
     world.setRoadUniform("uPuddleLevel", puddleLevel);
   }
 
-  // Reusable colors so per-frame smooth weather blending creates zero GC overhead
   const _envSkyTop = new THREE.Color();
   const _envSkyHor = new THREE.Color();
   const _envSkyBot = new THREE.Color();
@@ -2022,6 +2291,7 @@
 
     rebuildPlayerCarModel(carId);
     applyEnvironment();
+    onCarSwapped(carId);
   }
 
   function selectPaintColor(hex) {
@@ -2039,6 +2309,7 @@
 
   function toggleGarage(forceState = null) {
     garageOpen = forceState !== null ? forceState : !garageOpen;
+    if (garageOpen && mapOpen) toggleMap(false);
     garageModal.classList.toggle("hidden", !garageOpen);
     if (!garageOpen) {
       showBanner(`VEHICLE: ${activeSpec.name.toUpperCase()}`);
@@ -2074,7 +2345,7 @@
     if (name === "CLEAR" && (roadMoisture > 0.15 || puddleLevel > 0.15)) {
       showBanner("WEATHER: CLEAR — ROADS DRYING, PUDDLES LINGERING");
     } else if (name === "RAIN" || name === "STORM") {
-      showBanner(`WEATHER: ${name} — ASPHALT WETTING & PUDDLES FORMING`);
+      showBanner(`WEATHER: ${name} — CLOUDS GATHERING`);
     } else {
       showBanner(`WEATHER: ${name}`);
     }
@@ -2118,15 +2389,19 @@
     if (code !== "KeyM") audio.unlockAuto();
     if (e.repeat) return;
 
+    if (code === "KeyF") {
+      toggleMap();
+      return;
+    }
     if (code === "KeyG") {
       toggleGarage();
       return;
     }
-    if (code === "Escape" && garageOpen) {
-      toggleGarage(false);
-      return;
+    if (code === "Escape") {
+      if (mapOpen) { toggleMap(false); return; }
+      if (garageOpen) { toggleGarage(false); return; }
     }
-    if (garageOpen) return;
+    if (garageOpen || mapOpen) return;
 
     if (code === "KeyL") toggleSiren();
     if (code === "KeyT") toggleRayTracing();
@@ -2152,8 +2427,6 @@
   rebuildPlayerCarModel("gt");
 
   // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
-  // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
-
   // =========================================================================
   // 5. CONSOLE & MOBILE CONTROLS + 240Hz AERODYNAMICS & RIGID-BODY PHYSICS
   // =========================================================================
@@ -2186,7 +2459,7 @@
     controls.init({
       unlockAudio: () => audio.unlockAuto(),
       onBanner: (msg) => showBanner(msg),
-      isGarageOpen: () => garageOpen,
+      isGarageOpen: () => garageOpen || mapOpen,
       toggleGarage: (force) => toggleGarage(force),
       stepGarageCar,
       stepGaragePaint,
@@ -2311,6 +2584,84 @@
       pacejkaC: 1.14,
       tcsAllowSlip: 0.06,
     },
+    lmp: {
+      mass: 930,
+      Iz: 1460,
+      cgHeight: 0.31,
+      tireMu: 2.48,
+      brakeMu: 2.24,
+      rearMuMult: 1.1,
+      offroadMu: 0.78,
+      wetMuDrop: 0.36,
+      maxDriveForce: 19200,
+      nitroForce: 8000,
+      maxBrakeForce: 28500,
+      brakeBiasFront: 0.6,
+      awdFrontSplit: 0.32,
+      cdA: 0.56,
+      clFrontA: 1.85,
+      clRearA: 2.55,
+      sideArea: 2.0,
+      drsDragCut: 0.26,
+      drsRearDfCut: 0.3,
+      airbrakeDragAdd: 0.72,
+      airbrakeRearDfAdd: 0.6,
+      pacejkaB: 15.8,
+      pacejkaC: 1.14,
+      tcsAllowSlip: 0.06,
+    },
+    gt3: {
+      mass: 1280,
+      Iz: 1980,
+      cgHeight: 0.39,
+      tireMu: 2.32,
+      brakeMu: 1.98,
+      rearMuMult: 1.09,
+      offroadMu: 0.86,
+      wetMuDrop: 0.32,
+      maxDriveForce: 18600,
+      nitroForce: 7600,
+      maxBrakeForce: 28200,
+      brakeBiasFront: 0.61,
+      awdFrontSplit: 0.0,
+      cdA: 0.72,
+      clFrontA: 1.05,
+      clRearA: 1.55,
+      sideArea: 2.4,
+      drsDragCut: 0.2,
+      drsRearDfCut: 0.24,
+      airbrakeDragAdd: 0.68,
+      airbrakeRearDfAdd: 0.56,
+      pacejkaB: 15.0,
+      pacejkaC: 1.15,
+      tcsAllowSlip: 0.08,
+    },
+    drift: {
+      mass: 1340,
+      Iz: 2120,
+      cgHeight: 0.44,
+      tireMu: 1.82,
+      brakeMu: 1.58,
+      rearMuMult: 0.96,
+      offroadMu: 1.02,
+      wetMuDrop: 0.3,
+      maxDriveForce: 19200,
+      nitroForce: 8200,
+      maxBrakeForce: 24800,
+      brakeBiasFront: 0.68,
+      awdFrontSplit: 0.0,
+      cdA: 0.78,
+      clFrontA: 0.28,
+      clRearA: 0.44,
+      sideArea: 2.7,
+      drsDragCut: 0,
+      drsRearDfCut: 0,
+      airbrakeDragAdd: 0,
+      airbrakeRearDfAdd: 0,
+      pacejkaB: 12.8,
+      pacejkaC: 1.16,
+      tcsAllowSlip: 0.55,
+    },
     rally: {
       mass: 1280,
       Iz: 1950,
@@ -2362,6 +2713,32 @@
       pacejkaB: 14.0,
       pacejkaC: 1.14,
       tcsAllowSlip: 0.06,
+    },
+    buggy: {
+      mass: 920,
+      Iz: 1450,
+      cgHeight: 0.56,
+      tireMu: 1.76,
+      brakeMu: 1.54,
+      rearMuMult: 1.06,
+      offroadMu: 1.88,
+      wetMuDrop: 0.18,
+      maxDriveForce: 14800,
+      nitroForce: 6200,
+      maxBrakeForce: 20500,
+      brakeBiasFront: 0.58,
+      awdFrontSplit: 0.4,
+      cdA: 1.08,
+      clFrontA: 0.14,
+      clRearA: 0.22,
+      sideArea: 2.4,
+      drsDragCut: 0,
+      drsRearDfCut: 0,
+      airbrakeDragAdd: 0,
+      airbrakeRearDfAdd: 0,
+      pacejkaB: 12.2,
+      pacejkaC: 1.14,
+      tcsAllowSlip: 0.22,
     },
     suv: {
       mass: 2220,
@@ -2490,7 +2867,7 @@
     surfaceClass: "dry",
     currentGrip: 1.9,
     wetUnderCar: 0,
-    tireWetness: 0, // Carries moisture out of puddles onto dry asphalt!
+    tireWetness: 0,
   };
 
   let impactCooldown = 0;
@@ -2499,15 +2876,14 @@
   let cameraTrauma = 0;
   let scrapeIntensity = 0;
 
-  function warpTo(idx) {
-    const wp = WARP_POINTS[idx];
-    car.x = wp.x;
-    car.y = wp.y;
-    car.z = wp.z;
+  function teleportCar(x, y, z, heading, bannerMsg) {
+    car.x = x;
+    car.y = y;
+    car.z = z;
     car.vx = 0;
     car.vy = 0;
     car.vz = 0;
-    car.heading = wp.heading;
+    car.heading = heading;
     car.yawRate = 0;
     car.steerAngle = 0;
     car.throttlePedal = 0;
@@ -2537,9 +2913,14 @@
     camPosCurrent.set(car.x - fx * 11, car.y + 4.4, car.z - fz * 11);
     camLookCurrent.set(car.x + fx * 6, car.y + 1.4, car.z + fz * 6);
 
+    if (bannerMsg) showBanner(bannerMsg);
+  }
+
+  function warpTo(idx) {
+    const wp = WARP_POINTS[idx];
     const wLabel = document.getElementById("warp-label");
     if (wLabel) wLabel.textContent = wp.name;
-    showBanner(`TRAVEL: ${wp.name}`);
+    teleportCar(wp.x, wp.y, wp.z, wp.heading, `TRAVEL: ${wp.name}`);
   }
 
   function cycleWarp() {
@@ -2562,7 +2943,6 @@
     showBanner(`RESET: ${WARP_POINTS[bestIdx].name}`);
   }
 
-  // Exact Sphere-vs-Oriented-Box test for vehicles & boats
   function testSphereVsVehicleOBB(sx, sz, sphereRad, cx, cz, halfW, halfL, heading) {
     const cosH = Math.cos(heading);
     const sinH = Math.sin(heading);
@@ -2608,9 +2988,6 @@
     return { nx, nz, overlap, contactX, contactZ };
   }
 
-  // =========================================================================
-  // RIGID-BODY COLLISION SOLVER (ANGULAR IMPULSE, MASS RATIO & SPARKS)
-  // =========================================================================
   function applyPlayerImpactRecoil(jx, jz, mass, strength) {
     const fx = -Math.sin(car.heading);
     const fz = -Math.cos(car.heading);
@@ -2641,7 +3018,6 @@
     let maxImpact = 0;
     let frameScrape = 0;
 
-    // 1) Static World Colliders (Buildings, Tunnel Walls, Bridge & Viaduct Barriers)
     for (let pass = 0; pass < 2; pass++) {
       const fx = -Math.sin(car.heading);
       const fz = -Math.cos(car.heading);
@@ -2801,7 +3177,6 @@
       }
     }
 
-    // 2) Exact OBB Rigid-Body Collisions with AI Traffic & Boats
     if (trafficEnabled) {
       const fx = -Math.sin(car.heading);
       const fz = -Math.cos(car.heading);
@@ -2952,7 +3327,6 @@
       }
     }
 
-    // 3) Outer Ocean Bounds
     if (car.x > WORLD_BOUNDS.maxX) { maxImpact = Math.max(maxImpact, Math.abs(car.vx)); car.x = WORLD_BOUNDS.maxX; car.vx *= -0.35; }
     if (car.x < WORLD_BOUNDS.minX) { maxImpact = Math.max(maxImpact, Math.abs(car.vx)); car.x = WORLD_BOUNDS.minX; car.vx *= -0.35; }
     if (car.z > WORLD_BOUNDS.maxZ) { maxImpact = Math.max(maxImpact, Math.abs(car.vz)); car.z = WORLD_BOUNDS.maxZ; car.vz *= -0.35; }
@@ -3021,6 +3395,7 @@
     const weather = liveWeather;
     const sp = activeSpec;
     const hp = HANDLING_PROFILES[sp.id] || HANDLING_PROFILES.gt;
+    const modalPaused = garageOpen || mapOpen;
 
     const ext = controls
       ? controls.getInput()
@@ -3030,14 +3405,14 @@
     const kbBrake = keys.KeyS || keys.ArrowDown ? 1 : 0;
     const kbSteer = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
 
-    const rawAccel = garageOpen ? 0 : Math.max(kbAccel, ext.accel);
-    const rawBrake = garageOpen ? 0 : Math.max(kbBrake, ext.brake);
-    const rawSteerInput = garageOpen ? 0 : kbSteer !== 0 ? kbSteer : ext.steer;
+    const rawAccel = modalPaused ? 0 : Math.max(kbAccel, ext.accel);
+    const rawBrake = modalPaused ? 0 : Math.max(kbBrake, ext.brake);
+    const rawSteerInput = modalPaused ? 0 : kbSteer !== 0 ? kbSteer : ext.steer;
     const isAnalogSteer = kbSteer === 0 && ext.isAnalogSteer;
 
-    const handbrake = !garageOpen && (Boolean(keys.Space) || ext.handbrake);
-    const wantsNitro = !garageOpen && (Boolean(keys.ShiftLeft || keys.ShiftRight) || ext.nitro);
-    const hornPressed = !garageOpen && (Boolean(keys.KeyH) || ext.horn);
+    const handbrake = !modalPaused && (Boolean(keys.Space) || ext.handbrake);
+    const wantsNitro = !modalPaused && (Boolean(keys.ShiftLeft || keys.ShiftRight) || ext.nitro);
+    const hornPressed = !modalPaused && (Boolean(keys.KeyH) || ext.horn);
 
     const initFx = -Math.sin(car.heading);
     const initFz = -Math.cos(car.heading);
@@ -3094,9 +3469,6 @@
       if (usingNitro) f.scale.y = 0.8 + Math.random() * 0.7;
     });
 
-    // =====================================================================
-    // TWO-STAGE SURFACE MOISTURE & LEFT/RIGHT TIRE PUDDLE SAMPLING
-    // =====================================================================
     const surfStart = world.sampleSurface(car.x, car.z, car.y, car.heading);
     car.inTunnel = surfStart.inTunnel;
     tunnelOverlay.classList.toggle("inside", car.inTunnel);
@@ -3123,7 +3495,6 @@
       car.surfaceLabel = "DRY TUNNEL";
       car.surfaceClass = "tunnel";
     } else if (surfStart.onRoad) {
-      // Sample puddle depth separately under left & right tires (bridges drain faster)
       const drainScale = surfStart.surfaceType === "BRIDGE" ? 0.58 : 1.0;
       leftPuddle = samplePuddleAt(car.x - initRx * sp.wheelX, car.z - initRz * sp.wheelX, puddleLevel) * drainScale;
       rightPuddle = samplePuddleAt(car.x + initRx * sp.wheelX, car.z + initRz * sp.wheelX, puddleLevel) * drainScale;
@@ -3134,7 +3505,6 @@
       const effWet = Math.max(roadMoisture * 0.58, puddlePeak);
       car.wetUnderCar = effWet;
 
-      // Driving through a puddle saturates tires; rolling onto dry asphalt slowly dries them while dragging wet tracks!
       if (puddlePeak > 0.16 && car.grounded) {
         car.tireWetness = Math.min(1.0, Math.max(car.tireWetness, 0.55 + puddlePeak * 0.45));
       } else if (roadMoisture > 0.35 && car.grounded) {
@@ -3143,12 +3513,15 @@
         car.tireWetness = Math.max(roadMoisture * 0.4, car.tireWetness - initSpeed * dt * 0.022 - dt * 0.06);
       }
 
-      // Slight grip drop on damp asphalt, deeper drop in standing puddles (slightly damp tires carry a tiny drop too)
+      const circuitGripBonus = surfStart.surfaceType === "CIRCUIT" ? 1.05 : 1.0;
       const wetFactor = 1.0 - (roadMoisture * 0.12 + puddleAvg * 0.24 + car.tireWetness * 0.04) * (hp.wetMuDrop / 0.3);
-      surfaceMu = hp.tireMu * Math.max(0.6, wetFactor);
+      surfaceMu = hp.tireMu * circuitGripBonus * Math.max(0.6, wetFactor);
       rollingCoeff = 0.015 + effWet * 0.018;
 
-      if (surfStart.surfaceType === "BRIDGE") {
+      if (surfStart.surfaceType === "CIRCUIT") {
+        car.surfaceLabel = puddlePeak > 0.28 ? "WET GP TARMAC" : roadMoisture > 0.2 ? "DAMP GP TARMAC" : "FIA GP TARMAC";
+        car.surfaceClass = puddlePeak > 0.28 ? "wet" : "circuit";
+      } else if (surfStart.surfaceType === "BRIDGE") {
         car.surfaceLabel = puddlePeak > 0.32 ? "BRIDGE PUDDLE" : roadMoisture > 0.4 ? "WET BRIDGE DECK" : "BRIDGE DECK";
         car.surfaceClass = puddlePeak > 0.32 || roadMoisture > 0.4 ? "wet" : "bridge";
       } else if (puddlePeak > 0.28) {
@@ -3169,7 +3542,7 @@
       car.wetUnderCar = grassWet;
       car.tireWetness = Math.max(grassWet, car.tireWetness - initSpeed * dt * 0.03 - dt * 0.08);
       surfaceMu = Math.max(0.7, hp.offroadMu * (1.0 - grassWet * 0.15));
-      rollingCoeff = sp.id === "suv" || sp.id === "rally" ? 0.036 : 0.075;
+      rollingCoeff = sp.id === "suv" || sp.id === "rally" || sp.id === "buggy" ? 0.034 : 0.075;
       car.surfaceLabel = "OFF-ROAD GRASS";
       car.surfaceClass = "offroad";
     }
@@ -3229,8 +3602,16 @@
     const speedBlend = THREE.MathUtils.clamp((initSpeed - 3.0) / 14.0, 0.0, 1.0);
     const slipAllowance = 0.125 * speedBlend;
 
-    const driftBonus = handbrake ? 0.2 : sp.id === "muscle" && car.throttlePedal > 0.5 && initSpeed > 12 ? 0.06 : 0.0;
-    const maxSteer = THREE.MathUtils.clamp(geoSteer + slipAllowance + driftBonus, 0.12, 0.62);
+    const driftBonus = handbrake
+      ? sp.id === "drift"
+        ? 0.28
+        : 0.2
+      : sp.id === "drift"
+      ? 0.12
+      : sp.id === "muscle" && car.throttlePedal > 0.5 && initSpeed > 12
+      ? 0.06
+      : 0.0;
+    const maxSteer = THREE.MathUtils.clamp(geoSteer + slipAllowance + driftBonus, 0.12, 0.68);
 
     const steerInRate = isAnalogSteer ? 16.5 : THREE.MathUtils.lerp(11.5, 6.8, Math.min(1, initSpeed / 70));
     const steerReturnRate = 15.5;
@@ -3239,7 +3620,7 @@
     if (Math.abs(rawSteerInput) < 0.02 && car.grounded && initSpeed > 10 && car.drifting) {
       const vLatNow = car.vx * initRx + car.vz * initRz;
       const bodySlip = Math.atan2(vLatNow, Math.max(Math.abs(initVLong), 5.0));
-      targetSteer = THREE.MathUtils.clamp(-bodySlip * 0.52, -0.45, 0.45);
+      targetSteer = THREE.MathUtils.clamp(-bodySlip * 0.52, -0.48, 0.48);
     }
 
     const activeSteerRate = Math.abs(rawSteerInput) >= 0.02 ? steerInRate : steerReturnRate;
@@ -3408,8 +3789,8 @@
         const longRatioR = Math.min(1.0, Math.abs(fLongRearTire) / Math.max(1, maxLongGripR));
 
         const latRetainF = Math.sqrt(Math.max(0.58, 1.0 - 0.36 * longRatioF * longRatioF));
-        const rearCoupling = sp.id === "muscle" && car.throttlePedal > 0.4 ? 0.62 : 0.34;
-        let latRetainR = Math.sqrt(Math.max(0.48, 1.0 - rearCoupling * longRatioR * longRatioR));
+        const rearCoupling = (sp.id === "muscle" || sp.id === "drift") && car.throttlePedal > 0.4 ? 0.65 : 0.34;
+        let latRetainR = Math.sqrt(Math.max(0.46, 1.0 - rearCoupling * longRatioR * longRatioR));
 
         if (handbrake) latRetainR *= 0.24;
 
@@ -3426,7 +3807,6 @@
         const fSlope = -hp.mass * GRAVITY_PHYS * Math.sin(latestSurf.slopePitch);
         const fWaterLatDrag = car.inWater ? -vLat * hp.mass * 2.2 : 0;
 
-        // Gentle Hydrodynamic Puddle Resistance & One-Sided Puddle Steering Tug
         const fPuddleDrag = puddleAvg > 0.14 ? -puddleAvg * vLong * Math.abs(vLong) * 0.48 * (hp.mass / 1480) : 0;
         const puddleYawTug =
           Math.abs(rightPuddle - leftPuddle) > 0.12 && vLong > 10
@@ -3568,9 +3948,7 @@
     const nrx = Math.cos(car.heading);
     const nrz = -Math.sin(car.heading);
 
-    // =====================================================================
-    // LIVE CAR-TO-PUDDLE TRANSFORMATION (WAKE RIPPLES, WET TRACKS & SPRAY FANS)
-    // =====================================================================
+    // Live Car-to-Puddle Transformation
     const puddleHitPeak = Math.max(leftPuddle, rightPuddle, puddleAvg);
     if (car.grounded && latestSurf.onRoad && !car.inWater) {
       trailDistAccum += absSpeed * dt;
@@ -3588,7 +3966,6 @@
         }
       }
 
-      // Blast outward water-fan sprays from each wheel slicing through a standing puddle!
       if (puddleHitPeak > 0.18 && absSpeed > 7.5) {
         if (puddleWhooshCooldown <= 0) {
           audio.playPuddleWhoosh(absSpeed);
@@ -3596,28 +3973,10 @@
         }
         const fanChance = Math.min(0.95, 0.3 + absSpeed * 0.022);
         if (leftPuddle > 0.16 && Math.random() < fanChance) {
-          spawnPuddleFan(
-            car.x - nrx * sp.wheelX,
-            car.y,
-            car.z - nrz * sp.wheelX,
-            -nrx,
-            -nrz,
-            car.vx,
-            car.vz,
-            absSpeed
-          );
+          spawnPuddleFan(car.x - nrx * sp.wheelX, car.y, car.z - nrz * sp.wheelX, -nrx, -nrz, car.vx, car.vz, absSpeed);
         }
         if (rightPuddle > 0.16 && Math.random() < fanChance) {
-          spawnPuddleFan(
-            car.x + nrx * sp.wheelX,
-            car.y,
-            car.z + nrz * sp.wheelX,
-            nrx,
-            nrz,
-            car.vx,
-            car.vz,
-            absSpeed
-          );
+          spawnPuddleFan(car.x + nrx * sp.wheelX, car.y, car.z + nrz * sp.wheelX, nrx, nrz, car.vx, car.vz, absSpeed);
         }
       }
     }
@@ -3635,12 +3994,11 @@
     if (car.inWater) {
       targetHeave = Math.sin(elapsed * 4.2) * 0.065;
     } else if (car.grounded && !latestSurf.onRoad && absSpeed > 3) {
-      targetHeave += Math.sin(elapsed * absSpeed * 1.45) * (sp.id === "suv" || sp.id === "rally" ? 0.07 : 0.045);
+      targetHeave += Math.sin(elapsed * absSpeed * 1.45) * (sp.id === "suv" || sp.id === "rally" || sp.id === "buggy" ? 0.07 : 0.045);
     }
     car.suspVel += ((targetHeave - car.suspOffset) * sp.suspStiffness - car.suspVel * sp.suspDamping) * dt;
     car.suspOffset = THREE.MathUtils.clamp(car.suspOffset + car.suspVel * dt, -sp.suspTravel, sp.suspTravel);
 
-    // Automatic Gearbox (Direct-Drive "D" for EV, 6-Speed for Combustion/F1/Diesel)
     const speedScale = sp.topSpeed / 74;
     const kmh = Math.abs(lastVLong) * 3.6;
     let gearStr = "N";
@@ -3712,7 +4070,6 @@
       }
     }
 
-    // Visual Wheel Rotation, Outward Body Roll, Brake Dive & Impact Recoil
     frontWheelPivots.forEach((p) => (p.rotation.y = car.steerAngle));
     for (let i = 0; i < wheelMeshes.length; i++) {
       const wheelSpin = wheelIsRear[i] && handbrake ? 0 : (lastVLong * dt) / sp.wheelRadius;
@@ -3836,7 +4193,666 @@
   }
 
   // =========================================================================
-  // 6. TRAUMA-SHAKE TUNNEL-SAFE CAMERA & LIVE 512px RT REFLECTION PASSES
+  // 6. INTERACTIVE CLICK-TO-NAVIGATE GPS MAP + 3D ROAD CHEVRONS & BEACON
+  // =========================================================================
+  const mapModal = document.getElementById("map-modal");
+  const fullMapCanvas = document.getElementById("full-map-canvas");
+  const fullMapCtx = fullMapCanvas.getContext("2d");
+  const mapStatusText = document.getElementById("map-status-text");
+  const btnMapWarp = document.getElementById("btn-map-warp");
+
+  const gpsBar = document.getElementById("gps-bar");
+  const gpsArrowEl = document.getElementById("gps-arrow");
+  const gpsInstrEl = document.getElementById("gps-instruction");
+  const gpsDestNameEl = document.getElementById("gps-dest-name");
+  const gpsDistEl = document.getElementById("gps-distance");
+
+  let gpsDest = null; // { x, z, name }
+  let gpsPath = [];   // [{ x, z }, ...]
+  let gpsRerouteTimer = 0;
+
+  // 3D Floating Emerald GPS Route Chevrons + Tall Destination Beacon
+  const MAX_GPS_CHEVRONS = 24;
+  const gpsChevronGroup = new THREE.Group();
+  scene.add(gpsChevronGroup);
+
+  const chevShape = new THREE.Shape();
+  chevShape.moveTo(0, 1.5);
+  chevShape.lineTo(1.75, -0.55);
+  chevShape.lineTo(1.05, -1.25);
+  chevShape.lineTo(0, -0.1);
+  chevShape.lineTo(-1.05, -1.25);
+  chevShape.lineTo(-1.75, -0.55);
+  chevShape.closePath();
+
+  const chevGeo = new THREE.ShapeGeometry(chevShape);
+  chevGeo.rotateX(-Math.PI / 2);
+  const chevMat = new THREE.MeshBasicMaterial({
+    color: 0x10b981,
+    transparent: true,
+    opacity: 0.78,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+
+  const gpsChevrons = [];
+  for (let i = 0; i < MAX_GPS_CHEVRONS; i++) {
+    const m = new THREE.Mesh(chevGeo, chevMat);
+    m.visible = false;
+    gpsChevronGroup.add(m);
+    gpsChevrons.push(m);
+  }
+
+  const destBeaconGroup = new THREE.Group();
+  destBeaconGroup.visible = false;
+  const destBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.6, 3.8, 220, 16, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0x10b981,
+      transparent: true,
+      opacity: 0.24,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+  );
+  destBeam.position.y = 110;
+  destBeaconGroup.add(destBeam);
+
+  const destRing = new THREE.Mesh(
+    new THREE.RingGeometry(3.4, 5.2, 28),
+    new THREE.MeshBasicMaterial({
+      color: 0x34d399,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+  );
+  destRing.rotation.x = -Math.PI / 2;
+  destRing.position.y = 0.25;
+  destBeaconGroup.add(destRing);
+  scene.add(destBeaconGroup);
+
+  function setGPSDestination(wx, wz, customName = null) {
+    const clampedX = THREE.MathUtils.clamp(wx, WORLD_BOUNDS.minX + 40, WORLD_BOUNDS.maxX - 40);
+    const clampedZ = THREE.MathUtils.clamp(wz, WORLD_BOUNDS.minZ + 40, WORLD_BOUNDS.maxZ - 40);
+    const zoneLabel = customName || `${world.getZoneName(clampedX, clampedZ)} (${Math.round(clampedX)}, ${Math.round(clampedZ)})`;
+
+    gpsDest = { x: clampedX, z: clampedZ, name: zoneLabel };
+    gpsPath = world.computeGPSRoute(car.x, car.z, clampedX, clampedZ);
+    gpsRerouteTimer = 1.4;
+
+    if (gpsDestNameEl) gpsDestNameEl.textContent = zoneLabel;
+    if (gpsBar) gpsBar.classList.remove("hidden");
+    if (mapStatusText) mapStatusText.textContent = `GPS ROUTE SET: ${zoneLabel}`;
+    if (btnMapWarp) btnMapWarp.classList.remove("hidden");
+
+    audio.playChime(784, 1174);
+    showBanner(`GPS SET: ${zoneLabel}`);
+    if (mapOpen) drawFullMap();
+  }
+
+  function clearGPSDestination(silent = false) {
+    gpsDest = null;
+    gpsPath = [];
+    gpsChevrons.forEach((c) => (c.visible = false));
+    destBeaconGroup.visible = false;
+    if (gpsBar) gpsBar.classList.add("hidden");
+    if (btnMapWarp) btnMapWarp.classList.add("hidden");
+    if (mapStatusText) mapStatusText.textContent = "Tap or click anywhere on the map to set a GPS destination.";
+    if (!silent) showBanner("GPS ROUTE CLEARED");
+    if (mapOpen) drawFullMap();
+  }
+
+  // Full-Screen Map Projection (fits all 4 islands cleanly inside 840x580 canvas)
+  const MAP_VIEW = { minX: -500, maxX: 1760, minZ: -1520, maxZ: 1560 };
+
+  function worldToFullMap(wx, wz) {
+    const cw = fullMapCanvas.width;
+    const ch = fullMapCanvas.height;
+    const spanX = MAP_VIEW.maxX - MAP_VIEW.minX;
+    const spanZ = MAP_VIEW.maxZ - MAP_VIEW.minZ;
+    const scale = Math.min((cw - 48) / spanX, (ch - 36) / spanZ);
+    const offX = (cw - spanX * scale) * 0.5;
+    const offY = (ch - spanZ * scale) * 0.5;
+    return {
+      cx: offX + (wx - MAP_VIEW.minX) * scale,
+      cy: offY + (wz - MAP_VIEW.minZ) * scale,
+      scale,
+    };
+  }
+
+  function fullMapToWorld(cx, cy) {
+    const cw = fullMapCanvas.width;
+    const ch = fullMapCanvas.height;
+    const spanX = MAP_VIEW.maxX - MAP_VIEW.minX;
+    const spanZ = MAP_VIEW.maxZ - MAP_VIEW.minZ;
+    const scale = Math.min((cw - 48) / spanX, (ch - 36) / spanZ);
+    const offX = (cw - spanX * scale) * 0.5;
+    const offY = (ch - spanZ * scale) * 0.5;
+    return {
+      wx: MAP_VIEW.minX + (cx - offX) / scale,
+      wz: MAP_VIEW.minZ + (cy - offY) / scale,
+    };
+  }
+
+  function drawFullMap() {
+    const cw = fullMapCanvas.width;
+    const ch = fullMapCanvas.height;
+    const { scale } = worldToFullMap(0, 0);
+
+    fullMapCtx.clearRect(0, 0, cw, ch);
+    fullMapCtx.fillStyle = "#06263d";
+    fullMapCtx.fillRect(0, 0, cw, ch);
+
+    // Subtle ocean coordinate grid
+    fullMapCtx.strokeStyle = "rgba(56, 189, 248, 0.08)";
+    fullMapCtx.lineWidth = 1;
+    for (let gx = -400; gx <= 1600; gx += 400) {
+      const p = worldToFullMap(gx, 0);
+      fullMapCtx.beginPath();
+      fullMapCtx.moveTo(p.cx, 0);
+      fullMapCtx.lineTo(p.cx, ch);
+      fullMapCtx.stroke();
+    }
+    for (let gz = -1400; gz <= 1400; gz += 400) {
+      const p = worldToFullMap(0, gz);
+      fullMapCtx.beginPath();
+      fullMapCtx.moveTo(0, p.cy);
+      fullMapCtx.lineTo(cw, p.cy);
+      fullMapCtx.stroke();
+    }
+
+    // 1) 4 City Islands + Palm Lagoon Cutout
+    for (let i = 0; i < ISLANDS.length; i++) {
+      const isl = ISLANDS[i];
+      const p1 = worldToFullMap(isl.minX, isl.minZ);
+      const p2 = worldToFullMap(isl.maxX, isl.maxZ);
+      fullMapCtx.fillStyle =
+        isl.id === "palm"
+          ? "#1e3a2f"
+          : isl.id === "pinecrest"
+          ? "#162d26"
+          : isl.id === "apexia"
+          ? "#111c33"
+          : "#0f172a";
+      fullMapCtx.strokeStyle = "rgba(148, 163, 184, 0.25)";
+      fullMapCtx.lineWidth = 1.5;
+      fullMapCtx.fillRect(p1.cx, p1.cy, p2.cx - p1.cx, p2.cy - p1.cy);
+      fullMapCtx.strokeRect(p1.cx, p1.cy, p2.cx - p1.cx, p2.cy - p1.cy);
+
+      if (isl.hole) {
+        const h1 = worldToFullMap(isl.hole.minX, isl.hole.minZ);
+        const h2 = worldToFullMap(isl.hole.maxX, isl.hole.maxZ);
+        fullMapCtx.fillStyle = "#0369a1";
+        fullMapCtx.fillRect(h1.cx, h1.cy, h2.cx - h1.cx, h2.cy - h1.cy);
+      }
+    }
+
+    // 2) Alpine Mountain Ridge
+    const m1 = worldToFullMap(-290, -870);
+    const m2 = worldToFullMap(290, -350);
+    fullMapCtx.fillStyle = "rgba(71, 85, 105, 0.5)";
+    fullMapCtx.fillRect(m1.cx, m1.cy, m2.cx - m1.cx, m2.cy - m1.cy);
+
+    // 3) All Roads, Highways, Bridges, Viaduct & FIA Grade 1 Circuit
+    fullMapCtx.lineCap = "round";
+    for (let i = 0; i < world.roadSegments.length; i++) {
+      const s = world.roadSegments[i];
+      const a = worldToFullMap(s.x1, s.z1);
+      const b = worldToFullMap(s.x2, s.z2);
+      fullMapCtx.strokeStyle =
+        s.kind === "circuit"
+          ? "#ef4444"
+          : s.kind === "bridge"
+          ? "#f97316"
+          : s.kind === "viaduct"
+          ? "#38bdf8"
+          : s.kind === "highway"
+          ? "#94a3b8"
+          : "#475569";
+      fullMapCtx.lineWidth = Math.max(2.2, s.w * scale * 1.15);
+      fullMapCtx.beginPath();
+      fullMapCtx.moveTo(a.cx, a.cy);
+      fullMapCtx.lineTo(b.cx, b.cy);
+      fullMapCtx.stroke();
+    }
+
+    // 4) Buildings
+    fullMapCtx.fillStyle = "rgba(148, 163, 184, 0.42)";
+    for (let i = 0; i < world.minimapBuildings.length; i++) {
+      const b = world.minimapBuildings[i];
+      const p1 = worldToFullMap(b.minX, b.minZ);
+      fullMapCtx.fillRect(p1.cx, p1.cy, Math.max(1.5, b.w * scale), Math.max(1.5, b.d * scale));
+    }
+
+    // 5) City & Landmark Labels
+    fullMapCtx.font = "bold 11px Segoe UI, sans-serif";
+    fullMapCtx.textAlign = "center";
+    fullMapCtx.fillStyle = "rgba(226, 232, 240, 0.86)";
+    [
+      { x: 0, z: -1180, text: "PINECREST ALPINE" },
+      { x: -40, z: 30, text: "METRO BAY CITY" },
+      { x: 1280, z: -140, text: "PALM ISLAND MARINA" },
+      { x: -40, z: 1060, text: "APEXIA METROPOLIS" },
+    ].forEach((lbl) => {
+      const p = worldToFullMap(lbl.x, lbl.z);
+      fullMapCtx.fillText(lbl.text, p.cx, p.cy);
+    });
+
+    const gpLbl = worldToFullMap(980, 1080);
+    fullMapCtx.fillStyle = "#fca5a5";
+    fullMapCtx.fillText("🏁 APEXIA GRAND PRIX CIRCUIT", gpLbl.cx, gpLbl.cy);
+
+    // 6) Active GPS Navigation Route Line + Destination Pin
+    if (gpsDest && gpsPath.length > 0) {
+      fullMapCtx.save();
+      fullMapCtx.strokeStyle = "#10b981";
+      fullMapCtx.lineWidth = 4.5;
+      fullMapCtx.lineJoin = "round";
+      fullMapCtx.beginPath();
+      const startP = worldToFullMap(car.x, car.z);
+      fullMapCtx.moveTo(startP.cx, startP.cy);
+      for (let i = 0; i < gpsPath.length; i++) {
+        const pt = worldToFullMap(gpsPath[i].x, gpsPath[i].z);
+        fullMapCtx.lineTo(pt.cx, pt.cy);
+      }
+      fullMapCtx.stroke();
+      fullMapCtx.restore();
+
+      const dp = worldToFullMap(gpsDest.x, gpsDest.z);
+      fullMapCtx.fillStyle = "rgba(16, 185, 129, 0.28)";
+      fullMapCtx.beginPath();
+      fullMapCtx.arc(dp.cx, dp.cy, 13, 0, Math.PI * 2);
+      fullMapCtx.fill();
+
+      fullMapCtx.fillStyle = "#10b981";
+      fullMapCtx.strokeStyle = "#ffffff";
+      fullMapCtx.lineWidth = 2;
+      fullMapCtx.beginPath();
+      fullMapCtx.arc(dp.cx, dp.cy, 6.5, 0, Math.PI * 2);
+      fullMapCtx.fill();
+      fullMapCtx.stroke();
+    }
+
+    // 7) Player Arrow
+    const pp = worldToFullMap(car.x, car.z);
+    fullMapCtx.save();
+    fullMapCtx.translate(pp.cx, pp.cy);
+    fullMapCtx.rotate(-car.heading);
+    fullMapCtx.fillStyle = "#38bdf8";
+    fullMapCtx.strokeStyle = "#ffffff";
+    fullMapCtx.lineWidth = 1.5;
+    fullMapCtx.beginPath();
+    fullMapCtx.moveTo(0, -9);
+    fullMapCtx.lineTo(6.5, 7);
+    fullMapCtx.lineTo(0, 3.5);
+    fullMapCtx.lineTo(-6.5, 7);
+    fullMapCtx.closePath();
+    fullMapCtx.fill();
+    fullMapCtx.stroke();
+    fullMapCtx.restore();
+  }
+
+  toggleMap = (forceState = null) => {
+    mapOpen = forceState !== null ? forceState : !mapOpen;
+    if (mapOpen && garageOpen) toggleGarage(false);
+    mapModal.classList.toggle("hidden", !mapOpen);
+    if (mapOpen) drawFullMap();
+  };
+
+  fullMapCanvas.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    const rect = fullMapCanvas.getBoundingClientRect();
+    const cx = ((e.clientX - rect.left) / Math.max(1, rect.width)) * fullMapCanvas.width;
+    const cy = ((e.clientY - rect.top) / Math.max(1, rect.height)) * fullMapCanvas.height;
+    const { wx, wz } = fullMapToWorld(cx, cy);
+    setGPSDestination(wx, wz);
+  });
+
+  document.querySelectorAll(".map-chip").forEach((chip) => {
+    chip.addEventListener("click", (e) => {
+      e.currentTarget.blur();
+      const wx = parseFloat(chip.dataset.x);
+      const wz = parseFloat(chip.dataset.z);
+      setGPSDestination(wx, wz, chip.dataset.name);
+    });
+  });
+
+  document.getElementById("map-backdrop").addEventListener("click", () => toggleMap(false));
+  document.getElementById("btn-map-close").addEventListener("click", () => toggleMap(false));
+  document.getElementById("btn-map-drive").addEventListener("click", () => toggleMap(false));
+  document.getElementById("btn-map-clear").addEventListener("click", () => clearGPSDestination());
+  document.getElementById("btn-gps-clear").addEventListener("click", () => clearGPSDestination());
+  document.getElementById("minimap-panel").addEventListener("click", () => toggleMap(true));
+  if (btnMapWarp) {
+    btnMapWarp.addEventListener("click", () => {
+      if (!gpsDest) return;
+      const surf = world.sampleSurface(gpsDest.x, gpsDest.z, 25, car.heading);
+      teleportCar(gpsDest.x, Math.max(0.2, surf.height + 0.2), gpsDest.z, car.heading, `ARRIVED: ${gpsDest.name}`);
+      clearGPSDestination(true);
+      toggleMap(false);
+    });
+  }
+
+  function updateGPS(dt, elapsed) {
+    if (!gpsDest) return;
+
+    const distToDest = Math.hypot(gpsDest.x - car.x, gpsDest.z - car.z);
+    if (distToDest < 18.0) {
+      audio.playChime(987, 1318);
+      showBanner(`ARRIVED: ${gpsDest.name}`);
+      clearGPSDestination(true);
+      return;
+    }
+
+    // Pop reached intermediate waypoints
+    while (gpsPath.length > 1 && Math.hypot(gpsPath[0].x - car.x, gpsPath[0].z - car.z) < 24.0) {
+      gpsPath.shift();
+    }
+
+    // Periodically recompute A* route if player takes a detour
+    gpsRerouteTimer -= dt;
+    if (gpsRerouteTimer <= 0) {
+      gpsRerouteTimer = 1.6;
+      gpsPath = world.computeGPSRoute(car.x, car.z, gpsDest.x, gpsDest.z);
+    }
+
+    // Calculate total remaining route distance + turn-by-turn arrow relative to player's heading
+    let totalRouteDist = 0;
+    let prevX = car.x;
+    let prevZ = car.z;
+    for (let i = 0; i < gpsPath.length; i++) {
+      totalRouteDist += Math.hypot(gpsPath[i].x - prevX, gpsPath[i].z - prevZ);
+      prevX = gpsPath[i].x;
+      prevZ = gpsPath[i].z;
+    }
+
+    const nextWp = gpsPath[0] || gpsDest;
+    const distToTurn = Math.hypot(nextWp.x - car.x, nextWp.z - car.z);
+    const fx = -Math.sin(car.heading);
+    const fz = -Math.cos(car.heading);
+    const rx = Math.cos(car.heading);
+    const rz = -Math.sin(car.heading);
+
+    const toWpX = (nextWp.x - car.x) / Math.max(0.01, distToTurn);
+    const toWpZ = (nextWp.z - car.z) / Math.max(0.01, distToTurn);
+    const dotFwd = fx * toWpX + fz * toWpZ;
+    const dotRight = rx * toWpX + rz * toWpZ;
+
+    // Look ahead to next segment bend if close to waypoint
+    let turnDotRight = dotRight;
+    let turnDotFwd = dotFwd;
+    if (gpsPath.length >= 2 && distToTurn < 55) {
+      const segDx = gpsPath[1].x - nextWp.x;
+      const segDz = gpsPath[1].z - nextWp.z;
+      const segL = Math.hypot(segDx, segDz) || 1;
+      turnDotFwd = fx * (segDx / segL) + fz * (segDz / segL);
+      turnDotRight = rx * (segDx / segL) + rz * (segDz / segL);
+    }
+
+    let arrowChar = "↑";
+    let instrText = "CONTINUE STRAIGHT";
+    if (distToDest < 55) {
+      arrowChar = "🏁";
+      instrText = "DESTINATION AHEAD";
+    } else if (turnDotFwd < -0.35) {
+      arrowChar = "↩";
+      instrText = "MAKE A U-TURN";
+    } else if (turnDotRight > 0.42) {
+      arrowChar = "↱";
+      instrText = distToTurn < 45 ? "TURN RIGHT NOW" : `TURN RIGHT IN ${Math.round(distToTurn)}M`;
+    } else if (turnDotRight < -0.42) {
+      arrowChar = "↰";
+      instrText = distToTurn < 45 ? "TURN LEFT NOW" : `TURN LEFT IN ${Math.round(distToTurn)}M`;
+    } else if (turnDotRight > 0.16) {
+      arrowChar = "↗";
+      instrText = "KEEP RIGHT";
+    } else if (turnDotRight < -0.16) {
+      arrowChar = "↖";
+      instrText = "KEEP LEFT";
+    }
+
+    if (gpsArrowEl) gpsArrowEl.textContent = arrowChar;
+    if (gpsInstrEl) gpsInstrEl.textContent = instrText;
+    if (gpsDistEl) {
+      gpsDistEl.textContent = totalRouteDist >= 1000 ? `${(totalRouteDist / 1000).toFixed(2)} km` : `${Math.round(totalRouteDist)} m`;
+    }
+
+    // Place animated 3D emerald chevrons along the route ahead of the car
+    const spacing = 14.0;
+    const flowOffset = (elapsed * 18.0) % spacing;
+    let chevIdx = 0;
+    let segStartX = car.x;
+    let segStartZ = car.z;
+    let segAccum = 0;
+
+    for (let i = 0; i < gpsPath.length && chevIdx < MAX_GPS_CHEVRONS; i++) {
+      const endX = gpsPath[i].x;
+      const endZ = gpsPath[i].z;
+      const segLen = Math.hypot(endX - segStartX, endZ - segStartZ);
+      if (segLen > 1.0) {
+        const yaw = Math.atan2(-(endX - segStartX), -(endZ - segStartZ));
+        let d = Math.max(8.0, flowOffset) - (segAccum % spacing);
+        if (d < 0) d += spacing;
+        while (d < segLen && chevIdx < MAX_GPS_CHEVRONS) {
+          const t = d / segLen;
+          const cx = segStartX + (endX - segStartX) * t;
+          const cz = segStartZ + (endZ - segStartZ) * t;
+          const surf = world.sampleSurface(cx, cz, car.y + 8, yaw);
+          const m = gpsChevrons[chevIdx++];
+          m.visible = true;
+          m.position.set(cx, surf.height + 0.34, cz);
+          m.rotation.set(surf.slopePitch, yaw, 0, "YXZ");
+          d += spacing;
+        }
+        segAccum += segLen;
+      }
+      segStartX = endX;
+      segStartZ = endZ;
+    }
+
+    for (let i = chevIdx; i < MAX_GPS_CHEVRONS; i++) {
+      gpsChevrons[i].visible = false;
+    }
+
+    // Update pulsing destination sky-beacon & ring
+    const destSurf = world.sampleSurface(gpsDest.x, gpsDest.z, 25, 0);
+    destBeaconGroup.visible = true;
+    destBeaconGroup.position.set(gpsDest.x, Math.max(0, destSurf.height), gpsDest.z);
+    const pulse = 0.88 + 0.24 * Math.sin(elapsed * 5.0);
+    destRing.scale.set(pulse, pulse, 1);
+  }
+
+  // =========================================================================
+  // 7. FIA GRADE 1 CIRCUIT LIVE LAP & 3-SECTOR TIMING ENGINE
+  // =========================================================================
+  const circuitHud = document.getElementById("circuit-hud");
+  const lapNumEl = document.getElementById("lap-num");
+  const lapCurrentEl = document.getElementById("lap-current");
+  const lapBestEl = document.getElementById("lap-best");
+  const lapLastEl = document.getElementById("lap-last");
+  const secEls = [
+    document.getElementById("sec-1"),
+    document.getElementById("sec-2"),
+    document.getElementById("sec-3"),
+  ];
+
+  const circuitState = {
+    active: false,
+    lapNumber: 0,       // 0 = OUT LAP, >= 1 = Timed Hot Lap
+    lapTime: 0,
+    sectorStartTime: 0,
+    sectorIdx: 0,       // 0 = S1, 1 = S2, 2 = S3
+    prevRelDist: null,
+    lastLap: null,
+    bestLapsByCar: {},  // Best lap saved per vehicle class!
+    bestSectorsByCar: {},
+  };
+
+  function formatLapTime(sec) {
+    if (sec === null || sec === undefined || !isFinite(sec)) return "--:--.--";
+    const mins = Math.floor(sec / 60);
+    const rem = sec % 60;
+    const whole = Math.floor(rem);
+    const hundredths = Math.floor((rem - whole) * 100);
+    return `${mins}:${String(whole).padStart(2, "0")}.${String(hundredths).padStart(2, "0")}`;
+  }
+
+  function formatSecTime(sec) {
+    return `${sec.toFixed(1)}s`;
+  }
+
+  function resetSectorPills() {
+    secEls.forEach((el, idx) => {
+      if (!el) return;
+      el.textContent = `S${idx + 1} --.-`;
+      el.className = "sec-pill";
+    });
+  }
+
+  onCarSwapped = (carId) => {
+    const best = circuitState.bestLapsByCar[carId] || null;
+    if (lapBestEl) lapBestEl.textContent = formatLapTime(best);
+    circuitState.lapNumber = 0;
+    circuitState.lapTime = 0;
+    circuitState.sectorStartTime = 0;
+    circuitState.sectorIdx = 0;
+    circuitState.prevRelDist = null;
+    if (lapNumEl) lapNumEl.textContent = "OUT LAP";
+    resetSectorPills();
+  };
+
+  function updateCircuitTiming(dt) {
+    const cd = world.circuitData;
+    if (!cd) return;
+
+    const prog = cd.getTrackProgress(car.x, car.z);
+    if (!prog.onTrack) {
+      if (circuitState.active) {
+        circuitState.active = false;
+        circuitState.prevRelDist = null;
+        if (circuitHud) circuitHud.classList.add("hidden");
+      }
+      return;
+    }
+
+    if (!circuitState.active) {
+      circuitState.active = true;
+      circuitState.lapNumber = 0;
+      circuitState.lapTime = 0;
+      circuitState.sectorStartTime = 0;
+      circuitState.sectorIdx = 0;
+      circuitState.prevRelDist = null;
+      if (circuitHud) circuitHud.classList.remove("hidden");
+      if (lapNumEl) lapNumEl.textContent = "OUT LAP";
+      if (lapBestEl) lapBestEl.textContent = formatLapTime(circuitState.bestLapsByCar[activeCarId]);
+      if (lapLastEl) lapLastEl.textContent = formatLapTime(circuitState.lastLap);
+      resetSectorPills();
+      showBanner("APEXIA GRAND PRIX CIRCUIT · FIA GRADE 1");
+    }
+
+    const totalLen = cd.totalLength;
+    const relDist = (prog.dist - cd.startDist + totalLen) % totalLen;
+    const relS1 = (cd.s1Dist - cd.startDist + totalLen) % totalLen;
+    const relS2 = (cd.s2Dist - cd.startDist + totalLen) % totalLen;
+
+    if (circuitState.lapNumber > 0) {
+      circuitState.lapTime += dt;
+    }
+
+    if (circuitState.prevRelDist !== null) {
+      const prev = circuitState.prevRelDist;
+
+      // 1) Crossed Start / Finish Line moving forward
+      if (prev > totalLen * 0.8 && relDist < totalLen * 0.2) {
+        if (circuitState.lapNumber >= 1 && circuitState.lapTime > 12.0) {
+          // Record Sector 3
+          const s3Time = circuitState.lapTime - circuitState.sectorStartTime;
+          const bestSecs = circuitState.bestSectorsByCar[activeCarId] || [Infinity, Infinity, Infinity];
+          const isBestS3 = s3Time < bestSecs[2];
+          if (isBestS3) bestSecs[2] = s3Time;
+          circuitState.bestSectorsByCar[activeCarId] = bestSecs;
+          if (secEls[2]) {
+            secEls[2].textContent = `S3 ${formatSecTime(s3Time)}`;
+            secEls[2].className = `sec-pill ${isBestS3 ? "sec-purple" : "sec-green"}`;
+          }
+
+          // Record Completed Lap
+          const completed = circuitState.lapTime;
+          circuitState.lastLap = completed;
+          if (lapLastEl) lapLastEl.textContent = formatLapTime(completed);
+
+          const prevBest = circuitState.bestLapsByCar[activeCarId];
+          if (!prevBest || completed < prevBest) {
+            circuitState.bestLapsByCar[activeCarId] = completed;
+            if (lapBestEl) lapBestEl.textContent = formatLapTime(completed);
+            audio.playChime(987, 1480);
+            showBanner(`NEW BEST LAP: ${formatLapTime(completed)}!`);
+          } else {
+            audio.playChime(784, 1046);
+            showBanner(`LAP ${circuitState.lapNumber}: ${formatLapTime(completed)}`);
+          }
+        } else {
+          audio.playChime(660, 990);
+          showBanner("LAP 1 STARTED — GO!");
+        }
+
+        circuitState.lapNumber += 1;
+        circuitState.lapTime = 0;
+        circuitState.sectorStartTime = 0;
+        circuitState.sectorIdx = 0;
+        if (lapNumEl) lapNumEl.textContent = `LAP ${circuitState.lapNumber}`;
+        setTimeout(() => {
+          if (circuitState.lapTime < 2.2) resetSectorPills();
+        }, 1800);
+      }
+
+      // 2) Crossed Sector 1 Timing Beam
+      if (circuitState.lapNumber >= 1 && circuitState.sectorIdx === 0 && prev < relS1 && relDist >= relS1) {
+        const s1Time = circuitState.lapTime - circuitState.sectorStartTime;
+        circuitState.sectorStartTime = circuitState.lapTime;
+        circuitState.sectorIdx = 1;
+
+        const bestSecs = circuitState.bestSectorsByCar[activeCarId] || [Infinity, Infinity, Infinity];
+        const isBest = s1Time < bestSecs[0];
+        if (isBest) bestSecs[0] = s1Time;
+        circuitState.bestSectorsByCar[activeCarId] = bestSecs;
+
+        if (secEls[0]) {
+          secEls[0].textContent = `S1 ${formatSecTime(s1Time)}`;
+          secEls[0].className = `sec-pill ${isBest ? "sec-purple" : "sec-green"}`;
+        }
+      }
+
+      // 3) Crossed Sector 2 Timing Beam
+      if (circuitState.lapNumber >= 1 && circuitState.sectorIdx === 1 && prev < relS2 && relDist >= relS2) {
+        const s2Time = circuitState.lapTime - circuitState.sectorStartTime;
+        circuitState.sectorStartTime = circuitState.lapTime;
+        circuitState.sectorIdx = 2;
+
+        const bestSecs = circuitState.bestSectorsByCar[activeCarId] || [Infinity, Infinity, Infinity];
+        const isBest = s2Time < bestSecs[1];
+        if (isBest) bestSecs[1] = s2Time;
+        circuitState.bestSectorsByCar[activeCarId] = bestSecs;
+
+        if (secEls[1]) {
+          secEls[1].textContent = `S2 ${formatSecTime(s2Time)}`;
+          secEls[1].className = `sec-pill ${isBest ? "sec-purple" : "sec-green"}`;
+        }
+      }
+    }
+
+    circuitState.prevRelDist = relDist;
+    if (lapCurrentEl) {
+      lapCurrentEl.textContent = circuitState.lapNumber === 0 ? "0:00.00" : formatLapTime(circuitState.lapTime);
+    }
+  }
+
+  // =========================================================================
+  // 8. TRAUMA-SHAKE TUNNEL-SAFE CAMERA & LIVE 512px RT REFLECTION PASSES
   // =========================================================================
   function updateCamera(dt, speed, usingNitro, elapsed) {
     if (garageOpen) {
@@ -3877,7 +4893,7 @@
         camDirZ /= len;
       }
 
-      const baseDist = activeSpec.isSixWheel ? 13.6 : activeSpec.id === "formula" ? 9.4 : 10.2;
+      const baseDist = activeSpec.isSixWheel ? 13.6 : activeSpec.id === "formula" || activeSpec.id === "lmp" ? 9.4 : 10.2;
       const dist = (car.inTunnel ? baseDist * 0.86 : baseDist) + Math.min(3.5, Math.abs(speed) * 0.04);
       const heightOff = car.inTunnel
         ? activeSpec.isSixWheel ? 4.4 : 3.2
@@ -3885,7 +4901,7 @@
         ? 5.5
         : activeSpec.id === "suv"
         ? 4.45
-        : activeSpec.id === "formula"
+        : activeSpec.id === "formula" || activeSpec.id === "lmp"
         ? 3.35
         : 4.05;
 
@@ -3991,7 +5007,7 @@
   }
 
   // =========================================================================
-  // 7. HUD TELEMETRY, TWO-STAGE MOISTURE/PUDDLE BAR & MULTI-CITY MINIMAP
+  // 9. HUD TELEMETRY & 4-CITY MINIMAP (WITH GP CIRCUIT & LIVE GPS ROUTE)
   // =========================================================================
   const speedEl = document.getElementById("speed-value");
   const gearEl = document.getElementById("gear-value");
@@ -4034,7 +5050,14 @@
 
     for (let i = 0; i < ISLANDS.length; i++) {
       const isl = ISLANDS[i];
-      mapCtx.fillStyle = isl.id === "palm" ? "#1e3a2f" : isl.id === "pinecrest" ? "#152a24" : "#0f172a";
+      mapCtx.fillStyle =
+        isl.id === "palm"
+          ? "#1e3a2f"
+          : isl.id === "pinecrest"
+          ? "#152a24"
+          : isl.id === "apexia"
+          ? "#111c33"
+          : "#0f172a";
       mapCtx.fillRect(
         (isl.minX - car.x) * scale,
         (isl.minZ - car.z) * scale,
@@ -4059,7 +5082,9 @@
     for (let i = 0; i < world.roadSegments.length; i++) {
       const s = world.roadSegments[i];
       mapCtx.strokeStyle =
-        s.kind === "bridge"
+        s.kind === "circuit"
+          ? "#ef4444"
+          : s.kind === "bridge"
           ? "#f97316"
           : s.kind === "viaduct"
           ? "#38bdf8"
@@ -4124,6 +5149,25 @@
       }
     }
 
+    // Active GPS Route Line + Destination Dot on Minimap
+    if (gpsDest && gpsPath.length > 0) {
+      mapCtx.strokeStyle = "#10b981";
+      mapCtx.lineWidth = 3.2;
+      mapCtx.beginPath();
+      mapCtx.moveTo(0, 0);
+      for (let i = 0; i < gpsPath.length; i++) {
+        mapCtx.lineTo((gpsPath[i].x - car.x) * scale, (gpsPath[i].z - car.z) * scale);
+      }
+      mapCtx.stroke();
+
+      const dx = (gpsDest.x - car.x) * scale;
+      const dz = (gpsDest.z - car.z) * scale;
+      mapCtx.fillStyle = "#10b981";
+      mapCtx.beginPath();
+      mapCtx.arc(dx, dz, 4.5, 0, Math.PI * 2);
+      mapCtx.fill();
+    }
+
     mapCtx.rotate(-car.heading);
     mapCtx.fillStyle = "#38bdf8";
     mapCtx.beginPath();
@@ -4149,7 +5193,6 @@
     nitroFill.style.width = `${car.nitro}%`;
     nitroText.textContent = `${Math.round(car.nitro)}%`;
 
-    // Two-stage wetness readout: displays lingering puddle percentage once open asphalt dries
     const displayWet = moistureTrend === "PUDDLES" ? puddleLevel : Math.max(roadMoisture, puddleLevel * 0.6);
     const wetPct = Math.round(displayWet * 100);
     wetnessFill.style.width = `${wetPct}%`;
@@ -4183,10 +5226,11 @@
     zoneEl.textContent = world.getZoneName(car.x, car.z);
 
     drawMinimap();
+    if (mapOpen && frameCounter % 3 === 0) drawFullMap();
   }
 
   // =========================================================================
-  // 8. BUTTONS, RESIZE & FXAA + BLOOM POST-PROCESSED MAIN LOOP
+  // 10. BUTTONS, RESIZE & FXAA + BLOOM POST-PROCESSED MAIN LOOP
   // =========================================================================
   function bindButton(id, handler) {
     const el = document.getElementById(id);
@@ -4197,6 +5241,7 @@
     });
   }
 
+  bindButton("btn-map", () => toggleMap());
   bindButton("btn-garage", () => toggleGarage());
   bindButton("btn-siren", toggleSiren);
   bindButton("btn-rt", toggleRayTracing);
@@ -4250,6 +5295,8 @@
     const effectiveRoadWet = Math.max(roadMoisture, puddleLevel * 0.65);
     world.updateTrafficAndBoats(dt, elapsed, car, weather.waveStrength, effectiveRoadWet, trafficEnabled);
     const { vLong, usingNitro } = updatePhysics(dt, elapsed);
+    updateGPS(dt, elapsed);
+    updateCircuitTiming(dt);
     updateSparks(dt);
     updateCamera(dt, vLong, usingNitro, elapsed);
 

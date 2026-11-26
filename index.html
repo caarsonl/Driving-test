@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <title>Velocity Coast 3D — Open-World Driving Simulator</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Velocity Coast 3D — Apexia Grand Prix &amp; GPS Edition</title>
+  <link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
   <div id="canvas-container"></div>
@@ -32,10 +32,13 @@
         <button id="btn-touch" class="hud-btn" title="Toggle On-Screen Mobile Touch Controls">
           TOUCH: <span id="touch-label">AUTO</span>
         </button>
+        <button id="btn-map" class="hud-btn map-btn" title="Open Interactive GPS Map (F)">
+          MAP <span>[F]</span>
+        </button>
         <button id="btn-garage" class="hud-btn garage-btn" title="Open Vehicle Garage (G / Start)">
           GARAGE <span>[G]</span>
         </button>
-        <button id="btn-siren" class="hud-btn siren-btn hidden" title="Toggle Patrol Lightbar & Siren (L / RB)">
+        <button id="btn-siren" class="hud-btn siren-btn hidden" title="Toggle Patrol Lightbar &amp; Siren (L / RB)">
           SIREN: <span id="siren-label">OFF</span>
         </button>
         <button id="btn-rt" class="hud-btn active" title="Toggle Real-Time Reflections (T / D-Pad Right)">
@@ -47,7 +50,7 @@
         <button id="btn-time" class="hud-btn" title="Cycle Time of Day (N / D-Pad Down)">
           TIME: <span id="time-label">SUNSET</span>
         </button>
-        <button id="btn-traffic" class="hud-btn active" title="Toggle AI Traffic & Boats (P)">
+        <button id="btn-traffic" class="hud-btn active" title="Toggle AI Traffic &amp; Boats (P)">
           TRAFFIC: <span id="traffic-label">ON</span>
         </button>
         <button id="btn-camera" class="hud-btn" title="Switch Camera (C / Y)">
@@ -65,15 +68,55 @@
       </div>
     </div>
 
+    <!-- Live Turn-by-Turn GPS Bar -->
+    <div id="gps-bar" class="gps-bar hidden">
+      <div class="gps-arrow-box" id="gps-arrow">↑</div>
+      <div class="gps-info">
+        <span class="gps-instruction" id="gps-instruction">FOLLOW ROUTE</span>
+        <span class="gps-sub" id="gps-dest-name">DESTINATION</span>
+      </div>
+      <div class="gps-dist" id="gps-distance">0 m</div>
+      <button id="btn-gps-clear" class="gps-clear-btn" title="Cancel GPS Route">✕</button>
+    </div>
+
+    <!-- FIA Grade 1 Circuit Live Lap & Sector Timer -->
+    <div id="circuit-hud" class="circuit-hud hidden">
+      <div class="circuit-header">
+        <span class="circuit-badge">FIA GRADE 1</span>
+        <span class="circuit-title">APEXIA GRAND PRIX CIRCUIT</span>
+        <span class="circuit-lap-tag" id="lap-num">OUT LAP</span>
+      </div>
+      <div class="circuit-times">
+        <div class="time-cell main">
+          <span class="t-lbl">CURRENT</span>
+          <span class="t-val" id="lap-current">0:00.00</span>
+        </div>
+        <div class="time-cell">
+          <span class="t-lbl">BEST</span>
+          <span class="t-val best" id="lap-best">--:--.--</span>
+        </div>
+        <div class="time-cell">
+          <span class="t-lbl">LAST</span>
+          <span class="t-val" id="lap-last">--:--.--</span>
+        </div>
+      </div>
+      <div class="circuit-sectors">
+        <span class="sec-pill" id="sec-1">S1 --.-</span>
+        <span class="sec-pill" id="sec-2">S2 --.-</span>
+        <span class="sec-pill" id="sec-3">S3 --.-</span>
+      </div>
+    </div>
+
     <!-- Center Event Banner -->
     <div id="event-banner" class="event-banner"></div>
 
     <!-- Bottom HUD -->
     <div class="hud-bottom">
-      <!-- Minimap -->
-      <div class="minimap-panel">
+      <!-- Clickable Minimap -->
+      <div class="minimap-panel" id="minimap-panel" title="Click to Open Interactive GPS Map (F)">
         <canvas id="minimap" width="200" height="200"></canvas>
         <div class="minimap-coords" id="coords-display">X: 0 | Z: 45 | ALT: 0m</div>
+        <div class="minimap-gps-hint">CLICK FOR GPS MAP [F]</div>
       </div>
 
       <!-- Controls Legend (Desktop / Controller) -->
@@ -86,7 +129,8 @@
           &nbsp;|&nbsp; <kbd>L</kbd> / <kbd>RB</kbd> Siren
         </div>
         <div>
-          <kbd>G</kbd> / <kbd>Start</kbd> Garage (9 Cars)
+          <kbd>F</kbd> GPS Map
+          &nbsp;|&nbsp; <kbd>G</kbd> / <kbd>Start</kbd> Garage (13 Cars)
           &nbsp;|&nbsp; <kbd>V</kbd> Weather
           &nbsp;|&nbsp; <kbd>X</kbd> Travel
           &nbsp;|&nbsp; <kbd>T</kbd> RT
@@ -195,13 +239,49 @@
     </div>
   </div>
 
-  <!-- Vehicle Garage Modal (9 Original Copyright-Free Vehicles) -->
+  <!-- Interactive Full-Screen GPS Map Modal -->
+  <div id="map-modal" class="map-modal hidden" role="dialog" aria-modal="true" aria-labelledby="map-modal-title">
+    <div class="map-backdrop" id="map-backdrop"></div>
+    <div class="map-card">
+      <div class="map-header">
+        <div>
+          <h2 id="map-modal-title">INTERACTIVE GPS NAVIGATION MAP</h2>
+          <p class="map-sub">Click anywhere on the map to plot a live road GPS route with 3D directional chevrons.</p>
+        </div>
+        <button id="btn-map-close" class="garage-close-btn" title="Close Map (F / Esc)">✕</button>
+      </div>
+
+      <div class="map-quick-row">
+        <button class="map-chip gp" data-x="420" data-z="950" data-name="APEXIA GP STARTING GRID">🏁 Apexia GP Circuit</button>
+        <button class="map-chip" data-x="0" data-z="800" data-name="APEXIA SKYLINE DISTRICT">🏙️ Apexia Metropolis</button>
+        <button class="map-chip" data-x="0" data-z="0" data-name="METRO BAY DOWNTOWN">🌆 Metro Bay</button>
+        <button class="map-chip" data-x="1280" data-z="0" data-name="PALM ISLAND MARINA">🌴 Palm Island</button>
+        <button class="map-chip" data-x="0" data-z="-1140" data-name="PINECREST ALPINE">🏔️ Pinecrest</button>
+        <button class="map-chip" data-x="640" data-z="0" data-name="GOLDEN BAY BRIDGE">🌉 Golden Bay Bridge</button>
+      </div>
+
+      <div class="map-canvas-wrap">
+        <canvas id="full-map-canvas" width="840" height="580"></canvas>
+      </div>
+
+      <div class="map-footer">
+        <div class="map-status" id="map-status-text">Tap or click anywhere on the map to set a GPS destination.</div>
+        <div class="map-actions">
+          <button id="btn-map-clear" class="hud-btn">CLEAR GPS</button>
+          <button id="btn-map-warp" class="hud-btn accent hidden">WARP TO PIN</button>
+          <button id="btn-map-drive" class="garage-drive-btn">DRIVE ROUTE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vehicle Garage Modal (13 Original Copyright-Free Vehicles) -->
   <div id="garage-modal" class="garage-modal hidden" role="dialog" aria-modal="true" aria-labelledby="garage-title">
     <div class="garage-backdrop" id="garage-backdrop"></div>
     <div class="garage-card">
       <div class="garage-header">
         <div>
-          <h2 id="garage-title">VEHICLE GARAGE — 9 ORIGINAL CLASSES</h2>
+          <h2 id="garage-title">VEHICLE GARAGE — 13 ORIGINAL CLASSES</h2>
           <p class="garage-sub">Every vehicle has distinct aerodynamics, downforce, drag, suspension, and procedural audio.</p>
         </div>
         <button id="btn-garage-close" class="garage-close-btn" title="Close Garage (G / Esc / B)">✕</button>
@@ -228,9 +308,27 @@
           </button>
 
           <button class="car-option" data-car="formula">
-            <span class="car-class">OPEN-WHEEL</span>
+            <span class="car-class">OPEN-WHEEL GP</span>
             <span class="car-title">AeroFormula R1</span>
             <span class="car-desc">Extreme ground-effect + twin-wing downforce (3.5G corners) &amp; DRS.</span>
+          </button>
+
+          <button class="car-option" data-car="lmp">
+            <span class="car-class">ENDURANCE LMP</span>
+            <span class="car-title">Solstice LMP-1</span>
+            <span class="car-desc">Closed-cockpit prototype with dorsal fin, huge aero grip &amp; hybrid boost.</span>
+          </button>
+
+          <button class="car-option" data-car="gt3">
+            <span class="car-class">FIA GT3 RACER</span>
+            <span class="car-title">Stratos GT3-R</span>
+            <span class="car-desc">Widebody track racer with canards, swan-neck wing &amp; razor apex bite.</span>
+          </button>
+
+          <button class="car-option" data-car="drift">
+            <span class="car-class">PRO DRIFT</span>
+            <span class="car-title">Kitsune S-Drift</span>
+            <span class="car-desc">High-angle steering lock, twin-turbo spool &amp; effortless linked drifts.</span>
           </button>
 
           <button class="car-option" data-car="rally">
@@ -243,6 +341,12 @@
             <span class="car-class">HYPER-EV</span>
             <span class="car-title">ArcDrive EV</span>
             <span class="car-desc">Ultra-low drag teardrop body, instant electric torque &amp; active aero.</span>
+          </button>
+
+          <button class="car-option" data-car="buggy">
+            <span class="car-class">EXOCAR BAJA</span>
+            <span class="car-title">DuneValkyrie X</span>
+            <span class="car-desc">Featherweight open-cage buggy with plush long-travel jump suspension.</span>
           </button>
 
           <button class="car-option" data-car="suv">
@@ -319,8 +423,8 @@
 
   <!-- Three.js r128 UMD (MIT) + World, Console/Mobile Controls & Game Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="world.js?v=5"></script>
-  <script src="controls.js?v=5"></script>
-  <script src="game.js?v=5"></script>
+  <script src="world.js?v=6"></script>
+  <script src="controls.js?v=6"></script>
+  <script src="game.js?v=6"></script>
 </body>
 </html>
