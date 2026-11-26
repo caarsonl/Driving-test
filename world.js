@@ -62,13 +62,14 @@ window.HorizonWorld = (() => {
       hemiGround: 0x1e293b,
       hemiIntensity: 0.7,
       ambientRoad: 0x543e49,
-      waterDeep: 0x09223c,
-      waterShallow: 0x1b5469,
+      waterDeep: 0x08203a,
+      waterShallow: 0x1a586e,
       windowGlow: 0.92,
       neonGlow: 2.35,
       headlights: true,
       nightMix: 0.18,
-      dryRate: 0.042,
+      dryRate: 0.045,
+      puddleDryRate: 0.011, // Standing puddles linger long after open asphalt dries
       exposure: 1.14,
     },
     {
@@ -86,12 +87,13 @@ window.HorizonWorld = (() => {
       hemiIntensity: 0.52,
       ambientRoad: 0x1e2e4d,
       waterDeep: 0x030c1c,
-      waterShallow: 0x0b2542,
+      waterShallow: 0x0b2644,
       windowGlow: 1.55,
       neonGlow: 3.1,
       headlights: true,
       nightMix: 1.0,
       dryRate: 0.022,
+      puddleDryRate: 0.0055,
       exposure: 1.2,
     },
     {
@@ -108,17 +110,19 @@ window.HorizonWorld = (() => {
       hemiGround: 0x3f6212,
       hemiIntensity: 0.82,
       ambientRoad: 0x6b7482,
-      waterDeep: 0x063f66,
-      waterShallow: 0x1288ab,
+      waterDeep: 0x053a60,
+      waterShallow: 0x1088ad,
       windowGlow: 0.08,
       neonGlow: 0.45,
       headlights: false,
       nightMix: 0.0,
-      dryRate: 0.068,
+      dryRate: 0.072,
+      puddleDryRate: 0.017,
       exposure: 1.08,
     },
   ];
 
+  // Separate asphalt wetness & puddle accumulation for natural rain-to-dry transitions
   const WEATHER_PRESETS = [
     {
       name: "CLEAR",
@@ -130,6 +134,8 @@ window.HorizonWorld = (() => {
       cloudCover: 0.3,
       wetRate: 0.0,
       targetMoisture: 0.0,
+      puddleFillRate: 0.0,
+      targetPuddle: 0.0,
       waveStrength: 0.42,
       fogMult: 1.0,
       skyDarken: 1.0,
@@ -146,8 +152,10 @@ window.HorizonWorld = (() => {
       rainTiltX: 3.8,
       rainIntensity: 0.75,
       cloudCover: 0.82,
-      wetRate: 0.08,
-      targetMoisture: 0.82,
+      wetRate: 0.085,
+      targetMoisture: 0.84,
+      puddleFillRate: 0.052,
+      targetPuddle: 0.82,
       waveStrength: 0.78,
       fogMult: 1.45,
       skyDarken: 0.68,
@@ -164,8 +172,10 @@ window.HorizonWorld = (() => {
       rainTiltX: 12.0,
       rainIntensity: 1.0,
       cloudCover: 0.96,
-      wetRate: 0.14,
+      wetRate: 0.145,
       targetMoisture: 1.0,
+      puddleFillRate: 0.095,
+      targetPuddle: 1.0,
       waveStrength: 1.4,
       fogMult: 1.9,
       skyDarken: 0.46,
@@ -182,8 +192,10 @@ window.HorizonWorld = (() => {
       rainTiltX: 0,
       rainIntensity: 0.0,
       cloudCover: 0.7,
-      wetRate: 0.014,
-      targetMoisture: 0.22,
+      wetRate: 0.018,
+      targetMoisture: 0.24,
+      puddleFillRate: 0.0,
+      targetPuddle: 0.0,
       waveStrength: 0.25,
       fogMult: 3.3,
       skyDarken: 0.78,
@@ -195,7 +207,7 @@ window.HorizonWorld = (() => {
   ];
 
   // =========================================================================
-  // 2. SHARED NOISE, PUDDLE & ELEVATION MATH (MATCHED BETWEEN JS & GLSL)
+  // 2. SHARED NOISE, PUDDLE & ELEVATION MATH (EXACT MATCH TO GLSL SHADERS)
   // =========================================================================
   function fract(x) {
     return x - Math.floor(x);
@@ -240,13 +252,15 @@ window.HorizonWorld = (() => {
     return Math.abs(x - T.x) <= T.halfW + 1.8 && z <= T.startZ && z >= T.endZ;
   }
 
-  function samplePuddleAt(x, z, moisture) {
-    if (moisture <= 0.22 || isPointInTunnel(x, z)) return 0.0;
-    const p1 = noise2DJS(x * 0.026, z * 0.026);
-    const p2 = noise2DJS(x * 0.085, z * 0.085);
-    const n = p1 * 0.68 + p2 * 0.32;
-    const thresh = 0.86 - moisture * 0.34;
-    return smoothstep(thresh - 0.06, thresh + 0.07, n) * smoothstep(0.22, 0.72, moisture);
+  // Smooth organic standing-puddle field (matched 1:1 with GLSL road shader)
+  function samplePuddleAt(x, z, puddleLevel) {
+    if (puddleLevel <= 0.02 || isPointInTunnel(x, z)) return 0.0;
+    const p1 = noise2DJS(x * 0.022, z * 0.022);
+    const p2 = noise2DJS(x * 0.056 + 11.3, z * 0.056 + 7.1);
+    const p3 = noise2DJS(x * 0.13 + 3.7, z * 0.13 + 19.4);
+    const n = p1 * 0.56 + p2 * 0.30 + p3 * 0.14;
+    const thresh = 0.78 - puddleLevel * 0.34;
+    return smoothstep(thresh - 0.055, thresh + 0.065, n) * smoothstep(0.02, 0.24, puddleLevel);
   }
 
   function evalBridge(x) {
@@ -326,259 +340,513 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 4. PROCEDURAL TEXTURES (TERRAIN, CITY ROAD, 4-LANE HIGHWAY/BRIDGE, FACADES)
+  // 4. HIGH-RES SMOOTH PROCEDURAL TEXTURES (1024px ROADS, 512x1024 HOUSES)
   // =========================================================================
+  function configureSmoothTexture(tex, repeatX = 1, repeatY = 1) {
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repeatX, repeatY);
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = 16;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  // Smooth organic grass turf (soft radial tonal blotches + fine blades, zero blocky dots)
   function createGrassTexture(tintHex, grainDelta) {
-    const c = document.createElement("canvas");
-    c.width = 256;
-    c.height = 256;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = tintHex;
-    ctx.fillRect(0, 0, 256, 256);
-
-    for (let i = 0; i < 4800; i++) {
-      const s = 30 + Math.floor(Math.random() * 44);
-      ctx.fillStyle = `rgb(${s + grainDelta[0]}, ${s + grainDelta[1]}, ${s + grainDelta[2]})`;
-      ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
-    }
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(0.065, 0.065);
-    return tex;
-  }
-
-  function createRoadTexture() {
-    const c = document.createElement("canvas");
-    c.width = 256;
-    c.height = 256;
-    const ctx = c.getContext("2d");
-
-    ctx.fillStyle = "#353b45";
-    ctx.fillRect(0, 0, 256, 256);
-
-    for (let i = 0; i < 4600; i++) {
-      const v = 36 + Math.floor(Math.random() * 46);
-      ctx.fillStyle = `rgb(${v},${v + 2},${v + 6})`;
-      ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
-    }
-
-    ctx.fillStyle = "rgba(18, 22, 28, 0.26)";
-    ctx.fillRect(42, 0, 34, 256);
-    ctx.fillRect(180, 0, 34, 256);
-
-    ctx.fillStyle = "#e2e8f0";
-    ctx.fillRect(11, 0, 5, 256);
-    ctx.fillRect(240, 0, 5, 256);
-
-    ctx.fillStyle = "#facc15";
-    ctx.fillRect(124, 20, 8, 92);
-    ctx.fillRect(124, 148, 8, 92);
-
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.anisotropy = 8;
-    return tex;
-  }
-
-  function createHighwayTexture(isBridge = false) {
     const c = document.createElement("canvas");
     c.width = 512;
     c.height = 512;
     const ctx = c.getContext("2d");
-
-    ctx.fillStyle = isBridge ? "#2e3540" : "#2b313b";
+    ctx.fillStyle = tintHex;
     ctx.fillRect(0, 0, 512, 512);
 
-    for (let i = 0; i < 8200; i++) {
-      const v = 30 + Math.floor(Math.random() * 40);
-      ctx.fillStyle = `rgb(${v},${v + 3},${v + 7})`;
-      ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 3);
+    // Soft overlapping organic turf patches
+    for (let i = 0; i < 160; i++) {
+      const gx = Math.random() * 512;
+      const gy = Math.random() * 512;
+      const rad = 24 + Math.random() * 68;
+      const grad = ctx.createRadialGradient(gx, gy, 2, gx, gy, rad);
+      const bright = Math.random() > 0.5;
+      const r = Math.max(0, Math.min(255, (bright ? 65 : 32) + grainDelta[0]));
+      const g = Math.max(0, Math.min(255, (bright ? 95 : 54) + grainDelta[1]));
+      const b = Math.max(0, Math.min(255, (bright ? 48 : 26) + grainDelta[2]));
+      grad.addColorStop(0, `rgba(${r},${g},${b},0.16)`);
+      grad.addColorStop(1, `rgba(${r},${g},${b},0.0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(gx, gy, rad, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    ctx.fillStyle = "rgba(148, 163, 184, 0.08)";
-    ctx.fillRect(0, 0, 36, 512);
-    ctx.fillRect(476, 0, 36, 512);
+    // Fine anti-aliased grass micro-texture
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 2400; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
+      const l = 3 + Math.random() * 6;
+      ctx.strokeStyle = Math.random() > 0.5 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.045)";
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (Math.random() - 0.5) * 3, y - l);
+      ctx.stroke();
+    }
 
-    ctx.fillStyle = "rgba(10, 14, 20, 0.24)";
-    [76, 178, 304, 406].forEach((lx) => ctx.fillRect(lx, 0, 30, 512));
+    return configureSmoothTexture(new THREE.CanvasTexture(c), 0.055, 0.055);
+  }
 
+  // Smooth Asphalt Helper (soft tonal mottling + ultra-fine mineral grain, no blocky pixels!)
+  function paintSmoothAsphaltBase(ctx, w, h, baseHex) {
+    ctx.fillStyle = baseHex;
+    ctx.fillRect(0, 0, w, h);
+
+    // Subtle smooth asphalt aggregate washes
+    for (let i = 0; i < 220; i++) {
+      const x = Math.random() * w;
+      const y = Math.random() * h;
+      const rad = 18 + Math.random() * 72;
+      const v = 40 + Math.floor(Math.random() * 34);
+      const grad = ctx.createRadialGradient(x, y, 2, x, y, rad);
+      grad.addColorStop(0, `rgba(${v},${v + 2},${v + 5},0.12)`);
+      grad.addColorStop(1, `rgba(${v},${v + 2},${v + 5},0.0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Ultra-fine pixel-level mineral noise (1px at 1024 resolution = silky smooth!)
+    const img = ctx.getImageData(0, 0, w, h);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const n = (Math.random() - 0.5) * 14;
+      d[i] = Math.max(0, Math.min(255, d[i] + n));
+      d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+      d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n + 1));
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  // Soft-feathered tire wear lane gradient (eliminates harsh rectangular lane stripes)
+  function paintSoftWearBand(ctx, centerX, halfW, h, alpha = 0.22) {
+    const grad = ctx.createLinearGradient(centerX - halfW, 0, centerX + halfW, 0);
+    grad.addColorStop(0.0, "rgba(12, 16, 22, 0.0)");
+    grad.addColorStop(0.28, `rgba(12, 16, 22, ${alpha})`);
+    grad.addColorStop(0.5, `rgba(14, 18, 24, ${alpha * 0.65})`);
+    grad.addColorStop(0.72, `rgba(12, 16, 22, ${alpha})`);
+    grad.addColorStop(1.0, "rgba(12, 16, 22, 0.0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(centerX - halfW, 0, halfW * 2, h);
+  }
+
+  // 1024x1024 Smooth 2-Lane Urban Avenue Asphalt
+  function createRoadTexture() {
+    const c = document.createElement("canvas");
+    c.width = 1024;
+    c.height = 1024;
+    const ctx = c.getContext("2d");
+
+    paintSmoothAsphaltBase(ctx, 1024, 1024, "#363d47");
+
+    // Subtle concrete curb transition at road edges so grass-to-road seam looks clean
+    const leftEdge = ctx.createLinearGradient(0, 0, 44, 0);
+    leftEdge.addColorStop(0, "rgba(148, 163, 184, 0.34)");
+    leftEdge.addColorStop(0.55, "rgba(100, 116, 139, 0.14)");
+    leftEdge.addColorStop(1, "rgba(54, 61, 71, 0.0)");
+    ctx.fillStyle = leftEdge;
+    ctx.fillRect(0, 0, 44, 1024);
+
+    const rightEdge = ctx.createLinearGradient(980, 0, 1024, 0);
+    rightEdge.addColorStop(0, "rgba(54, 61, 71, 0.0)");
+    rightEdge.addColorStop(0.45, "rgba(100, 116, 139, 0.14)");
+    rightEdge.addColorStop(1, "rgba(148, 163, 184, 0.34)");
+    ctx.fillStyle = rightEdge;
+    ctx.fillRect(980, 0, 44, 1024);
+
+    // Smoothly feathered tire wear tracks in each lane
+    paintSoftWearBand(ctx, 275, 115, 1024, 0.22);
+    paintSoftWearBand(ctx, 749, 115, 1024, 0.22);
+
+    // Crisp anti-aliased solid white outer shoulder lines
+    ctx.fillStyle = "rgba(235, 241, 248, 0.92)";
+    ctx.fillRect(46, 0, 16, 1024);
+    ctx.fillRect(962, 0, 16, 1024);
+
+    // Crisp rounded dashed yellow center divider
+    ctx.fillStyle = "rgba(246, 200, 32, 0.94)";
+    for (let y = 70; y < 1024; y += 512) {
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(500, y, 24, 340, 5) : ctx.rect(500, y, 24, 340);
+      ctx.fill();
+    }
+
+    return configureSmoothTexture(new THREE.CanvasTexture(c));
+  }
+
+  // 1024x1024 Smooth 4-Lane Expressway & Bridge Deck Texture
+  function createHighwayTexture(isBridge = false) {
+    const c = document.createElement("canvas");
+    c.width = 1024;
+    c.height = 1024;
+    const ctx = c.getContext("2d");
+
+    paintSmoothAsphaltBase(ctx, 1024, 1024, isBridge ? "#303743" : "#2d333e");
+
+    // Soft shoulder apron shading
+    ctx.fillStyle = "rgba(148, 163, 184, 0.09)";
+    ctx.fillRect(0, 0, 74, 1024);
+    ctx.fillRect(950, 0, 74, 1024);
+
+    // Smoothly feathered tire tracks across all 4 lanes
+    [182, 388, 636, 842].forEach((cx) => paintSoftWearBand(ctx, cx, 72, 1024, 0.2));
+
+    // Subtle bridge expansion seams & shoulder rumble strips
     if (isBridge) {
-      ctx.fillStyle = "rgba(15, 23, 42, 0.68)";
-      ctx.fillRect(0, 0, 512, 7);
-      ctx.fillStyle = "rgba(148, 163, 184, 0.24)";
-      ctx.fillRect(0, 7, 512, 3);
+      const jointGrad = ctx.createLinearGradient(0, 0, 0, 22);
+      jointGrad.addColorStop(0, "rgba(15, 23, 42, 0.62)");
+      jointGrad.addColorStop(0.55, "rgba(148, 163, 184, 0.2)");
+      jointGrad.addColorStop(1, "rgba(15, 23, 42, 0.0)");
+      ctx.fillStyle = jointGrad;
+      ctx.fillRect(0, 0, 1024, 22);
 
-      ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
-      for (let y = 16; y < 512; y += 20) {
-        ctx.fillRect(14, y, 16, 6);
-        ctx.fillRect(482, y, 16, 6);
+      ctx.fillStyle = "rgba(15, 23, 42, 0.28)";
+      for (let y = 24; y < 1024; y += 36) {
+        ctx.fillRect(28, y, 30, 10);
+        ctx.fillRect(966, y, 30, 10);
       }
     }
 
-    ctx.fillStyle = "#f1f5f9";
-    ctx.fillRect(36, 0, 7, 512);
-    ctx.fillRect(469, 0, 7, 512);
+    // Crisp outer solid white lines
+    ctx.fillStyle = "rgba(241, 245, 249, 0.94)";
+    ctx.fillRect(72, 0, 13, 1024);
+    ctx.fillRect(939, 0, 13, 1024);
 
-    ctx.fillStyle = "#facc15";
-    ctx.fillRect(246, 0, 7, 512);
-    ctx.fillRect(259, 0, 7, 512);
+    // Crisp double yellow center median
+    ctx.fillStyle = "rgba(246, 200, 32, 0.94)";
+    ctx.fillRect(492, 0, 13, 1024);
+    ctx.fillRect(519, 0, 13, 1024);
 
-    ctx.fillStyle = "#e2e8f0";
-    for (let y = 26; y < 512; y += 128) {
-      ctx.fillRect(141, y, 6, 68);
-      ctx.fillRect(365, y, 6, 68);
+    // Dashed white lane dividers
+    ctx.fillStyle = "rgba(226, 232, 240, 0.9)";
+    for (let y = 52; y < 1024; y += 256) {
+      ctx.fillRect(282, y, 11, 136);
+      ctx.fillRect(731, y, 11, 136);
     }
 
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.anisotropy = 8;
-    return tex;
+    return configureSmoothTexture(new THREE.CanvasTexture(c));
   }
 
   function createGantrySignTexture(title, subtitle, arrow = "↑") {
     const c = document.createElement("canvas");
-    c.width = 512;
-    c.height = 160;
+    c.width = 1024;
+    c.height = 320;
     const ctx = c.getContext("2d");
 
-    ctx.fillStyle = "#065f46";
-    ctx.fillRect(0, 0, 512, 160);
+    const bg = ctx.createLinearGradient(0, 0, 0, 320);
+    bg.addColorStop(0, "#047857");
+    bg.addColorStop(1, "#064e3b");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, 1024, 320);
 
     ctx.strokeStyle = "#f8fafc";
-    ctx.lineWidth = 8;
-    ctx.strokeRect(10, 10, 492, 140);
+    ctx.lineWidth = 14;
+    ctx.strokeRect(20, 20, 984, 280);
 
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 38px Segoe UI, sans-serif";
+    ctx.font = "bold 74px Segoe UI, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(title, 256, 68);
+    ctx.fillText(title, 512, 136);
 
     ctx.fillStyle = "#fde047";
-    ctx.font = "bold 26px Segoe UI, sans-serif";
-    ctx.fillText(`${arrow}  ${subtitle}  ${arrow}`, 256, 120);
+    ctx.font = "bold 52px Segoe UI, sans-serif";
+    ctx.fillText(`${arrow}  ${subtitle}  ${arrow}`, 512, 238);
 
-    const tex = new THREE.CanvasTexture(c);
-    tex.anisotropy = 4;
-    return tex;
+    return configureSmoothTexture(new THREE.CanvasTexture(c));
   }
 
+  // Helper: draws a smooth recessed architectural window with sill, frame, interior light gradient & reflection
+  function drawDetailedWindow(ctx, x, y, w, h, lit, warmHex, darkHex, mullion = true) {
+    // Soft exterior recess shadow
+    ctx.fillStyle = "rgba(8, 12, 18, 0.45)";
+    ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+
+    // Window glass gradient
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    if (lit) {
+      g.addColorStop(0, warmHex);
+      g.addColorStop(0.55, warmHex);
+      g.addColorStop(1, "rgba(180, 130, 70, 0.85)");
+    } else {
+      g.addColorStop(0, darkHex);
+      g.addColorStop(0.65, "#0d1624");
+      g.addColorStop(1, "#1e2e45");
+    }
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+
+    // Subtle interior blind/curtain shadow at top
+    ctx.fillStyle = lit ? "rgba(0, 0, 0, 0.14)" : "rgba(255, 255, 255, 0.05)";
+    ctx.fillRect(x, y, w, h * 0.24);
+
+    // Diagonal soft glass sky-glint reflection
+    ctx.fillStyle = "rgba(255, 255, 255, 0.09)";
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.15, y);
+    ctx.lineTo(x + w * 0.48, y);
+    ctx.lineTo(x + w * 0.22, y + h);
+    ctx.lineTo(x, y + h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Crisp frame & optional center mullion
+    ctx.strokeStyle = "rgba(215, 224, 235, 0.36)";
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(x, y, w, h);
+    if (mullion) {
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.5, y);
+      ctx.lineTo(x + w * 0.5, y + h);
+      ctx.stroke();
+    }
+
+    // Bottom architectural sill ledge
+    ctx.fillStyle = "rgba(226, 232, 240, 0.28)";
+    ctx.fillRect(x - 4, y + h + 1, w + 8, 5);
+  }
+
+  // 512x1024 High-Resolution Smooth Architectural Building Facades (All 6 Styles)
   function createFacadeTexture(style) {
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 1024;
+    const ctx = c.getContext("2d");
+
+    if (style === "glass") {
+      const bg = ctx.createLinearGradient(0, 0, 0, 1024);
+      bg.addColorStop(0, "#1c334f");
+      bg.addColorStop(1, "#0e1b2c");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 512, 1024);
+
+      for (let r = 0; r < 24; r++) {
+        const y = r * 42.6;
+        ctx.fillStyle = "#0b1422";
+        ctx.fillRect(0, y, 512, 8);
+        ctx.fillStyle = "rgba(148, 163, 184, 0.18)";
+        ctx.fillRect(0, y + 8, 512, 2);
+        for (let col = 0; col < 8; col++) {
+          const lit = Math.random() > 0.44;
+          drawDetailedWindow(
+            ctx,
+            col * 64 + 6,
+            y + 11,
+            52,
+            26,
+            lit,
+            Math.random() > 0.35 ? "#93c5fd" : "#fef08a",
+            "#1a324e",
+            false
+          );
+        }
+      }
+    } else if (style === "artdeco") {
+      const bg = ctx.createLinearGradient(0, 0, 512, 0);
+      bg.addColorStop(0, "#4b4843");
+      bg.addColorStop(0.5, "#5c5851");
+      bg.addColorStop(1, "#4b4843");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 512, 1024);
+
+      for (let col = 0; col < 6; col++) {
+        const px = col * 85.3;
+        const pilaster = ctx.createLinearGradient(px, 0, px + 18, 0);
+        pilaster.addColorStop(0, "#767168");
+        pilaster.addColorStop(1, "#4f4c46");
+        ctx.fillStyle = pilaster;
+        ctx.fillRect(px, 0, 18, 1024);
+
+        for (let r = 0; r < 16; r++) {
+          const lit = Math.random() > 0.38;
+          drawDetailedWindow(ctx, px + 23, r * 64 + 12, 54, 40, lit, "#fde68a", "#171c26", true);
+        }
+      }
+    } else if (style === "resort") {
+      const bg = ctx.createLinearGradient(0, 0, 0, 1024);
+      bg.addColorStop(0, "#e7e5e4");
+      bg.addColorStop(1, "#cbd5e1");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 512, 1024);
+
+      for (let r = 0; r < 14; r++) {
+        const y = r * 73.1;
+        // Smooth balcony slab + shadow underside
+        ctx.fillStyle = "rgba(15, 23, 42, 0.16)";
+        ctx.fillRect(0, y + 66, 512, 7);
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(0, y + 52, 512, 14);
+        // Glass balcony railing
+        ctx.fillStyle = "rgba(56, 189, 248, 0.22)";
+        ctx.fillRect(0, y + 36, 512, 16);
+
+        for (let col = 0; col < 4; col++) {
+          const lit = Math.random() > 0.38;
+          drawDetailedWindow(ctx, col * 128 + 16, y + 8, 96, 42, lit, "#fef3c7", "#0f4c64", true);
+        }
+      }
+    } else if (style === "alpine") {
+      // Smooth warm alpine cedar planks + dressed stone foundation (fixes blocky flat brown look!)
+      const woodGrad = ctx.createLinearGradient(0, 0, 0, 760);
+      woodGrad.addColorStop(0, "#75523b");
+      woodGrad.addColorStop(1, "#5c3e2b");
+      ctx.fillStyle = woodGrad;
+      ctx.fillRect(0, 0, 512, 760);
+
+      // Subtle horizontal cedar plank seams
+      for (let y = 0; y < 760; y += 22) {
+        ctx.fillStyle = "rgba(24, 14, 8, 0.16)";
+        ctx.fillRect(0, y, 512, 2);
+        ctx.fillStyle = "rgba(255, 232, 210, 0.05)";
+        ctx.fillRect(0, y + 2, 512, 2);
+      }
+
+      // Dressed stone foundation band with mortar lines
+      const stoneGrad = ctx.createLinearGradient(0, 760, 0, 1024);
+      stoneGrad.addColorStop(0, "#5e5a55");
+      stoneGrad.addColorStop(1, "#44413d");
+      ctx.fillStyle = stoneGrad;
+      ctx.fillRect(0, 760, 512, 264);
+
+      ctx.strokeStyle = "rgba(20, 20, 22, 0.24)";
+      ctx.lineWidth = 2;
+      for (let sy = 760; sy < 1024; sy += 33) {
+        ctx.beginPath();
+        ctx.moveTo(0, sy);
+        ctx.lineTo(512, sy);
+        ctx.stroke();
+        const off = ((sy - 760) / 33) % 2 === 0 ? 0 : 32;
+        for (let sx = off; sx < 512; sx += 64) {
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx, sy + 33);
+          ctx.stroke();
+        }
+      }
+
+      // Stone trim cornice separating timber & stone
+      ctx.fillStyle = "#8a847c";
+      ctx.fillRect(0, 754, 512, 10);
+
+      // Crisp mullioned chalet windows with wooden shutters
+      for (let r = 0; r < 8; r++) {
+        for (let col = 0; col < 4; col++) {
+          const wx = col * 128 + 28;
+          const wy = r * 118 + 26;
+          const lit = Math.random() > 0.32;
+          // Timber shutters flanking each window
+          ctx.fillStyle = "#3f2b1e";
+          ctx.fillRect(wx - 12, wy, 10, 54);
+          ctx.fillRect(wx + 74, wy, 10, 54);
+          drawDetailedWindow(ctx, wx, wy, 72, 54, lit, "#fed7aa", "#181d24", true);
+        }
+      }
+    } else if (style === "warehouse") {
+      const bg = ctx.createLinearGradient(0, 0, 0, 1024);
+      bg.addColorStop(0, "#525c6b");
+      bg.addColorStop(1, "#3b434f");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 512, 1024);
+
+      for (let x = 0; x < 512; x += 16) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
+        ctx.fillRect(x, 0, 5, 1024);
+        ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
+        ctx.fillRect(x + 8, 0, 4, 1024);
+      }
+
+      for (let col = 0; col < 6; col++) {
+        drawDetailedWindow(ctx, col * 84 + 12, 92, 60, 72, true, "#fef08a", "#1e293b", true);
+      }
+
+      // Corrugated loading bay doors
+      [48, 296].forEach((bx) => {
+        ctx.fillStyle = "#1f2937";
+        ctx.fillRect(bx, 680, 168, 344);
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.25)";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(bx, 680, 168, 344);
+        for (let by = 710; by < 1024; by += 28) {
+          ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+          ctx.fillRect(bx + 4, by, 160, 3);
+        }
+      });
+    } else {
+      // Cyber Neon Tower
+      const bg = ctx.createLinearGradient(0, 0, 0, 1024);
+      bg.addColorStop(0, "#151b2b");
+      bg.addColorStop(1, "#0b0f1a");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 512, 1024);
+
+      for (let r = 0; r < 20; r++) {
+        const y = r * 51.2;
+        ctx.fillStyle = "rgba(56, 189, 248, 0.08)";
+        ctx.fillRect(0, y, 512, 3);
+        for (let col = 0; col < 5; col++) {
+          const lit = Math.random() > 0.36;
+          drawDetailedWindow(
+            ctx,
+            col * 102 + 14,
+            y + 12,
+            74,
+            26,
+            lit,
+            Math.random() > 0.5 ? "#38bdf8" : "#f472b6",
+            "#0b1120",
+            false
+          );
+        }
+      }
+    }
+
+    return configureSmoothTexture(new THREE.CanvasTexture(c));
+  }
+
+  function createRampTexture() {
     const c = document.createElement("canvas");
     c.width = 256;
     c.height = 512;
     const ctx = c.getContext("2d");
 
-    if (style === "glass") {
-      ctx.fillStyle = "#16263a";
-      ctx.fillRect(0, 0, 256, 512);
-      for (let r = 0; r < 24; r++) {
-        const y = r * 21.3;
-        ctx.fillStyle = "#0b1320";
-        ctx.fillRect(0, y, 256, 4);
-        for (let col = 0; col < 8; col++) {
-          const lit = Math.random() > 0.42;
-          ctx.fillStyle = lit ? (Math.random() > 0.3 ? "#7dd3fc" : "#fef08a") : "#1e3a5f";
-          ctx.fillRect(col * 32 + 3, y + 5, 26, 14);
-        }
-      }
-    } else if (style === "artdeco") {
-      ctx.fillStyle = "#524f49";
-      ctx.fillRect(0, 0, 256, 512);
-      for (let col = 0; col < 6; col++) {
-        ctx.fillStyle = "#6c685f";
-        ctx.fillRect(col * 42.6, 0, 8, 512);
-        for (let r = 0; r < 16; r++) {
-          const lit = Math.random() > 0.35;
-          ctx.fillStyle = lit ? "#fde68a" : "#181a20";
-          ctx.fillRect(col * 42.6 + 11, r * 32 + 6, 28, 20);
-        }
-      }
-    } else if (style === "resort") {
-      ctx.fillStyle = "#d6d3d1";
-      ctx.fillRect(0, 0, 256, 512);
-      for (let r = 0; r < 14; r++) {
-        const y = r * 36.5;
-        ctx.fillStyle = "#f5f5f4";
-        ctx.fillRect(0, y + 26, 256, 9);
-        for (let col = 0; col < 4; col++) {
-          const lit = Math.random() > 0.36;
-          ctx.fillStyle = lit ? "#fef3c7" : "#0e7490";
-          ctx.fillRect(col * 64 + 8, y + 4, 48, 21);
-        }
-      }
-    } else if (style === "alpine") {
-      ctx.fillStyle = "#6b4a35";
-      ctx.fillRect(0, 0, 256, 512);
-      ctx.fillStyle = "#57534e";
-      ctx.fillRect(0, 380, 256, 132);
-      for (let r = 0; r < 8; r++) {
-        for (let col = 0; col < 4; col++) {
-          const lit = Math.random() > 0.28;
-          ctx.fillStyle = lit ? "#fed7aa" : "#1c1917";
-          ctx.fillRect(col * 64 + 14, r * 58 + 14, 36, 28);
-        }
-      }
-    } else if (style === "warehouse") {
-      ctx.fillStyle = "#4b5563";
-      ctx.fillRect(0, 0, 256, 512);
-      for (let x = 0; x < 256; x += 8) {
-        ctx.fillStyle = x % 16 === 0 ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.16)";
-        ctx.fillRect(x, 0, 4, 512);
-      }
-      for (let col = 0; col < 6; col++) {
-        ctx.fillStyle = "#fef08a";
-        ctx.fillRect(col * 42 + 6, 48, 30, 38);
-      }
-      ctx.fillStyle = "#1f2937";
-      ctx.fillRect(24, 340, 84, 172);
-      ctx.fillRect(148, 340, 84, 172);
-    } else {
-      ctx.fillStyle = "#141824";
-      ctx.fillRect(0, 0, 256, 512);
-      for (let r = 0; r < 20; r++) {
-        for (let col = 0; col < 5; col++) {
-          const lit = Math.random() > 0.36;
-          ctx.fillStyle = lit ? (Math.random() > 0.5 ? "#38bdf8" : "#f472b6") : "#0b0f19";
-          ctx.fillRect(col * 51 + 7, r * 25.6 + 6, 37, 13);
-        }
-      }
-    }
-
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    return tex;
-  }
-
-  function createRampTexture() {
-    const c = document.createElement("canvas");
-    c.width = 128;
-    c.height = 256;
-    const ctx = c.getContext("2d");
-
     ctx.fillStyle = "#334155";
-    ctx.fillRect(0, 0, 128, 256);
+    ctx.fillRect(0, 0, 256, 512);
 
     ctx.strokeStyle = "#f97316";
-    ctx.lineWidth = 10;
-    for (let y = 40; y < 240; y += 64) {
+    ctx.lineWidth = 18;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (let y = 80; y < 480; y += 128) {
       ctx.beginPath();
-      ctx.moveTo(22, y + 26);
-      ctx.lineTo(64, y);
-      ctx.lineTo(106, y + 26);
+      ctx.moveTo(44, y + 52);
+      ctx.lineTo(128, y);
+      ctx.lineTo(212, y + 52);
       ctx.stroke();
     }
 
     ctx.fillStyle = "#facc15";
-    ctx.fillRect(0, 0, 10, 256);
-    ctx.fillRect(118, 0, 10, 256);
+    ctx.fillRect(0, 0, 18, 512);
+    ctx.fillRect(238, 0, 18, 512);
 
-    return new THREE.CanvasTexture(c);
+    return configureSmoothTexture(new THREE.CanvasTexture(c));
   }
 
   // =========================================================================
-  // 5. UPGRADED RT GLOSSY-BLUR PAVEMENT SHADER + CONTACT AO + SPARK LIGHTS
+  // 5. SMOOTH RT PAVEMENT SHADER (PERSISTENT PUDDLES + LIVE CAR WAKE & WET TRACKS)
   // =========================================================================
   function createRealisticRoadMaterial(roadTex, reflTexture, resolution, isIntersection) {
+    const emptyTrailPos = Array.from({ length: 20 }, () => new THREE.Vector4(0, 0, 0, -999));
+    const emptyTrailMeta = Array.from({ length: 20 }, () => new THREE.Vector4(1.0, 1.4, 0, 0));
+
     return new THREE.ShaderMaterial({
       uniforms: {
         uRoadMap: { value: roadTex },
@@ -588,6 +856,7 @@ window.HorizonWorld = (() => {
         uTime: { value: 0.0 },
         uRTEnabled: { value: 1.0 },
         uRoadMoisture: { value: 0.0 },
+        uPuddleLevel: { value: 0.0 },
         uRainIntensity: { value: 0.0 },
         uSunDir: { value: new THREE.Vector3(-0.6, 0.3, -0.5).normalize() },
         uSunColor: { value: new THREE.Color(0xffa45b) },
@@ -603,6 +872,8 @@ window.HorizonWorld = (() => {
         uNitroActive: { value: 0.0 },
         uSparkPos: { value: new THREE.Vector3(0, -100, 0) },
         uSparkIntensity: { value: 0.0 },
+        uTrailPos: { value: emptyTrailPos },
+        uTrailMeta: { value: emptyTrailMeta },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -628,6 +899,7 @@ window.HorizonWorld = (() => {
         uniform float uTime;
         uniform float uRTEnabled;
         uniform float uRoadMoisture;
+        uniform float uPuddleLevel;
         uniform float uRainIntensity;
         uniform vec3 uSunDir;
         uniform vec3 uSunColor;
@@ -643,6 +915,8 @@ window.HorizonWorld = (() => {
         uniform float uNitroActive;
         uniform vec3 uSparkPos;
         uniform float uSparkIntensity;
+        uniform vec4 uTrailPos[20];
+        uniform vec4 uTrailMeta[20];
 
         varying vec2 vUv;
         varying vec3 vWorldPos;
@@ -675,15 +949,14 @@ window.HorizonWorld = (() => {
           float dist = length(diff);
 
           float radius = phase * 0.42;
-          float ringEdge = exp(-pow((dist - radius) * 26.0, 2.0)) * (1.0 - phase);
-          float splashDot = exp(-dist * 28.0) * smoothstep(0.28, 0.0, phase);
-          float wave = sin((dist - radius) * 44.0) * exp(-dist * 10.0) * (1.0 - phase);
+          float ringEdge = exp(-pow((dist - radius) * 24.0, 2.0)) * (1.0 - phase);
+          float splashDot = exp(-dist * 26.0) * smoothstep(0.28, 0.0, phase);
+          float wave = sin((dist - radius) * 42.0) * exp(-dist * 10.0) * (1.0 - phase);
 
           vec2 dir = normalize(diff + vec2(0.0001));
-          return vec3(dir * wave, clamp(ringEdge * 0.9 + splashDot * 1.15, 0.0, 1.4));
+          return vec3(dir * wave, clamp(ringEdge * 0.85 + splashDot * 1.1, 0.0, 1.35));
         }
 
-        // Roughness-aware 5-tap RT Glossy Reflection Sampler
         vec3 sampleGlossyRT(vec2 uv, float blurRadius) {
           vec3 c = texture2D(uReflMap, uv).rgb * 0.36;
           vec2 o1 = vec2(blurRadius, blurRadius * 0.55);
@@ -699,58 +972,122 @@ window.HorizonWorld = (() => {
 
         void main() {
           vec3 rawAlbedo = uIsIntersection > 0.5
-            ? vec3(0.21, 0.23, 0.27)
+            ? vec3(0.215, 0.235, 0.275)
             : texture2D(uRoadMap, vUv).rgb;
 
           float inTunnel = step(-880.0, vWorldPos.z) * step(vWorldPos.z, -340.0) * step(abs(vWorldPos.x), 13.5);
-          float localMoisture = uRoadMoisture * (1.0 - inTunnel);
+          float baseMoisture = uRoadMoisture * (1.0 - inTunnel);
+          float basePuddleLvl = uPuddleLevel * (1.0 - inTunnel);
           float activeRain = uRainIntensity * (1.0 - inTunnel);
 
-          float macroWear = noise2D(vWorldPos.xz * 0.09);
-          float fineGrain = noise2D(vWorldPos.xz * 4.2);
-          float microX = noise2D(vWorldPos.xz * 2.6) - 0.5;
-          float microZ = noise2D(vWorldPos.xz * 2.6 + 19.7) - 0.5;
+          // Smooth organic wear & fine asphalt texture (no pixelated floor() noise!)
+          float macroWear = noise2D(vWorldPos.xz * 0.075);
+          float softGrain = noise2D(vWorldPos.xz * 1.65) * 0.65 + noise2D(vWorldPos.xz * 3.4) * 0.35;
+          float microX = (noise2D(vWorldPos.xz * 1.8) - 0.5) * 0.7 + (noise2D(vWorldPos.xz * 4.2 + 7.3) - 0.5) * 0.3;
+          float microZ = (noise2D(vWorldPos.xz * 1.8 + 19.7) - 0.5) * 0.7 + (noise2D(vWorldPos.xz * 4.2 + 23.1) - 0.5) * 0.3;
 
-          float p1 = noise2D(vWorldPos.xz * 0.026);
-          float p2 = noise2D(vWorldPos.xz * 0.085);
-          float pNoise = p1 * 0.68 + p2 * 0.32;
-          float thresh = 0.86 - localMoisture * 0.34;
-          float puddle = smoothstep(thresh - 0.06, thresh + 0.07, pNoise) * smoothstep(0.22, 0.72, localMoisture);
-          float drainFactor = 1.0 - smoothstep(2.0, 12.0, vWorldPos.y) * 0.45;
-          puddle *= drainFactor;
+          // Multi-octave standing puddle map matched 1:1 to JS samplePuddleAt()
+          float p1 = noise2D(vWorldPos.xz * 0.022);
+          float p2 = noise2D(vWorldPos.xz * 0.056 + vec2(11.3, 7.1));
+          float p3 = noise2D(vWorldPos.xz * 0.13 + vec2(3.7, 19.4));
+          float pNoise = p1 * 0.56 + p2 * 0.30 + p3 * 0.14;
+          float thresh = 0.78 - basePuddleLvl * 0.34;
 
-          vec2 ripGrad = vec2(0.0);
+          float drainFactor = 1.0 - smoothstep(2.0, 12.0, vWorldPos.y) * 0.42;
+          float puddle = smoothstep(thresh - 0.055, thresh + 0.065, pNoise) * smoothstep(0.02, 0.24, basePuddleLvl) * drainFactor;
+          // Dark capillary damp border around lingering puddles even after main asphalt dries!
+          float puddleRim = smoothstep(thresh - 0.16, thresh - 0.01, pNoise) * smoothstep(0.02, 0.25, basePuddleLvl) * drainFactor;
+
+          // =================================================================
+          // LIVE CAR-TO-PUDDLE TRANSFORMATION (WATER PARTING, WAKE RIPPLES & WET TIRE TRACKS)
+          // =================================================================
+          vec2 wakeGrad = vec2(0.0);
+          float wakeFoam = 0.0;
+          float puddlePart = 0.0;
+          float wetTrack = 0.0;
+
+          vec3 toFrag = vWorldPos - uCarPos;
+          float carDist = length(toFrag.xz);
+
+          if (carDist < 62.0 && abs(toFrag.y) < 4.0) {
+            for (int i = 0; i < 20; i++) {
+              vec4 tp = uTrailPos[i];
+              float age = uTime - tp.w;
+              if (age < 0.0 || age > 8.5) continue;
+
+              vec2 rel = vWorldPos.xz - tp.xy;
+              if (dot(rel, rel) > 30.0) continue;
+
+              vec4 tm = uTrailMeta[i];
+              float cH = cos(tp.z);
+              float sH = sin(tp.z);
+              // Local right & forward coordinates in this trail stamp's frame
+              float lr = rel.x * cH - rel.y * sH;
+              float lf = -rel.x * sH - rel.y * cH;
+
+              float df = max(0.0, abs(lf) - tm.y);
+              float sideDiff = abs(lr) - tm.x;
+              float dtire = length(vec2(sideDiff, df));
+
+              // 1) Wet Tire Track dragged onto dry asphalt (evaporates smoothly over 8s)
+              if (tm.w > 0.01) {
+                float trackFade = smoothstep(8.0, 0.0, age);
+                float trackBand = smoothstep(0.34, 0.09, dtire) * trackFade * tm.w;
+                wetTrack = max(wetTrack, trackBand);
+              }
+
+              // 2) Active Puddle Water Parting & Expanding V-Wake Ripples
+              if (tm.z > 0.01 && age < 4.2) {
+                float wakeFade = exp(-age * 0.95) * tm.z;
+                // Tires briefly displace/thin the puddle film right in their path before it refills
+                puddlePart = max(puddlePart, smoothstep(0.46, 0.08, dtire) * exp(-age * 0.72) * tm.z * 0.68);
+
+                // Expanding wake ripple waves pushing outward from both tires
+                float waveR = 0.28 + age * 2.15;
+                float ringEnv = exp(-abs(dtire - waveR) * 2.8) * smoothstep(3.8, 0.15, dtire);
+                float ringWave = sin((dtire - waveR) * 15.0) * ringEnv * wakeFade;
+
+                vec2 worldRight = vec2(cH, -sH);
+                vec2 outDir = worldRight * (lr >= 0.0 ? 1.0 : -1.0) * (sideDiff >= 0.0 ? 1.0 : -1.0);
+                wakeGrad += outDir * ringWave * 0.55;
+                wakeFoam += smoothstep(0.25, 0.95, abs(ringWave)) * 0.48 * wakeFade;
+              }
+            }
+          }
+
+          // Combine general moisture + damp puddle halo + wet tire tracks dragged onto dry asphalt
+          float localMoisture = clamp(max(max(baseMoisture, puddleRim * 0.72), wetTrack * 0.88), 0.0, 1.0);
+          float effectivePuddle = clamp(puddle * (1.0 - puddlePart), 0.0, 1.0);
+
+          // Raindrop impact ripples on wet asphalt & puddles
+          vec2 ripGrad = wakeGrad * clamp(puddle * 1.4, 0.0, 1.0);
           float impactRing = 0.0;
           if (activeRain > 0.03) {
             vec3 r1 = rainImpactLayer(vWorldPos.xz * 0.72, uTime, 1.55);
             vec3 r2 = rainImpactLayer(vWorldPos.xz * 1.38 + 11.4, uTime + 0.37, 2.15);
-            ripGrad = (r1.xy * 0.65 + r2.xy * 0.45) * activeRain * (0.28 + puddle * 0.72);
+            ripGrad += (r1.xy * 0.62 + r2.xy * 0.42) * activeRain * (0.28 + effectivePuddle * 0.72);
             float camDist = length(cameraPosition - vWorldPos);
             float distMask = smoothstep(130.0, 18.0, camDist);
-            impactRing = (r1.z * 0.62 + r2.z * 0.55) * activeRain * distMask * (0.35 + localMoisture * 0.45 + puddle * 0.55);
+            impactRing = (r1.z * 0.6 + r2.z * 0.52) * activeRain * distMask * (0.35 + localMoisture * 0.45 + effectivePuddle * 0.55);
           }
 
-          float roughAmt = mix(0.28, 0.13, localMoisture);
-          roughAmt = mix(roughAmt, 0.012, puddle);
-          vec3 N = normalize(normalize(vWorldNormal) + vec3(microX * roughAmt + ripGrad.x * 0.22, 0.0, microZ * roughAmt + ripGrad.y * 0.22));
+          float roughAmt = mix(0.20, 0.10, localMoisture);
+          roughAmt = mix(roughAmt, 0.008, effectivePuddle);
+          vec3 N = normalize(normalize(vWorldNormal) + vec3(microX * roughAmt + ripGrad.x * 0.24, 0.0, microZ * roughAmt + ripGrad.y * 0.24));
 
           vec3 V = normalize(cameraPosition - vWorldPos);
           vec3 L = normalize(uSunDir);
 
           float isMarking = smoothstep(0.48, 0.65, max(rawAlbedo.r, rawAlbedo.g));
-          vec3 dryTex = rawAlbedo * (0.88 + fineGrain * 0.16 + (macroWear - 0.5) * 0.09);
-          float darkenAmt = mix(localMoisture * 0.44 + puddle * 0.24, localMoisture * 0.14, isMarking);
-          vec3 albedo = dryTex * (1.0 - clamp(darkenAmt, 0.0, 0.56));
+          vec3 dryTex = rawAlbedo * (0.92 + softGrain * 0.1 + (macroWear - 0.5) * 0.06);
+          float darkenAmt = mix(localMoisture * 0.44 + effectivePuddle * 0.22, localMoisture * 0.15, isMarking);
+          vec3 albedo = dryTex * (1.0 - clamp(darkenAmt, 0.0, 0.58));
 
           float NdotL = max(dot(N, L), 0.0) * (1.0 - inTunnel);
           vec3 H = normalize(L + V);
-          float specPow = mix(mix(14.0, 62.0, localMoisture), 280.0, puddle);
-          float specStr = mix(mix(0.06, 0.34, localMoisture), 1.35, puddle) * (1.0 - inTunnel);
+          float specPow = mix(mix(18.0, 68.0, localMoisture), 320.0, effectivePuddle);
+          float specStr = mix(mix(0.05, 0.36, localMoisture), 1.4, effectivePuddle) * (1.0 - inTunnel);
           float spec = pow(max(dot(N, H), 0.0), specPow) * specStr;
-
-          // Subtle micro-aggregate asphalt sparkle under grazing sun/headlights
-          float sparkleHash = hash21(floor(vWorldPos.xz * 7.5));
-          float asphaltGlint = smoothstep(0.955, 0.995, sparkleHash) * pow(max(dot(N, H), 0.0), 18.0) * (1.0 - puddle) * 0.45;
 
           vec3 lampGlow = vec3(0.0);
           if (inTunnel > 0.5) {
@@ -763,11 +1100,9 @@ window.HorizonWorld = (() => {
           }
 
           vec3 color = albedo * (uAmbientColor * (1.0 - inTunnel * 0.65) + lampGlow + uSunColor * NdotL * 0.92)
-                     + uSunColor * (spec * 0.72 + asphaltGlint);
+                     + uSunColor * spec * 0.72;
 
-          // Analytic Under-Car Contact AO (grounds car on road; lifts cleanly during ramp jumps!)
-          vec3 toFrag = vWorldPos - uCarPos;
-          float carDist = length(toFrag.xz);
+          // Analytic Under-Car Contact AO
           float contactAO = 1.0;
           if (carDist < 5.5 && toFrag.y < 0.8 && toFrag.y > -4.5) {
             vec2 carF = normalize(uCarForward.xz + vec2(0.0001));
@@ -780,61 +1115,63 @@ window.HorizonWorld = (() => {
           }
           color *= contactAO;
 
-          // Headlight pool + rain impact illumination
+          // Headlight pool + rain impact & puddle wake foam illumination
           float headlightFactor = 0.0;
           if ((uHeadlightsOn > 0.5 || inTunnel > 0.5) && carDist < 76.0 && abs(toFrag.y) < 6.0) {
             vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
             float cone = dot(dir2, normalize(uCarForward.xz));
             headlightFactor = smoothstep(0.62, 0.96, cone) * smoothstep(76.0, 2.5, carDist);
-            color += vec3(1.0, 0.94, 0.82) * headlightFactor * mix(0.36, 0.78, max(localMoisture * 0.5, puddle));
+            color += vec3(1.0, 0.94, 0.82) * headlightFactor * mix(0.36, 0.78, max(localMoisture * 0.5, effectivePuddle));
           }
 
           if (impactRing > 0.005) {
             vec3 ringTint = mix(vec3(0.76, 0.86, 0.98), vec3(1.0, 0.97, 0.9), headlightFactor);
-            color += ringTint * impactRing * (0.3 + headlightFactor * 0.6);
+            color += ringTint * impactRing * (0.28 + headlightFactor * 0.58);
+          }
+
+          if (wakeFoam > 0.005 && puddle > 0.05) {
+            color += vec3(0.82, 0.92, 1.0) * wakeFoam * puddle * 0.55;
           }
 
           vec3 rearPos = uCarPos - uCarForward * (uCarHalfL + 0.1);
           float rearDist = length(vWorldPos.xz - rearPos.xz);
           if (rearDist < 16.0 && abs(toFrag.y) < 4.0) {
             float tailFalloff = smoothstep(16.0, 0.5, rearDist);
-            color += vec3(1.0, 0.1, 0.08) * tailFalloff * uBrakeIntensity * mix(0.16, 0.78, max(localMoisture * 0.48, puddle));
+            color += vec3(1.0, 0.1, 0.08) * tailFalloff * uBrakeIntensity * mix(0.16, 0.8, max(localMoisture * 0.5, effectivePuddle));
             if (uNitroActive > 0.5) {
-              color += vec3(0.15, 0.82, 1.0) * tailFalloff * mix(0.3, 1.05, max(localMoisture * 0.48, puddle));
+              color += vec3(0.15, 0.82, 1.0) * tailFalloff * mix(0.3, 1.05, max(localMoisture * 0.5, effectivePuddle));
             }
           }
 
-          // Dynamic Flickering Collision Spark Road Illumination!
           if (uSparkIntensity > 0.02) {
             float sDist = length(vWorldPos - uSparkPos);
             if (sDist < 14.0) {
               float sFall = smoothstep(14.0, 0.4, sDist);
-              color += vec3(1.0, 0.58, 0.14) * sFall * sFall * uSparkIntensity * mix(0.65, 1.5, max(localMoisture * 0.5, puddle));
+              color += vec3(1.0, 0.58, 0.14) * sFall * sFall * uSparkIntensity * mix(0.65, 1.5, max(localMoisture * 0.5, effectivePuddle));
             }
           }
 
-          // Upgraded Roughness-Blurred RT Planar Reflections (even subtle dry-asphalt grazing sheen!)
+          // Roughness-Blurred RT Reflections (damp road = soft gloss, wet tracks = glossy sheen, puddles = mirror-sharp!)
           if (uRTEnabled > 0.5) {
             float NdotV = max(dot(N, V), 0.0);
-            float fresnel = 0.03 + 0.97 * pow(1.0 - NdotV, 4.0);
-            float drySheen = (1.0 - inTunnel) * 0.055 * fresnel;
+            float fresnel = 0.025 + 0.975 * pow(1.0 - NdotV, 4.2);
+            float drySheen = (1.0 - inTunnel) * 0.045 * fresnel;
 
-            if (vWorldPos.y < 1.5 && (localMoisture > 0.03 || drySheen > 0.01)) {
+            if (vWorldPos.y < 1.5 && (localMoisture > 0.03 || effectivePuddle > 0.02 || drySheen > 0.01)) {
               vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
               vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
-              float distort = mix(0.024, 0.0025, puddle);
-              reflUv += vec2(microX, microZ) * distort + ripGrad * 0.048;
+              float distort = mix(0.018, 0.0018, effectivePuddle);
+              reflUv += vec2(microX, microZ) * distort + ripGrad * 0.052;
               reflUv = clamp(reflUv, vec2(0.002), vec2(0.998));
 
-              float blurRad = mix(0.011, 0.0012, puddle);
+              float blurRad = mix(0.0095, 0.0009, effectivePuddle);
               vec3 reflSample = sampleGlossyRT(reflUv, blurRad);
-              float dampRefl = localMoisture * 0.3 * (0.16 + fresnel * 0.84);
-              float puddleRefl = puddle * (0.18 + fresnel * 0.68);
-              float reflFactor = clamp(max(max(dampRefl, puddleRefl), drySheen), 0.0, 0.82) * (1.0 - isMarking * 0.35);
-              // Ground contact shadow dims reflections right underneath the car
-              color = mix(color, reflSample * 1.08 * mix(0.45, 1.0, contactAO), reflFactor);
-            } else if (vWorldPos.y >= 1.5 && localMoisture > 0.04) {
-              float deckSheen = clamp((localMoisture * 0.3 + puddle * 0.42) * fresnel, 0.0, 0.54);
+              float dampRefl = localMoisture * 0.34 * (0.18 + fresnel * 0.82);
+              float puddleRefl = effectivePuddle * (0.24 + fresnel * 0.72);
+              float reflFactor = clamp(max(max(dampRefl, puddleRefl), drySheen), 0.0, 0.88) * (1.0 - isMarking * 0.32);
+              color = mix(color, reflSample * 1.1 * mix(0.45, 1.0, contactAO), reflFactor);
+            } else if (vWorldPos.y >= 1.5 && (localMoisture > 0.04 || effectivePuddle > 0.02)) {
+              float deckSheen = clamp((localMoisture * 0.3 + effectivePuddle * 0.45) * fresnel, 0.0, 0.56);
               color = mix(color, uFogColor * 1.15 + uSunColor * 0.32 + lampGlow * 0.9, deckSheen);
             }
           }
@@ -850,6 +1187,9 @@ window.HorizonWorld = (() => {
     });
   }
 
+  // =========================================================================
+  // 5B. UPGRADED RT WATER SHADER (6-WAVE NORMALS, 5-TAP PLANAR RT, CAUSTICS & WAKE)
+  // =========================================================================
   function createWaterMaterial(reflTexture, resolution) {
     return new THREE.ShaderMaterial({
       uniforms: {
@@ -859,8 +1199,8 @@ window.HorizonWorld = (() => {
         uRTEnabled: { value: 1.0 },
         uWaveStrength: { value: 0.45 },
         uRainIntensity: { value: 0.0 },
-        uDeepColor: { value: new THREE.Color(0x09223c) },
-        uShallowColor: { value: new THREE.Color(0x1b5469) },
+        uDeepColor: { value: new THREE.Color(0x08203a) },
+        uShallowColor: { value: new THREE.Color(0x1a586e) },
         uSunDir: { value: new THREE.Vector3(-0.6, 0.3, -0.5).normalize() },
         uSunColor: { value: new THREE.Color(0xffa85c) },
         uFogColor: { value: new THREE.Color(0xb65549) },
@@ -877,8 +1217,10 @@ window.HorizonWorld = (() => {
         varying float vWaveH;
         void main() {
           vec4 wp = modelMatrix * vec4(position, 1.0);
-          float swell = sin(wp.x * 0.065 + uTime * 1.5) * cos(wp.z * 0.06 - uTime * 1.25);
-          wp.y += swell * 0.12 * uWaveStrength;
+          float s1 = sin(wp.x * 0.055 + wp.z * 0.032 + uTime * 1.45);
+          float s2 = cos(wp.x * -0.042 + wp.z * 0.068 - uTime * 1.2);
+          float swell = (s1 * 0.6 + s2 * 0.4);
+          wp.y += swell * 0.14 * uWaveStrength;
           vWaveH = swell * uWaveStrength;
           vWorldPos = wp.xyz;
           gl_Position = projectionMatrix * viewMatrix * wp;
@@ -922,17 +1264,16 @@ window.HorizonWorld = (() => {
           return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
         }
 
+        // Smooth 6-octave analytical Gerstner-inspired wave gradient (no blocky noise!)
         vec2 waveGradient(vec2 p, float t) {
           vec2 g = vec2(0.0);
-          float w1 = p.x * 0.24 + p.y * 0.17 + t * 1.7;
-          float w2 = p.x * -0.19 + p.y * 0.31 - t * 2.0;
-          float w3 = p.x * 0.48 - p.y * 0.38 + t * 2.8;
-          g += vec2(0.24, 0.17) * cos(w1) * 0.35;
-          g += vec2(-0.19, 0.31) * cos(w2) * 0.28;
-          g += vec2(0.48, -0.38) * cos(w3) * 0.16;
-          float n1 = noise2D(p * 0.38 + vec2(t * 0.6, -t * 0.42));
-          float n2 = noise2D(p * 0.38 + vec2(-t * 0.48, t * 0.68) + 17.3);
-          g += vec2(n1 - 0.5, n2 - 0.5) * 0.44;
+          g += vec2(0.16, 0.11) * cos(p.x * 0.16 + p.y * 0.11 + t * 1.45) * 0.34;
+          g += vec2(-0.14, 0.21) * cos(p.x * -0.14 + p.y * 0.21 - t * 1.75) * 0.28;
+          g += vec2(0.32, -0.26) * cos(p.x * 0.32 - p.y * 0.26 + t * 2.35) * 0.18;
+          g += vec2(-0.46, -0.34) * cos(p.x * -0.46 - p.y * 0.34 + t * 2.95) * 0.11;
+          // Fine capillary ripples for crisp sun glitter
+          g += vec2(0.88, 0.54) * cos(p.x * 0.88 + p.y * 0.54 - t * 3.8) * 0.055;
+          g += vec2(-0.76, 0.96) * cos(p.x * -0.76 + p.y * 0.96 + t * 4.3) * 0.045;
           return g;
         }
 
@@ -950,6 +1291,15 @@ window.HorizonWorld = (() => {
           return vec3(normalize(diff + vec2(0.0001)) * ring, glint);
         }
 
+        vec3 sampleWaterRT(vec2 uv, float spread) {
+          vec3 c = texture2D(uReflMap, uv).rgb * 0.40;
+          c += texture2D(uReflMap, clamp(uv + vec2(spread, spread * 0.4), vec2(0.002), vec2(0.998))).rgb * 0.15;
+          c += texture2D(uReflMap, clamp(uv + vec2(-spread, spread * 0.4), vec2(0.002), vec2(0.998))).rgb * 0.15;
+          c += texture2D(uReflMap, clamp(uv + vec2(spread * 0.4, -spread), vec2(0.002), vec2(0.998))).rgb * 0.15;
+          c += texture2D(uReflMap, clamp(uv + vec2(-spread * 0.4, -spread), vec2(0.002), vec2(0.998))).rgb * 0.15;
+          return c;
+        }
+
         float boxDist2D(vec2 p, vec2 bmin, vec2 bmax) {
           vec2 c = (bmin + bmax) * 0.5;
           vec2 ext = (bmax - bmin) * 0.5;
@@ -958,12 +1308,25 @@ window.HorizonWorld = (() => {
         }
 
         void main() {
-          vec3 V = normalize(cameraPosition - vWorldPos);
+          vec3 toCam = cameraPosition - vWorldPos;
+          float camDist = length(toCam);
+          vec3 V = toCam / max(camDist, 0.0001);
           vec3 L = normalize(uSunDir);
 
-          vec2 grad = waveGradient(vWorldPos.xz, uTime) * (0.14 + uWaveStrength * 0.22);
+          // Attenuate high-frequency wave chop with distance so far RT reflections stay silky!
+          float distAtten = smoothstep(900.0, 40.0, camDist);
+          vec2 grad = waveGradient(vWorldPos.xz, uTime) * (0.15 + uWaveStrength * 0.24) * (0.35 + 0.65 * distAtten);
+
+          // Dynamic concentric splash ripples around the car when driving in water
+          vec3 toFrag = vWorldPos - uCarPos;
+          float carDist = length(toFrag.xz);
+          if (uCarPos.y < 1.2 && carDist < 22.0) {
+            float cWave = sin(carDist * 2.4 - uTime * 8.5) * smoothstep(22.0, 1.5, carDist) * 0.22;
+            grad += normalize(toFrag.xz + vec2(0.0001)) * cWave;
+          }
+
           vec3 rip = uRainIntensity > 0.05
-            ? waterRainRipples(vWorldPos.xz * 0.55, uTime) * uRainIntensity
+            ? waterRainRipples(vWorldPos.xz * 0.55, uTime) * uRainIntensity * distAtten
             : vec3(0.0);
 
           vec3 N = normalize(vec3(grad.x + rip.x * 0.24, 1.0, grad.y + rip.y * 0.24));
@@ -974,47 +1337,52 @@ window.HorizonWorld = (() => {
           float dPine = abs(boxDist2D(vWorldPos.xz, vec2(-420.0, -1440.0), vec2(460.0, -880.0)));
           float edgeDist = min(min(dMetro, dPalm), min(dLagoon, dPine));
 
-          float foamNoise = noise2D(vWorldPos.xz * 0.55 + vec2(uTime * 0.32, -uTime * 0.25));
-          float shoreFoam = smoothstep(3.4, 0.15, edgeDist) * smoothstep(0.32, 0.72, foamNoise + 0.24);
+          // Animated shoreline foam + shallow seabed caustics
+          float foamNoise = noise2D(vWorldPos.xz * 0.45 + vec2(uTime * 0.28, -uTime * 0.22));
+          float shoreWave = 0.5 + 0.5 * sin(edgeDist * 1.4 - uTime * 2.2);
+          float shoreFoam = smoothstep(3.8, 0.15, edgeDist) * smoothstep(0.28, 0.72, foamNoise + shoreWave * 0.28);
 
-          float shallowMix = smoothstep(38.0, 2.0, edgeDist);
+          float shallowMix = smoothstep(42.0, 2.0, edgeDist);
+          float caustics = noise2D(vWorldPos.xz * 0.55 + vec2(uTime * 0.65, uTime * 0.42))
+                         * noise2D(vWorldPos.xz * 0.72 - vec2(uTime * 0.48, -uTime * 0.55));
           vec3 waterBase = mix(uDeepColor, uShallowColor, shallowMix);
-          // Subtle subsurface turquoise glow on backlit wave crests
-          float sss = clamp(vWaveH * 0.8 + 0.3, 0.0, 1.0) * pow(max(dot(V, -L), 0.0), 3.0);
-          waterBase += uShallowColor * sss * 0.45;
+          waterBase += uShallowColor * pow(caustics, 2.0) * shallowMix * 0.55;
+
+          // Subsurface backlit wave-crest turquoise glow
+          float sss = clamp(vWaveH * 0.75 + 0.35, 0.0, 1.0) * pow(max(dot(V, -L), 0.0), 3.0);
+          waterBase += uShallowColor * sss * 0.55;
 
           vec3 color;
           if (uRTEnabled > 0.5) {
             vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
             vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
-            reflUv += N.xz * (0.042 + uWaveStrength * 0.024);
-            reflUv = clamp(reflUv, vec2(0.002), vec2(0.998));
+            // Realistic planar reflection distortion: stronger vertically than horizontally (elongates skyline lights!)
+            vec2 uvShift = vec2(N.x * 0.026, N.z * 0.052) * (0.55 + uWaveStrength * 0.45) * (0.3 + 0.7 * distAtten);
+            reflUv = clamp(reflUv + uvShift, vec2(0.002), vec2(0.998));
 
-            // 3-tap soft ocean reflection
-            vec3 reflColor = texture2D(uReflMap, reflUv).rgb * 0.52
-                           + texture2D(uReflMap, clamp(reflUv + vec2(0.003, 0.002), vec2(0.002), vec2(0.998))).rgb * 0.24
-                           + texture2D(uReflMap, clamp(reflUv - vec2(0.003, 0.002), vec2(0.002), vec2(0.998))).rgb * 0.24;
-            reflColor *= 1.18;
+            float reflBlur = 0.0022 + (1.0 - distAtten) * 0.0025 + uWaveStrength * 0.0012;
+            vec3 reflColor = sampleWaterRT(reflUv, reflBlur) * 1.22;
 
+            // Physical water Schlick Fresnel (F0 = 0.02, crisp mirror at grazing angles, clear depth looking down)
             float NdotV = max(dot(N, V), 0.0);
-            float fresnel = 0.06 + 0.94 * pow(1.0 - NdotV, 3.4);
-            color = mix(waterBase, reflColor, clamp(fresnel * 1.08, 0.18, 0.95));
+            float fresnel = 0.02 + 0.98 * pow(1.0 - NdotV, 4.6);
+            color = mix(waterBase, reflColor, clamp(fresnel * 1.12, 0.14, 0.96));
 
+            // Dual-lobe solar specular glitter path across wave crests
             vec3 H = normalize(L + V);
-            float glitter = pow(max(dot(N, H), 0.0), 280.0) * 2.4;
-            float broadSpec = pow(max(dot(N, H), 0.0), 36.0) * 0.3;
-            color += uSunColor * (glitter + broadSpec);
+            float NdotH = max(dot(N, H), 0.0);
+            float glitter = pow(NdotH, 420.0) * 3.4;
+            float midSpec = pow(NdotH, 68.0) * 0.48;
+            color += uSunColor * (glitter + midSpec);
 
-            vec3 toFrag = vWorldPos - uCarPos;
-            float carDist = length(toFrag.xz);
-            if (uHeadlightsOn > 0.5 && carDist < 70.0 && abs(toFrag.y) < 12.0) {
+            if (uHeadlightsOn > 0.5 && carDist < 72.0 && abs(toFrag.y) < 12.0) {
               vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
               float cone = dot(dir2, normalize(uCarForward.xz));
-              float beam = smoothstep(0.62, 0.95, cone) * smoothstep(70.0, 2.0, carDist);
-              color += vec3(1.0, 0.94, 0.82) * beam * 0.65;
+              float beam = smoothstep(0.62, 0.95, cone) * smoothstep(72.0, 2.0, carDist);
+              color += vec3(1.0, 0.94, 0.82) * beam * 0.68;
             }
             if (uNitroActive > 0.5 && carDist < 18.0 && abs(toFrag.y) < 8.0) {
-              color += vec3(0.15, 0.8, 1.0) * smoothstep(18.0, 1.0, carDist) * 0.7;
+              color += vec3(0.15, 0.8, 1.0) * smoothstep(18.0, 1.0, carDist) * 0.72;
             }
           } else {
             float NdotL = max(dot(N, L), 0.0);
@@ -1022,10 +1390,9 @@ window.HorizonWorld = (() => {
           }
 
           color += vec3(0.78, 0.88, 0.96) * rip.z * 0.28;
-          color = mix(color, vec3(0.84, 0.92, 0.97), clamp(shoreFoam * 0.55, 0.0, 0.65));
+          color = mix(color, vec3(0.86, 0.93, 0.98), clamp(shoreFoam * 0.52, 0.0, 0.62));
 
-          float depth = length(cameraPosition - vWorldPos);
-          float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * depth * depth);
+          float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * camDist * camDist);
           color = mix(color, uFogColor, clamp(fogFactor, 0.0, 1.0));
 
           gl_FragColor = vec4(color, 1.0);
@@ -1114,13 +1481,11 @@ window.HorizonWorld = (() => {
               ? mix(uHorizonColor, uTopColor, pow(clamp(h, 0.0, 1.0), 0.52))
               : mix(uHorizonColor, uBottomColor, pow(clamp(-h, 0.0, 1.0), 0.6));
 
-            // Atmospheric Rayleigh / Mie Sun Glow & Horizon Band
             vec3 sDir = normalize(uSunDir);
             float sunDot = max(dot(d, sDir), 0.0);
             float sunHalo = pow(sunDot, 12.0) * 0.42 + pow(sunDot, 180.0) * 1.15;
             col += uSunColor * sunHalo * (1.0 - uCloudCover * 0.55) * (1.0 - uNightMix * 0.72);
 
-            // Procedural Twinkling Starfield at Night / Twilight
             if (uNightMix > 0.05 && h > 0.04) {
               vec2 starUv = floor(d.xz / (h + 0.35) * 165.0);
               float sVal = hash21(starUv);
@@ -1131,7 +1496,6 @@ window.HorizonWorld = (() => {
               }
             }
 
-            // Drifting Multi-Layer Procedural Sky Clouds lit by Sun & Lightning
             if (h > 0.025) {
               vec2 cloudUv = d.xz / (h + 0.16) * 0.95 + vec2(uTime * 0.0085, uTime * 0.0035);
               float cNoise = fbm(cloudUv);
@@ -1154,7 +1518,6 @@ window.HorizonWorld = (() => {
     );
     scene.add(skyDome);
 
-    // Unified Height-Aware Collider Registry
     const colliders = [];
     const minimapBuildings = [];
 
@@ -1219,7 +1582,6 @@ window.HorizonWorld = (() => {
       });
     }
 
-    // 3 Distinct City Islands + Seawalls
     const groundGroup = new THREE.Group();
     scene.add(groundGroup);
 
@@ -1298,7 +1660,6 @@ window.HorizonWorld = (() => {
     waterGroup.add(waterMesh);
     scene.add(waterGroup);
 
-    // Distinct Road Materials: 2-Lane City, 4-Lane Highway, 4-Lane Bridge/Viaduct & Intersections
     const roadTexCity = createRoadTexture();
     const roadTexHighway = createHighwayTexture(false);
     const roadTexBridge = createHighwayTexture(true);
@@ -1443,6 +1804,8 @@ window.HorizonWorld = (() => {
       geo.setIndex(indices);
       return new THREE.Mesh(geo, mat);
     }
+
+    // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
 
     // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
 

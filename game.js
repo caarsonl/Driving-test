@@ -15,7 +15,7 @@
   const CAMERA_MODES = ["CHASE", "HOOD", "ORBIT"];
 
   // =========================================================================
-  // 1. RENDERER, HIGH-RES RT TARGETS & CUSTOM BLOOM / GRADING POST-PROCESSOR
+  // 1. RENDERER, HIGH-RES RT TARGETS & FXAA + BLOOM POST-PROCESSOR
   // =========================================================================
   const container = document.getElementById("canvas-container");
   const scene = new THREE.Scene();
@@ -38,11 +38,11 @@
   const drawingBufferSize = new THREE.Vector2();
   renderer.getDrawingBufferSize(drawingBufferSize);
 
-  // Higher-resolution planar RT reflection target for crisp wet roads & ocean
-  const reflScale = 0.82;
+  // High-resolution planar RT reflection target for silky wet roads & ocean water
+  const reflScale = 0.85;
   const reflTarget = new THREE.WebGLRenderTarget(
-    Math.max(320, Math.floor(window.innerWidth * reflScale)),
-    Math.max(320, Math.floor(window.innerHeight * reflScale)),
+    Math.max(384, Math.floor(window.innerWidth * reflScale)),
+    Math.max(384, Math.floor(window.innerHeight * reflScale)),
     {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
@@ -58,7 +58,7 @@
   const cubeCamera = new THREE.CubeCamera(0.5, 900, cubeRenderTarget);
   scene.add(cubeCamera);
 
-  // --- Self-Contained Dual-Pass Bloom, Chromatic Aberration & Filmic Grading ---
+  // --- Self-Contained FXAA Anti-Aliasing + Dual-Pass Bloom & Filmic Grading ---
   const postProcess = (() => {
     const rtOpts = {
       minFilter: THREE.LinearFilter,
@@ -149,11 +149,12 @@
       `,
     });
 
-    // Pass 3: Final Composite (Dual-Ring Bloom + Impact/Nitro Chromatic Aberration + Vignette + Grading)
+    // Pass 3: Real-Time FXAA Edge Smoothing + Bloom + Impact/Nitro Chroma + Vignette
     const compositeMat = new THREE.ShaderMaterial({
       uniforms: {
         tScene: { value: sceneTarget.texture },
         tBloom: { value: bloomTargetB.texture },
+        uInvRes: { value: new THREE.Vector2(1 / drawingBufferSize.x, 1 / drawingBufferSize.y) },
         uBloomStrength: { value: 0.62 },
         uChroma: { value: 0.0 },
         uVignette: { value: 0.22 },
@@ -164,36 +165,77 @@
       fragmentShader: `
         uniform sampler2D tScene;
         uniform sampler2D tBloom;
+        uniform vec2 uInvRes;
         uniform float uBloomStrength;
         uniform float uChroma;
         uniform float uVignette;
         varying vec2 vUv;
 
-        void main() {
-          vec2 fromCenter = vUv - 0.5;
-          float dist = length(fromCenter);
-          vec2 caOffset = fromCenter * uChroma * dist;
+        // Smooth FXAA 3.11-style luminance edge anti-aliasing (eliminates jagged road/house edges!)
+        vec3 sampleFXAA(vec2 uv) {
+          vec3 lumaW = vec3(0.299, 0.587, 0.114);
+          vec3 rgbNW = texture2D(tScene, uv + vec2(-1.0, -1.0) * uInvRes).rgb;
+          vec3 rgbNE = texture2D(tScene, uv + vec2( 1.0, -1.0) * uInvRes).rgb;
+          vec3 rgbSW = texture2D(tScene, uv + vec2(-1.0,  1.0) * uInvRes).rgb;
+          vec3 rgbSE = texture2D(tScene, uv + vec2( 1.0,  1.0) * uInvRes).rgb;
+          vec3 rgbM  = texture2D(tScene, uv).rgb;
 
-          vec3 col;
-          if (uChroma > 0.0005) {
-            col.r = texture2D(tScene, clamp(vUv + caOffset, vec2(0.001), vec2(0.999))).r;
-            col.g = texture2D(tScene, vUv).g;
-            col.b = texture2D(tScene, clamp(vUv - caOffset, vec2(0.001), vec2(0.999))).b;
-          } else {
-            col = texture2D(tScene, vUv).rgb;
+          float lumaNW = dot(rgbNW, lumaW);
+          float lumaNE = dot(rgbNE, lumaW);
+          float lumaSW = dot(rgbSW, lumaW);
+          float lumaSE = dot(rgbSE, lumaW);
+          float lumaM  = dot(rgbM,  lumaW);
+
+          float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
+          float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
+
+          if (lumaMax - lumaMin < max(0.035, lumaMax * 0.1)) {
+            return rgbM;
           }
 
-          // Wide + tight bloom halo
+          vec2 dir;
+          dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
+          dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));
+
+          float dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * 0.03125, 0.0078125);
+          float rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);
+          dir = clamp(dir * rcpDirMin, vec2(-8.0), vec2(8.0)) * uInvRes;
+
+          vec3 rgbA = 0.5 * (
+            texture2D(tScene, clamp(uv + dir * (1.0 / 3.0 - 0.5), vec2(0.001), vec2(0.999))).rgb +
+            texture2D(tScene, clamp(uv + dir * (2.0 / 3.0 - 0.5), vec2(0.001), vec2(0.999))).rgb
+          );
+          vec3 rgbB = rgbA * 0.5 + 0.25 * (
+            texture2D(tScene, clamp(uv + dir * -0.5, vec2(0.001), vec2(0.999))).rgb +
+            texture2D(tScene, clamp(uv + dir *  0.5, vec2(0.001), vec2(0.999))).rgb
+          );
+
+          float lumaB = dot(rgbB, lumaW);
+          return (lumaB < lumaMin || lumaB > lumaMax) ? rgbA : rgbB;
+        }
+
+        void main() {
+          vec3 col = sampleFXAA(vUv);
+
+          vec2 fromCenter = vUv - 0.5;
+          float dist = length(fromCenter);
+          if (uChroma > 0.0005) {
+            vec2 caOffset = fromCenter * uChroma * dist;
+            vec3 rawM = texture2D(tScene, vUv).rgb;
+            float rShift = texture2D(tScene, clamp(vUv + caOffset, vec2(0.001), vec2(0.999))).r;
+            float bShift = texture2D(tScene, clamp(vUv - caOffset, vec2(0.001), vec2(0.999))).b;
+            col.r += (rShift - rawM.r) * 0.85;
+            col.b += (bShift - rawM.b) * 0.85;
+          }
+
           vec3 bloom = texture2D(tBloom, vUv).rgb;
           col += bloom * uBloomStrength;
 
-          // Subtle filmic contrast & vibrance boost
           float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
-          col = mix(vec3(luma), col, 1.09);
-          col = pow(max(col, vec3(0.0)), vec3(1.03));
+          col = mix(vec3(luma), col, 1.08);
+          col = pow(max(col, vec3(0.0)), vec3(1.02));
 
-          // Soft lens vignette
-          float vig = smoothstep(0.92, 0.34, dist);
+          float vig = smoothstep(0.94, 0.34, dist);
           col *= mix(1.0 - uVignette, 1.0, vig);
 
           gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
@@ -213,6 +255,7 @@
         bloomTargetB.setSize(nbw, nbh);
         brightBlurHMat.uniforms.uTexel.value.set(1 / nbw, 1 / nbh);
         blurVMat.uniforms.uTexel.value.set(1 / nbw, 1 / nbh);
+        compositeMat.uniforms.uInvRes.value.set(1 / w, 1 / h);
       },
       render(mainScene, mainCam, { bloomStrength = 0.6, chroma = 0.0, vignette = 0.22, enabled = true }) {
         if (!enabled) {
@@ -518,7 +561,6 @@
   carGroup.add(carBodyGroup);
   scene.add(carGroup);
 
-  // High-gloss metallic clearcoat materials tuned for the 512px live RT CubeCamera
   const bodyMat = new THREE.MeshPhysicalMaterial({
     color: activePaintHex,
     metalness: 0.86,
@@ -598,7 +640,6 @@
     const halfL = sp.bodyLen * 0.5;
     const baseY = sp.wheelRadius;
 
-    // Sync under-car contact AO footprint size to the active vehicle!
     world.setRoadUniform("uCarHalfW", sp.bodyW * 0.5);
     world.setRoadUniform("uCarHalfL", halfL);
 
@@ -1060,17 +1101,42 @@
     m.visible = true;
   }
 
-  // Smoke, Wet Spray & Water Splash Particle Pool
+  // Live Car-to-Puddle Wake & Wet Tire Track Shader Trail Ring Buffer (20 active stamps)
+  const MAX_WATER_TRAILS = 20;
+  const trailPosArr = Array.from({ length: MAX_WATER_TRAILS }, () => new THREE.Vector4(0, 0, 0, -999));
+  const trailMetaArr = Array.from({ length: MAX_WATER_TRAILS }, () => new THREE.Vector4(1.0, 1.4, 0, 0));
+  let trailCursor = 0;
+  let trailDistAccum = 0;
+
+  function stampWaterTrail(x, z, heading, trackHalfW, stampHalfL, wakeStrength, wetTrackStrength, timeSec) {
+    trailPosArr[trailCursor].set(x, z, heading, timeSec);
+    trailMetaArr[trailCursor].set(trackHalfW, stampHalfL, wakeStrength, wetTrackStrength);
+    trailCursor = (trailCursor + 1) % MAX_WATER_TRAILS;
+    world.setRoadUniform("uTrailPos", trailPosArr);
+    world.setRoadUniform("uTrailMeta", trailMetaArr);
+  }
+
+  function clearWaterTrails() {
+    for (let i = 0; i < MAX_WATER_TRAILS; i++) {
+      trailPosArr[i].set(0, 0, 0, -999);
+      trailMetaArr[i].set(1.0, 1.4, 0, 0);
+    }
+    trailDistAccum = 0;
+    world.setRoadUniform("uTrailPos", trailPosArr);
+    world.setRoadUniform("uTrailMeta", trailMetaArr);
+  }
+
+  // Smoke, Wet Spray, Puddle Water-Fan & Ocean Splash Particle Pool
   const particlePool = [];
   const particleGeo = new THREE.SphereGeometry(0.36, 6, 6);
-  for (let i = 0; i < 85; i++) {
+  for (let i = 0; i < 120; i++) {
     const m = new THREE.Mesh(
       particleGeo,
-      new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.45 })
+      new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.45, depthWrite: false })
     );
     m.visible = false;
     scene.add(m);
-    particlePool.push({ mesh: m, life: 0, maxLife: 0.6, vx: 0, vy: 0, vz: 0, gravity: 0 });
+    particlePool.push({ mesh: m, life: 0, maxLife: 0.6, vx: 0, vy: 0, vz: 0, gravity: 0, grow: 1.8 });
   }
   let particleIdx = 0;
 
@@ -1090,16 +1156,18 @@
       p.vy = 3.2 + Math.random() * 4.2;
       p.vz = (Math.random() - 0.5) * 6.5;
       p.gravity = 16.0;
+      p.grow = 1.2;
     } else if (mode === "spray") {
       p.mesh.material.color.setHex(0xcbd5e1);
-      p.mesh.material.opacity = 0.32;
-      p.mesh.scale.setScalar(0.44);
-      p.maxLife = 0.4;
+      p.mesh.material.opacity = 0.34;
+      p.mesh.scale.setScalar(0.46);
+      p.maxLife = 0.42;
       p.life = p.maxLife;
       p.vx = (Math.random() - 0.5) * 2.2;
       p.vy = 1.5 + Math.random() * 1.4;
       p.vz = (Math.random() - 0.5) * 2.2;
       p.gravity = 5.2;
+      p.grow = 1.4;
     } else {
       p.mesh.material.color.setHex(0xe2e8f0);
       p.mesh.material.opacity = 0.44;
@@ -1110,7 +1178,27 @@
       p.vy = 1.25 + Math.random() * 1.1;
       p.vz = (Math.random() - 0.5) * 1.4;
       p.gravity = 0.0;
+      p.grow = 1.9;
     }
+  }
+
+  // Directional Outward Water-Fan Spray when blasting through a road puddle!
+  function spawnPuddleFan(x, y, z, outX, outZ, carVx, carVz, speed) {
+    const p = particlePool[particleIdx];
+    particleIdx = (particleIdx + 1) % particlePool.length;
+    p.mesh.position.set(x, y + 0.14, z);
+    p.mesh.visible = true;
+    p.mesh.material.color.setHex(0xe0f2fe);
+    p.mesh.material.opacity = 0.58;
+    p.mesh.scale.setScalar(0.42);
+    p.maxLife = 0.38 + Math.random() * 0.24;
+    p.life = p.maxLife;
+    const fanPush = 2.4 + Math.min(8.5, speed * 0.24) * (0.7 + Math.random() * 0.6);
+    p.vx = carVx * 0.38 + outX * fanPush + (Math.random() - 0.5) * 1.5;
+    p.vy = 1.9 + Math.min(4.8, speed * 0.14) * (0.75 + Math.random() * 0.5);
+    p.vz = carVz * 0.38 + outZ * fanPush + (Math.random() - 0.5) * 1.5;
+    p.gravity = 13.5;
+    p.grow = 1.55;
   }
 
   // --- 3D Bouncing Metallic Collision Sparks + Flickering Contact Flash Light ---
@@ -1180,7 +1268,6 @@
         s.y += s.vy * dt;
         s.z += s.vz * dt;
 
-        // Bounce realistically off pavement/bridge floor
         const floorY = Math.max(0.06, sparkFlashPos.y - 0.65);
         if (s.y < floorY && s.vy < 0) {
           s.y = floorY;
@@ -1198,7 +1285,6 @@
         sparkPositions[idx + 4] = s.y - s.vy * streak;
         sparkPositions[idx + 5] = s.z - s.vz * streak;
 
-        // Hot white-gold head cooling to deep orange tail
         sparkColors[idx] = 1.0 * t;
         sparkColors[idx + 1] = (0.78 + 0.22 * t) * t;
         sparkColors[idx + 2] = 0.42 * t * t;
@@ -1231,7 +1317,7 @@
   }
 
   // =========================================================================
-  // 3. PROCEDURAL WEB AUDIO ENGINE (9-CAR ENGINES + METALLIC CRUNCH & SCRAPE)
+  // 3. PROCEDURAL WEB AUDIO ENGINE (9-CAR ENGINES, PUDDLE WHOOSH & CRUNCH)
   // =========================================================================
   const soundBtn = document.getElementById("btn-sound");
   const soundLabel = document.getElementById("sound-label");
@@ -1390,7 +1476,6 @@
       this.screechFilter = sc.filt;
       this.screechGain = sc.gain;
 
-      // Continuous Metallic Guardrail/Body Scrape Channel
       const scr = makeNoiseChannel("bandpass", 2400, 4.2);
       this.scrapeFilter = scr.filt;
       this.scrapeGain = scr.gain;
@@ -1510,7 +1595,7 @@
       this.scrapeFilter.frequency.setTargetAtTime(1900 + Math.min(1800, absSpeed * 38), now, 0.04);
       this.scrapeGain.gain.setTargetAtTime(Math.min(0.24, scrapeLevel * 0.24), now, 0.035);
 
-      const wetHiss = wetUnderCar > 0.18 && absSpeed > 4 ? Math.min(0.16, absSpeed * 0.0028 * wetUnderCar) : 0;
+      const wetHiss = wetUnderCar > 0.12 && absSpeed > 4 ? Math.min(0.18, absSpeed * 0.0032 * wetUnderCar) : 0;
       this.wetTireGain.gain.setTargetAtTime(wetHiss, now, 0.06);
 
       this.windGain.gain.setTargetAtTime(absSpeed > 22 ? Math.min(0.17, (absSpeed - 22) * 0.0026) : 0, now, 0.08);
@@ -1554,13 +1639,34 @@
       src.stop(now + 0.11);
     },
 
-    // Layered Heavy Sub-Thud + Metallic Crunch Impact Audio
+    // Crisp Broadband Puddle Splash Whoosh when tires slice through a standing road puddle
+    playPuddleWhoosh(speed) {
+      if (!this.enabled || !this.ctx || !this.noiseBuffer) return;
+      const now = this.ctx.currentTime;
+      const vol = THREE.MathUtils.clamp(speed / 45, 0.06, 0.28);
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.noiseBuffer;
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.setValueAtTime(1450 + Math.min(900, speed * 24), now);
+      bp.frequency.exponentialRampToValueAtTime(480, now + 0.28);
+      bp.Q.value = 0.85;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.01, now);
+      g.gain.linearRampToValueAtTime(vol, now + 0.035);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(this.masterGain);
+      src.start(now);
+      src.stop(now + 0.32);
+    },
+
     playImpact(strength) {
       if (!this.enabled || !this.ctx || !this.noiseBuffer) return;
       const now = this.ctx.currentTime;
       const vol = THREE.MathUtils.clamp(strength / 30, 0.09, 0.48);
 
-      // 1) Sub-bass chassis thud
       const osc = this.ctx.createOscillator();
       osc.type = "sine";
       osc.frequency.setValueAtTime(125 + Math.min(40, strength), now);
@@ -1573,7 +1679,6 @@
       osc.start(now);
       osc.stop(now + 0.27);
 
-      // 2) Body-panel crunch noise burst
       const src = this.ctx.createBufferSource();
       src.buffer = this.noiseBuffer;
       const lp = this.ctx.createBiquadFilter();
@@ -1589,7 +1694,6 @@
       src.start(now);
       src.stop(now + 0.24);
 
-      // 3) Metallic high-frequency ring on harder hits
       if (strength > 9) {
         const ring = this.ctx.createOscillator();
         ring.type = "triangle";
@@ -1648,7 +1752,7 @@
   };
 
   // =========================================================================
-  // 4. GLOBAL STATE, GARAGE CONTROLLER, AUTO MOISTURE & INPUT HANDLERS
+  // 4. GLOBAL STATE, TWO-STAGE MOISTURE / LINGERING PUDDLES & GARAGE UI
   // =========================================================================
   let rtEnabled = true;
   let trafficEnabled = true;
@@ -1658,7 +1762,9 @@
   let warpIndex = 0;
   let garageOpen = false;
 
+  // Two-stage wetness: open asphalt dries first while standing puddles linger and shrink slowly!
   let roadMoisture = 0.0;
+  let puddleLevel = 0.0;
   let moistureTrend = "DRY";
 
   const flashOverlay = document.getElementById("flash-overlay");
@@ -1677,17 +1783,46 @@
     const w = WEATHER_PRESETS[weatherIndex];
     const t = TIME_PRESETS[timeIndex];
 
+    // Stage 1: General asphalt surface moisture
     if (w.wetRate > 0 && roadMoisture < w.targetMoisture) {
       roadMoisture = Math.min(w.targetMoisture, roadMoisture + w.wetRate * dt);
-      moistureTrend = roadMoisture >= w.targetMoisture - 0.01 ? "WET" : "WETTING";
     } else if (roadMoisture > w.targetMoisture) {
       roadMoisture = Math.max(w.targetMoisture, roadMoisture - t.dryRate * dt);
-      moistureTrend = roadMoisture <= 0.01 ? "DRY" : "DRYING";
+    }
+
+    // Stage 2: Standing puddles fill AFTER asphalt gets damp, and evaporate 4x slower after rain stops!
+    const pFill = w.puddleFillRate || 0;
+    const pTarget = w.targetPuddle || 0;
+    const pDry = t.puddleDryRate || 0.012;
+
+    if (pFill > 0 && puddleLevel < pTarget) {
+      if (roadMoisture > 0.24) {
+        const fillScale = THREE.MathUtils.smoothstep(roadMoisture, 0.24, 0.6);
+        puddleLevel = Math.min(pTarget, puddleLevel + pFill * (0.35 + 0.65 * fillScale) * dt);
+      }
+    } else if (puddleLevel > pTarget) {
+      // Puddles linger while open asphalt dries, then gradually shrink inward
+      const dryAccel = roadMoisture < 0.15 ? 1.15 : 0.45;
+      puddleLevel = Math.max(pTarget, puddleLevel - pDry * dryAccel * dt);
+    }
+
+    // Clear descriptive status tag for the HUD
+    if (w.wetRate > 0 && (roadMoisture < w.targetMoisture - 0.01 || puddleLevel < pTarget - 0.01)) {
+      moistureTrend = puddleLevel > 0.15 ? "POOLING" : "WETTING";
+    } else if (roadMoisture > w.targetMoisture + 0.01) {
+      moistureTrend = "DRYING";
+    } else if (puddleLevel > 0.04 && roadMoisture <= 0.16) {
+      moistureTrend = "PUDDLES";
+    } else if (roadMoisture >= 0.78) {
+      moistureTrend = "WET";
+    } else if (roadMoisture > 0.02 || puddleLevel > 0.02) {
+      moistureTrend = "DAMP";
     } else {
-      moistureTrend = roadMoisture <= 0.02 ? "DRY" : roadMoisture >= 0.78 ? "WET" : "DAMP";
+      moistureTrend = "DRY";
     }
 
     world.setRoadUniform("uRoadMoisture", roadMoisture);
+    world.setRoadUniform("uPuddleLevel", puddleLevel);
   }
 
   function applyEnvironment() {
@@ -1846,7 +1981,7 @@
   function toggleRayTracing() {
     rtEnabled = !rtEnabled;
     applyEnvironment();
-    showBanner(rtEnabled ? "RT & BLOOM: ON" : "RT & BLOOM: OFF");
+    showBanner(rtEnabled ? "RT, FXAA & BLOOM: ON" : "RT, FXAA & BLOOM: OFF");
   }
 
   function toggleTraffic() {
@@ -1859,10 +1994,10 @@
     weatherIndex = (weatherIndex + 1) % WEATHER_PRESETS.length;
     applyEnvironment();
     const name = WEATHER_PRESETS[weatherIndex].name;
-    if (name === "CLEAR" && roadMoisture > 0.15) {
-      showBanner("WEATHER: CLEAR — ROADS DRYING");
+    if (name === "CLEAR" && (roadMoisture > 0.15 || puddleLevel > 0.15)) {
+      showBanner("WEATHER: CLEAR — ROADS DRYING, PUDDLES LINGERING");
     } else if (name === "RAIN" || name === "STORM") {
-      showBanner(`WEATHER: ${name} — ROADS WETTING`);
+      showBanner(`WEATHER: ${name} — ASPHALT WETTING & PUDDLES FORMING`);
     } else {
       showBanner(`WEATHER: ${name}`);
     }
@@ -1938,6 +2073,8 @@
   });
 
   rebuildPlayerCarModel("gt");
+
+  // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
   // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
 
   // =========================================================================
@@ -2253,7 +2390,6 @@
     suspVel: 0,
     pitch: 0,
     roll: 0,
-    // Directional collision recoil springs
     hitPitch: 0,
     hitPitchVel: 0,
     hitRoll: 0,
@@ -2277,10 +2413,12 @@
     surfaceClass: "dry",
     currentGrip: 1.9,
     wetUnderCar: 0,
+    tireWetness: 0, // Carries moisture out of puddles onto dry asphalt!
   };
 
   let impactCooldown = 0;
   let splashCooldown = 0;
+  let puddleWhooshCooldown = 0;
   let cameraTrauma = 0;
   let scrapeIntensity = 0;
 
@@ -2312,8 +2450,10 @@
     car.nitro = 100;
     car.grounded = true;
     car.inWater = false;
+    car.tireWetness = 0;
     cameraTrauma = 0;
     scrapeIntensity = 0;
+    clearWaterTrails();
 
     const fx = -Math.sin(car.heading);
     const fz = -Math.cos(car.heading);
@@ -2345,7 +2485,7 @@
     showBanner(`RESET: ${WARP_POINTS[bestIdx].name}`);
   }
 
-  // Exact Sphere-vs-Oriented-Box test for vehicles & boats (returns world contact point too!)
+  // Exact Sphere-vs-Oriented-Box test for vehicles & boats
   function testSphereVsVehicleOBB(sx, sz, sphereRad, cx, cz, halfW, halfL, heading) {
     const cosH = Math.cos(heading);
     const sinH = Math.sin(heading);
@@ -2392,7 +2532,7 @@
   }
 
   // =========================================================================
-  // UPGRADED RIGID-BODY COLLISION SOLVER (ANGULAR IMPULSE, MASS RATIO & SPARKS)
+  // RIGID-BODY COLLISION SOLVER (ANGULAR IMPULSE, MASS RATIO & SPARKS)
   // =========================================================================
   function applyPlayerImpactRecoil(jx, jz, mass, strength) {
     const fx = -Math.sin(car.heading);
@@ -2400,7 +2540,6 @@
     const rx = Math.cos(car.heading);
     const rz = -Math.sin(car.heading);
 
-    // Project impulse onto car's local forward & right axes to rock suspension away from the hit!
     const dvLong = (jx * fx + jz * fz) / mass;
     const dvLat = (jx * rx + jz * rz) / mass;
 
@@ -2533,16 +2672,13 @@
             sx += nx * overlap;
             sz += nz * overlap;
 
-            // Lever arm from car CG to contact point (exact 3D right-hand Y-torque: tau = rz*Jx - rx*Jz)
             const r1x = cxW - car.x;
             const r1z = czW - car.z;
 
-            // Velocity of the contact point including car's yaw rotation: v_rot = (+yawRate*rz, -yawRate*rx)
             const vpx = car.vx + car.yawRate * r1z;
             const vpz = car.vz - car.yawRate * r1x;
             const vn = vpx * nx + vpz * nz;
 
-            // Tangent sliding velocity along barrier/wall
             const tx = -nz;
             const tz = nx;
             const vt = vpx * tx + vpz * tz;
@@ -2559,13 +2695,11 @@
               const impactSpd = -vn;
               maxImpact = Math.max(maxImpact, impactSpd);
 
-              // Realistic automotive restitution (soft low-speed bumper absorption, firmer high-speed rebound)
               const e = impactSpd > 14 ? 0.28 : impactSpd > 5 ? 0.18 : 0.08;
               const rCrossN = r1z * nx - r1x * nz;
               const denom = invM1 + rCrossN * rCrossN * invI1 * 0.55;
               const jMag = (-(1 + e) * vn) / denom;
 
-              // Normal impulse + Coulomb wall-scrape friction impulse
               const muWall = 0.24;
               const jtMax = jMag * muWall;
               const jtMag = THREE.MathUtils.clamp((-vt / Math.max(0.0001, invM1)) * 0.35, -jtMax, jtMax);
@@ -2590,7 +2724,7 @@
       }
     }
 
-    // 2) Exact OBB Rigid-Body Collisions with AI Traffic & Boats (True Mass Ratios + Spin-Out!)
+    // 2) Exact OBB Rigid-Body Collisions with AI Traffic & Boats
     if (trafficEnabled) {
       const fx = -Math.sin(car.heading);
       const fz = -Math.cos(car.heading);
@@ -2619,7 +2753,6 @@
           const invM2 = 1 / m2;
           const invI2 = 1 / (m2 * (ai.halfW * ai.halfW + ai.halfL * ai.halfL) * 0.35);
 
-          // Position separation weighted inversely by real vehicle mass!
           const sepRatio1 = invM1 / (invM1 + invM2);
           const sepRatio2 = invM2 / (invM1 + invM2);
           car.x += nx * overlap * sepRatio1;
@@ -2664,21 +2797,18 @@
             const denom = invM1 + invM2 + r1CrossN * r1CrossN * invI1 * 0.5 + r2CrossN * r2CrossN * invI2 * 0.65;
             const jMag = (-(1 + e) * relVn) / denom;
 
-            // Friction transfer during sideswipes/T-bones
             const jtMax = jMag * 0.3;
             const jtMag = THREE.MathUtils.clamp((-relVt / (invM1 + invM2)) * 0.28, -jtMax, jtMax);
 
             const jx = jMag * nx + jtMag * tx;
             const jz = jMag * nz + jtMag * tz;
 
-            // Player vehicle linear + angular reaction
             car.vx += jx * invM1;
             car.vz += jz * invM1;
             const tau1 = r1z * jx - r1x * jz;
             car.yawRate = THREE.MathUtils.clamp(car.yawRate + tau1 * invI1 * 0.48, -3.8, 3.8);
             applyPlayerImpactRecoil(jx, jz, m1, impactSpd * sepRatio1 * 1.4);
 
-            // AI vehicle linear + spin-out + body-rock reaction!
             const newAiVx = aiVx - jx * invM2;
             const newAiVz = aiVz - jz * invM2;
             const tau2 = -(r2z * jx - r2x * jz);
@@ -2687,7 +2817,6 @@
             ai.knockVz = THREE.MathUtils.clamp(newAiVz, -28, 28);
             ai.knockYaw = THREE.MathUtils.clamp((ai.knockYaw || 0) + tau2 * invI2 * 0.85, -4.5, 4.5);
 
-            // Rock AI chassis visually away from the collision!
             const aFx = -Math.sin(ai.heading);
             const aFz = -Math.cos(ai.heading);
             const aRx = Math.cos(ai.heading);
@@ -2808,6 +2937,7 @@
   function updatePhysics(dt, elapsed) {
     impactCooldown = Math.max(0, impactCooldown - dt);
     splashCooldown = Math.max(0, splashCooldown - dt);
+    puddleWhooshCooldown = Math.max(0, puddleWhooshCooldown - dt);
     scrapeIntensity *= Math.exp(-16 * dt);
     cameraTrauma = Math.max(0, cameraTrauma - 1.75 * dt);
 
@@ -2834,7 +2964,10 @@
 
     const initFx = -Math.sin(car.heading);
     const initFz = -Math.cos(car.heading);
+    const initRx = Math.cos(car.heading);
+    const initRz = -Math.sin(car.heading);
     const initVLong = car.vx * initFx + car.vz * initFz;
+    const initSpeed = Math.hypot(car.vx, car.vz);
 
     let wantThrottle = 0;
     let wantBrake = 0;
@@ -2884,51 +3017,80 @@
       if (usingNitro) f.scale.y = 0.8 + Math.random() * 0.7;
     });
 
+    // =====================================================================
+    // TWO-STAGE SURFACE MOISTURE & LEFT/RIGHT TIRE PUDDLE SAMPLING
+    // =====================================================================
     const surfStart = world.sampleSurface(car.x, car.z, car.y, car.heading);
     car.inTunnel = surfStart.inTunnel;
     tunnelOverlay.classList.toggle("inside", car.inTunnel);
 
     let surfaceMu = hp.tireMu;
     let rollingCoeff = 0.015;
+    let leftPuddle = 0;
+    let rightPuddle = 0;
+    let puddleAvg = 0;
     car.wetUnderCar = 0;
 
     if (surfStart.overWater) {
       surfaceMu = 0.6;
       rollingCoeff = 0.22;
       car.wetUnderCar = 1.0;
+      car.tireWetness = 1.0;
       car.surfaceLabel = "WATER";
       car.surfaceClass = "water";
     } else if (surfStart.inTunnel) {
       surfaceMu = hp.tireMu * 1.03;
       rollingCoeff = 0.014;
       car.wetUnderCar = 0.0;
+      car.tireWetness = Math.max(0, car.tireWetness - initSpeed * dt * 0.028 - dt * 0.08);
       car.surfaceLabel = "DRY TUNNEL";
       car.surfaceClass = "tunnel";
     } else if (surfStart.onRoad) {
-      const puddleVal = samplePuddleAt(car.x, car.z, roadMoisture);
-      const effWet = Math.max(roadMoisture * 0.58, puddleVal);
+      // Sample puddle depth separately under left & right tires (bridges drain faster)
+      const drainScale = surfStart.surfaceType === "BRIDGE" ? 0.58 : 1.0;
+      leftPuddle = samplePuddleAt(car.x - initRx * sp.wheelX, car.z - initRz * sp.wheelX, puddleLevel) * drainScale;
+      rightPuddle = samplePuddleAt(car.x + initRx * sp.wheelX, car.z + initRz * sp.wheelX, puddleLevel) * drainScale;
+      const centerPuddle = samplePuddleAt(car.x, car.z, puddleLevel) * drainScale;
+      puddleAvg = Math.max(centerPuddle, (leftPuddle + rightPuddle) * 0.5);
+      const puddlePeak = Math.max(leftPuddle, rightPuddle, centerPuddle);
+
+      const effWet = Math.max(roadMoisture * 0.58, puddlePeak);
       car.wetUnderCar = effWet;
 
-      const wetFactor = 1.0 - (roadMoisture * 0.12 + puddleVal * 0.22) * (hp.wetMuDrop / 0.3);
-      surfaceMu = hp.tireMu * Math.max(0.62, wetFactor);
-      rollingCoeff = 0.015 + effWet * 0.016;
+      // Driving through a puddle saturates tires; rolling onto dry asphalt slowly dries them while dragging wet tracks!
+      if (puddlePeak > 0.16 && car.grounded) {
+        car.tireWetness = Math.min(1.0, Math.max(car.tireWetness, 0.55 + puddlePeak * 0.45));
+      } else if (roadMoisture > 0.35 && car.grounded) {
+        car.tireWetness = Math.max(car.tireWetness, roadMoisture * 0.65);
+      } else {
+        car.tireWetness = Math.max(roadMoisture * 0.4, car.tireWetness - initSpeed * dt * 0.022 - dt * 0.06);
+      }
+
+      // Slight grip drop on damp asphalt, deeper drop in standing puddles (slightly damp tires carry a tiny drop too)
+      const wetFactor = 1.0 - (roadMoisture * 0.12 + puddleAvg * 0.24 + car.tireWetness * 0.04) * (hp.wetMuDrop / 0.3);
+      surfaceMu = hp.tireMu * Math.max(0.6, wetFactor);
+      rollingCoeff = 0.015 + effWet * 0.018;
 
       if (surfStart.surfaceType === "BRIDGE") {
-        car.surfaceLabel = roadMoisture > 0.45 ? "WET BRIDGE DECK" : "BRIDGE DECK";
-        car.surfaceClass = roadMoisture > 0.45 ? "wet" : "bridge";
-      } else if (puddleVal > 0.36) {
+        car.surfaceLabel = puddlePeak > 0.32 ? "BRIDGE PUDDLE" : roadMoisture > 0.4 ? "WET BRIDGE DECK" : "BRIDGE DECK";
+        car.surfaceClass = puddlePeak > 0.32 || roadMoisture > 0.4 ? "wet" : "bridge";
+      } else if (puddlePeak > 0.28) {
         car.surfaceLabel = "WET PUDDLE";
         car.surfaceClass = "wet";
-      } else if (roadMoisture > 0.18) {
+      } else if (roadMoisture > 0.16) {
         car.surfaceLabel = "DAMP ASPHALT";
+        car.surfaceClass = "damp";
+      } else if (car.tireWetness > 0.36) {
+        car.surfaceLabel = "WET TIRES";
         car.surfaceClass = "damp";
       } else {
         car.surfaceLabel = "DRY ASPHALT";
         car.surfaceClass = "dry";
       }
     } else {
-      const grassWet = roadMoisture * 0.4;
+      const grassWet = Math.max(roadMoisture, puddleLevel * 0.5) * 0.4;
       car.wetUnderCar = grassWet;
+      car.tireWetness = Math.max(grassWet, car.tireWetness - initSpeed * dt * 0.03 - dt * 0.08);
       surfaceMu = Math.max(0.7, hp.offroadMu * (1.0 - grassWet * 0.15));
       rollingCoeff = sp.id === "suv" || sp.id === "rally" ? 0.036 : 0.075;
       car.surfaceLabel = "OFF-ROAD GRASS";
@@ -2983,7 +3145,6 @@
     const halfA = sp.wheelZ;
     const halfB = sp.wheelZ;
     const wheelbase = halfA + halfB;
-    const initSpeed = Math.hypot(car.vx, car.vz);
 
     const estDownforce = 0.5 * AIR_DENSITY * initSpeed * initSpeed * (effClFrontA + effClRearA);
     const maxLatAccel = hp.tireMu * (GRAVITY_PHYS + estDownforce / hp.mass);
@@ -2999,8 +3160,6 @@
 
     let targetSteer = rawSteerInput * maxSteer;
     if (Math.abs(rawSteerInput) < 0.02 && car.grounded && initSpeed > 10 && car.drifting) {
-      const initRx = Math.cos(car.heading);
-      const initRz = -Math.sin(car.heading);
       const vLatNow = car.vx * initRx + car.vz * initRz;
       const bodySlip = Math.atan2(vLatNow, Math.max(Math.abs(initVLong), 5.0));
       targetSteer = THREE.MathUtils.clamp(-bodySlip * 0.52, -0.45, 0.45);
@@ -3010,7 +3169,7 @@
     car.steerAngle = THREE.MathUtils.lerp(car.steerAngle, targetSteer, 1 - Math.exp(-activeSteerRate * dt));
 
     // =====================================================================
-    // 4x FIXED SUBSTEPS (~240 Hz WORLD-SPACE AERO, TIRE & COLLISION SOLVER)
+    // 4x FIXED SUBSTEPS (~240 Hz WORLD-SPACE AERO, TIRE & HYDROPLANE SOLVER)
     // =====================================================================
     const SUBSTEPS = 4;
     const subDt = dt / SUBSTEPS;
@@ -3190,11 +3349,18 @@
         const fSlope = -hp.mass * GRAVITY_PHYS * Math.sin(latestSurf.slopePitch);
         const fWaterLatDrag = car.inWater ? -vLat * hp.mass * 2.2 : 0;
 
-        totalFLong = fLongFrontCar + fLongRearTire + fAeroDrag + fRoll + fSlope;
+        // Gentle Hydrodynamic Puddle Resistance & One-Sided Puddle Steering Tug
+        const fPuddleDrag = puddleAvg > 0.14 ? -puddleAvg * vLong * Math.abs(vLong) * 0.48 * (hp.mass / 1480) : 0;
+        const puddleYawTug =
+          Math.abs(rightPuddle - leftPuddle) > 0.12 && vLong > 10
+            ? -(rightPuddle - leftPuddle) * vLong * vLong * 0.45 * sp.wheelX
+            : 0;
+
+        totalFLong = fLongFrontCar + fLongRearTire + fAeroDrag + fRoll + fSlope + fPuddleDrag;
         totalFLat = fLatFrontCar + fLatRearCar + fCrosswindLat + fWaterLatDrag;
 
         const yawDamp = -car.yawRate * hp.Iz * (handbrake ? 0.15 : 0.32);
-        yawTorque = -halfA * fLatFrontCar + halfB * fLatRearCar + yawDamp;
+        yawTorque = -halfA * fLatFrontCar + halfB * fLatRearCar + yawDamp + puddleYawTug;
       } else {
         totalFLong = fAeroDrag * 0.7;
         totalFLat = fCrosswindLat * 0.7;
@@ -3212,7 +3378,6 @@
       car.yawRate = THREE.MathUtils.clamp(car.yawRate, -3.8, 3.8);
       car.heading += car.yawRate * subDt;
 
-      // Zero-Slip Low-Speed Rolling Constraint (paused briefly if spinning from a collision!)
       if (car.grounded && !car.inWater && !handbrake && speed < 9.0 && speed > 0.08 && Math.abs(car.yawRate) < 1.8) {
         const nfx2 = -Math.sin(car.heading);
         const nfz2 = -Math.cos(car.heading);
@@ -3272,7 +3437,6 @@
           if (impactVy > 6.0) {
             cameraTrauma = Math.min(1.0, cameraTrauma + Math.min(0.55, (impactVy - 5) / 22));
             if (latestSurf.onRoad && impactVy > 9.0) {
-              // Bottoming-out undercarriage sparks on big stunt ramp landings!
               spawnCollisionSparks(car.x, car.y, car.z, 0, 0, car.vx, car.vz, 14, impactVy);
             }
           }
@@ -3316,7 +3480,6 @@
     car.slipAmount = lastRearSlip;
     car.downforceKg = Math.round(lastTotalDownforceN / GRAVITY_PHYS);
 
-    // Update damped directional chassis recoil springs from collisions
     car.hitPitchVel += (-car.hitPitch * 78 - car.hitPitchVel * 11.5) * dt;
     car.hitPitch = THREE.MathUtils.clamp(car.hitPitch + car.hitPitchVel * dt, -0.18, 0.18);
     car.hitRollVel += (-car.hitRoll * 72 - car.hitRollVel * 10.5) * dt;
@@ -3328,14 +3491,68 @@
     const nrx = Math.cos(car.heading);
     const nrz = -Math.sin(car.heading);
 
+    // =====================================================================
+    // LIVE CAR-TO-PUDDLE TRANSFORMATION (WAKE RIPPLES, WET TRACKS & SPRAY FANS)
+    // =====================================================================
+    const puddleHitPeak = Math.max(leftPuddle, rightPuddle, puddleAvg);
+    if (car.grounded && latestSurf.onRoad && !car.inWater) {
+      trailDistAccum += absSpeed * dt;
+      if (trailDistAccum >= 2.05) {
+        trailDistAccum = 0;
+        const wakeStr = puddleHitPeak > 0.12 && absSpeed > 2.2
+          ? Math.min(1.0, puddleHitPeak * (0.42 + absSpeed / 28))
+          : 0.0;
+        const wetTrackStr = car.tireWetness > 0.12 && roadMoisture < 0.72
+          ? Math.min(1.0, car.tireWetness * (1.0 - roadMoisture * 0.65))
+          : 0.0;
+
+        if (wakeStr > 0.01 || wetTrackStr > 0.01) {
+          stampWaterTrail(car.x, car.z, car.heading, sp.wheelX * 0.94, 1.38, wakeStr, wetTrackStr, elapsed);
+        }
+      }
+
+      // Blast outward water-fan sprays from each wheel slicing through a standing puddle!
+      if (puddleHitPeak > 0.18 && absSpeed > 7.5) {
+        if (puddleWhooshCooldown <= 0) {
+          audio.playPuddleWhoosh(absSpeed);
+          puddleWhooshCooldown = 0.34;
+        }
+        const fanChance = Math.min(0.95, 0.3 + absSpeed * 0.022);
+        if (leftPuddle > 0.16 && Math.random() < fanChance) {
+          spawnPuddleFan(
+            car.x - nrx * sp.wheelX,
+            car.y,
+            car.z - nrz * sp.wheelX,
+            -nrx,
+            -nrz,
+            car.vx,
+            car.vz,
+            absSpeed
+          );
+        }
+        if (rightPuddle > 0.16 && Math.random() < fanChance) {
+          spawnPuddleFan(
+            car.x + nrx * sp.wheelX,
+            car.y,
+            car.z + nrz * sp.wheelX,
+            nrx,
+            nrz,
+            car.vx,
+            car.vz,
+            absSpeed
+          );
+        }
+      }
+    }
+
     if (controls && ext.gamepadConnected && car.grounded) {
       if (scrapeIntensity > 0.15) controls.rumble(0.25, 0.55 * scrapeIntensity, 80);
+      else if (puddleHitPeak > 0.25 && absSpeed > 12) controls.rumble(0.14, 0.34, 75);
       else if (car.drifting) controls.rumble(0.18, 0.35, 90);
       else if (usingNitro) controls.rumble(0.14, 0.28, 90);
       else if (!latestSurf.onRoad && absSpeed > 8) controls.rumble(0.12, 0.22, 90);
     }
 
-    // Spring-Damper Suspension + High-Speed Aero Downforce Squat
     const aeroSquat = -Math.min(sp.suspTravel * 0.45, (lastTotalDownforceN / (hp.mass * GRAVITY_PHYS)) * 0.08);
     let targetHeave = car.grounded ? aeroSquat : 0;
     if (car.inWater) {
@@ -3346,7 +3563,7 @@
     car.suspVel += ((targetHeave - car.suspOffset) * sp.suspStiffness - car.suspVel * sp.suspDamping) * dt;
     car.suspOffset = THREE.MathUtils.clamp(car.suspOffset + car.suspVel * dt, -sp.suspTravel, sp.suspTravel);
 
-    // Automatic Gearbox (Direct-Drive "D" for ArcDrive EV, 6-Speed for Combustion/F1/Diesel)
+    // Automatic Gearbox (Direct-Drive "D" for EV, 6-Speed for Combustion/F1/Diesel)
     const speedScale = sp.topSpeed / 74;
     const kmh = Math.abs(lastVLong) * 3.6;
     let gearStr = "N";
@@ -3400,7 +3617,7 @@
       spawnParticle(rearX + nrx * sp.wheelX, 0.05, rearZ + nrz * sp.wheelX, "splash");
       spawnParticle(rearX - nrx * sp.wheelX, 0.05, rearZ - nrz * sp.wheelX, "splash");
     } else if (car.grounded && !car.inWater) {
-      if (car.wetUnderCar > 0.35 && absSpeed > 14 && Math.random() < 0.6) {
+      if ((car.wetUnderCar > 0.3 || car.tireWetness > 0.45) && absSpeed > 14 && Math.random() < 0.62) {
         spawnParticle(rearX + nrx * (sp.wheelX - 0.1), car.y + 0.18, rearZ + nrz * (sp.wheelX - 0.1), "spray");
         spawnParticle(rearX - nrx * (sp.wheelX - 0.1), car.y + 0.18, rearZ - nrz * (sp.wheelX - 0.1), "spray");
       }
@@ -3445,7 +3662,6 @@
       wheelPivots[i].position.y = THREE.MathUtils.lerp(wheelPivots[i].position.y, sp.wheelRadius + wheelDroop, 12 * dt);
     }
 
-    // Dynamic Car Lights, Patrol Strobe & Touch Siren Sync
     const brakingVisual = car.brakePedal > 0.08 || handbrake;
     const preset = TIME_PRESETS[timeIndex];
     const headlightsOn = preset.headlights || weather.forceHeadlights || car.inTunnel;
@@ -3498,8 +3714,8 @@
         p.mesh.position.y += p.vy * dt;
         p.mesh.position.z += p.vz * dt;
         const ratio = Math.max(0, p.life / p.maxLife);
-        p.mesh.scale.setScalar(0.5 + (1 - ratio) * (p.gravity > 0 ? 1.15 : 1.9));
-        p.mesh.material.opacity = ratio * (p.gravity > 0 ? 0.62 : 0.42);
+        p.mesh.scale.setScalar(0.45 + (1 - ratio) * (p.grow || 1.5));
+        p.mesh.material.opacity = ratio * (p.gravity > 0 ? 0.56 : 0.42);
         if (p.life <= 0) p.mesh.visible = false;
       }
     }
@@ -3526,7 +3742,7 @@
       usingNitro,
       hornPressed,
       weather.rainAudio,
-      car.wetUnderCar,
+      Math.max(car.wetUnderCar, car.tireWetness * 0.55),
       car.inTunnel,
       elapsed,
       scrapeIntensity
@@ -3634,7 +3850,6 @@
       camera.lookAt(camLookCurrent);
     }
 
-    // Damped Quadratic Camera Trauma Shake (impacts, hard landings, wall scrapes & subtle high-speed vibration)
     const shake = cameraTrauma * cameraTrauma;
     const speedVib = Math.abs(speed) > 62 ? ((Math.abs(speed) - 62) / 50) * 0.035 : 0;
     const totalAmp = shake * 0.55 + scrapeIntensity * 0.08 + speedVib;
@@ -3699,7 +3914,7 @@
   }
 
   // =========================================================================
-  // 7. HUD TELEMETRY, AERODYNAMICS BADGES & MULTI-CITY MINIMAP
+  // 7. HUD TELEMETRY, TWO-STAGE MOISTURE/PUDDLE BAR & MULTI-CITY MINIMAP
   // =========================================================================
   const speedEl = document.getElementById("speed-value");
   const gearEl = document.getElementById("gear-value");
@@ -3857,12 +4072,14 @@
     nitroFill.style.width = `${car.nitro}%`;
     nitroText.textContent = `${Math.round(car.nitro)}%`;
 
-    const wetPct = Math.round(roadMoisture * 100);
+    // Two-stage wetness readout: displays lingering puddle percentage once open asphalt dries
+    const displayWet = moistureTrend === "PUDDLES" ? puddleLevel : Math.max(roadMoisture, puddleLevel * 0.6);
+    const wetPct = Math.round(displayWet * 100);
     wetnessFill.style.width = `${wetPct}%`;
     wetnessText.textContent = `${wetPct}%`;
     wetnessTrendEl.textContent = moistureTrend;
     wetnessTrendEl.className =
-      moistureTrend === "WETTING" || moistureTrend === "WET"
+      moistureTrend === "WETTING" || moistureTrend === "POOLING" || moistureTrend === "WET" || moistureTrend === "PUDDLES"
         ? "trend-tag wetting"
         : moistureTrend === "DRYING"
         ? "trend-tag drying"
@@ -3892,7 +4109,7 @@
   }
 
   // =========================================================================
-  // 8. BUTTONS, RESIZE & POST-PROCESSED MAIN LOOP
+  // 8. BUTTONS, RESIZE & FXAA + BLOOM POST-PROCESSED MAIN LOOP
   // =========================================================================
   function bindButton(id, handler) {
     const el = document.getElementById(id);
@@ -3945,13 +4162,13 @@
     const weather = WEATHER_PRESETS[weatherIndex];
     const timePreset = TIME_PRESETS[timeIndex];
 
-    // Advance sky cloud drift, twinkling stars, road rain ripples & ocean swell
     world.skyUniforms.uTime.value = elapsed;
     world.setRoadUniform("uTime", elapsed);
     world.setWaterUniform("uTime", elapsed);
 
     updateRoadMoisture(dt);
-    world.updateTrafficAndBoats(dt, elapsed, car, weather.waveStrength, roadMoisture, trafficEnabled);
+    const effectiveRoadWet = Math.max(roadMoisture, puddleLevel * 0.65);
+    world.updateTrafficAndBoats(dt, elapsed, car, weather.waveStrength, effectiveRoadWet, trafficEnabled);
     const { vLong, usingNitro } = updatePhysics(dt, elapsed);
     updateSparks(dt);
     updateCamera(dt, vLong, usingNitro, elapsed);
@@ -3967,8 +4184,7 @@
       if (bannerTimer <= 0) eventBanner.classList.remove("visible");
     }
 
-    // Dynamic Post-Processing Bloom (brighter neon/headlights at Night & Sunset), Nitro/Crash Chroma & Vignette
-    const bloomStrength = timePreset.name === "NIGHT" ? 0.78 : timePreset.name === "SUNSET" ? 0.56 : 0.3;
+    const bloomStrength = timePreset.name === "NIGHT" ? 0.78 : timePreset.name === "SUNSET" ? 0.56 : 0.28;
     const speedChroma = usingNitro ? 0.0055 : Math.abs(vLong) > 68 ? ((Math.abs(vLong) - 68) / 50) * 0.0025 : 0;
     const crashChroma = cameraTrauma * cameraTrauma * 0.014;
 
