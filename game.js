@@ -1561,14 +1561,62 @@
     showBanner(`RESET: ${WARP_POINTS[bestIdx].name}`);
   }
 
-  // Exact Multi-Sphere vs Height-Aware AABB / OBB / Circle Collision Solver
+  // Exact Sphere-vs-Oriented-Box test for vehicles & boats (eliminates phantom side hits!)
+  // Entity local right = (cosH, -sinH), local forward = (-sinH, -cosH)
+  function testSphereVsVehicleOBB(sx, sz, sphereRad, cx, cz, halfW, halfL, heading) {
+    const cosH = Math.cos(heading);
+    const sinH = Math.sin(heading);
+    const dx = sx - cx;
+    const dz = sz - cz;
+
+    const lx = dx * cosH - dz * sinH;   // Right axis
+    const lz = -dx * sinH - dz * cosH;  // Forward axis
+
+    const clx = Math.max(-halfW, Math.min(lx, halfW));
+    const clz = Math.max(-halfL, Math.min(lz, halfL));
+    const dlx = lx - clx;
+    const dlz = lz - clz;
+    const dSq = dlx * dlx + dlz * dlz;
+
+    if (dSq >= sphereRad * sphereRad) return null;
+
+    let nlx = 0;
+    let nlz = 0;
+    let overlap = 0;
+
+    if (dSq > 0.000001) {
+      const d = Math.sqrt(dSq);
+      nlx = dlx / d;
+      nlz = dlz / d;
+      overlap = sphereRad - d;
+    } else {
+      const penX = halfW - Math.abs(lx);
+      const penZ = halfL - Math.abs(lz);
+      if (penX < penZ) {
+        nlx = lx >= 0 ? 1 : -1;
+        overlap = penX + sphereRad;
+      } else {
+        nlz = lz >= 0 ? 1 : -1;
+        overlap = penZ + sphereRad;
+      }
+    }
+
+    // Rotate contact normal back to world space: nlx * R + nlz * F
+    const nx = nlx * cosH - nlz * sinH;
+    const nz = -nlx * sinH - nlz * cosH;
+    return { nx, nz, overlap };
+  }
+
+  // Exact Multi-Sphere vs Buildings, Guardrails, AI Vehicles & Boats
   function resolveCollisions() {
     const nearby = world.getNearbyColliders(car.x, car.z);
-    const sphereRad = activeSpec.bodyW * 0.5;
-    const bumperOff = Math.max(0.95, activeSpec.bodyLen * 0.5 - sphereRad);
-    const sphereOffsets = [-bumperOff, bumperOff];
+    // Tight visual-match spheres along the player's body centerline
+    const sphereRad = activeSpec.bodyW * 0.47;
+    const bumperOff = Math.max(0.85, activeSpec.bodyLen * 0.5 - sphereRad);
+    const sphereOffsets = [-bumperOff, 0, bumperOff];
     let maxImpact = 0;
 
+    // 1) Static World Colliders (Buildings, Tunnel Walls, Bridge & Curved Viaduct Rails)
     for (let pass = 0; pass < 2; pass++) {
       const fx = -Math.sin(car.heading);
       const fz = -Math.cos(car.heading);
@@ -1684,37 +1732,51 @@
       }
     }
 
-    // Collisions with AI Traffic & Boats
-    const carRadius = activeSpec.bodyW * 0.92;
+    // 2) Exact OBB Collisions with AI Traffic Cars & Harbor/Ocean Boats (ZERO phantom lane hits!)
     if (trafficEnabled) {
+      const fx = -Math.sin(car.heading);
+      const fz = -Math.cos(car.heading);
+      const playerBroadR = bumperOff + sphereRad;
+
       for (let i = 0; i < world.trafficCars.length; i++) {
         const ai = world.trafficCars[i];
-        if (Math.abs(car.y - ai.y) > 2.6) continue;
-        const dx = car.x - ai.x;
-        const dz = car.z - ai.z;
-        const minDist = carRadius + ai.radius;
-        const distSq = dx * dx + dz * dz;
+        if (Math.abs(car.y - ai.y) > 2.5) continue;
 
-        if (distSq < minDist * minDist) {
-          const dist = Math.sqrt(distSq) || 0.0001;
-          const nx = dx / dist;
-          const nz = dz / dist;
-          const overlap = minDist - dist;
+        const broad = playerBroadR + ai.radius + 0.5;
+        const bdx = car.x - ai.x;
+        const bdz = car.z - ai.z;
+        if (bdx * bdx + bdz * bdz > broad * broad) continue;
 
-          car.x += nx * overlap * 0.65;
-          car.z += nz * overlap * 0.65;
-          ai.x -= nx * overlap * 0.35;
-          ai.z -= nz * overlap * 0.35;
+        let deepest = null;
+        for (let s = 0; s < sphereOffsets.length; s++) {
+          const sx = car.x + fx * sphereOffsets[s];
+          const sz = car.z + fz * sphereOffsets[s];
+          const res = testSphereVsVehicleOBB(sx, sz, sphereRad, ai.x, ai.z, ai.halfW, ai.halfL, ai.heading);
+          if (res && (!deepest || res.overlap > deepest.overlap)) {
+            deepest = res;
+          }
+        }
 
-          const vn = car.vx * nx + car.vz * nz;
-          if (vn < 0) {
-            maxImpact = Math.max(maxImpact, -vn);
-            car.vx -= 1.2 * vn * nx;
-            car.vz -= 1.2 * vn * nz;
-            car.vx *= 0.82;
-            car.vz *= 0.82;
-            ai.knockVx = -nx * Math.min(18, -vn * 0.65);
-            ai.knockVz = -nz * Math.min(18, -vn * 0.65);
+        if (deepest) {
+          const { nx, nz, overlap } = deepest;
+          car.x += nx * overlap * 0.7;
+          car.z += nz * overlap * 0.7;
+          ai.x -= nx * overlap * 0.3;
+          ai.z -= nz * overlap * 0.3;
+
+          const aiVx = -Math.sin(ai.heading) * ai.speed;
+          const aiVz = -Math.cos(ai.heading) * ai.speed;
+          const relVn = (car.vx - aiVx) * nx + (car.vz - aiVz) * nz;
+
+          if (relVn < 0) {
+            maxImpact = Math.max(maxImpact, -relVn);
+            car.vx -= 1.18 * relVn * nx;
+            car.vz -= 1.18 * relVn * nz;
+            car.vx *= 0.85;
+            car.vz *= 0.85;
+
+            ai.knockVx = -nx * Math.min(16, -relVn * 0.6);
+            ai.knockVz = -nz * Math.min(16, -relVn * 0.6);
             ai.stunTimer = 0.75;
           }
         }
@@ -1723,17 +1785,24 @@
       for (let i = 0; i < world.boats.length; i++) {
         const b = world.boats[i];
         if (car.y > 4.2) continue;
-        const dx = car.x - b.x;
-        const dz = car.z - b.z;
-        const minDist = carRadius + b.radius;
-        const distSq = dx * dx + dz * dz;
 
-        if (distSq < minDist * minDist) {
-          const dist = Math.sqrt(distSq) || 0.0001;
-          const nx = dx / dist;
-          const nz = dz / dist;
-          const overlap = minDist - dist;
+        const broad = playerBroadR + b.radius + 0.5;
+        const bdx = car.x - b.x;
+        const bdz = car.z - b.z;
+        if (bdx * bdx + bdz * bdz > broad * broad) continue;
 
+        let deepest = null;
+        for (let s = 0; s < sphereOffsets.length; s++) {
+          const sx = car.x + fx * sphereOffsets[s];
+          const sz = car.z + fz * sphereOffsets[s];
+          const res = testSphereVsVehicleOBB(sx, sz, sphereRad, b.x, b.z, b.halfW, b.halfL, b.heading);
+          if (res && (!deepest || res.overlap > deepest.overlap)) {
+            deepest = res;
+          }
+        }
+
+        if (deepest) {
+          const { nx, nz, overlap } = deepest;
           car.x += nx * overlap;
           car.z += nz * overlap;
 
@@ -1747,7 +1816,7 @@
       }
     }
 
-    // Outer Ocean World Bounds
+    // 3) Outer Ocean World Bounds
     if (car.x > WORLD_BOUNDS.maxX) { maxImpact = Math.max(maxImpact, Math.abs(car.vx)); car.x = WORLD_BOUNDS.maxX; car.vx *= -0.35; }
     if (car.x < WORLD_BOUNDS.minX) { maxImpact = Math.max(maxImpact, Math.abs(car.vx)); car.x = WORLD_BOUNDS.minX; car.vx *= -0.35; }
     if (car.z > WORLD_BOUNDS.maxZ) { maxImpact = Math.max(maxImpact, Math.abs(car.vz)); car.z = WORLD_BOUNDS.maxZ; car.vz *= -0.35; }
@@ -1834,7 +1903,6 @@
       car.reverseHoldTimer = 0;
     }
 
-    // Analog triggers respond faster; keyboard taps ramp smoothly
     const thrRate = ext.accel > 0.03 ? 22.0 : wantThrottle > car.throttlePedal ? 10.5 : 16.0;
     const brkRate = ext.brake > 0.03 ? 22.0 : wantBrake > car.brakePedal ? 11.0 : 18.0;
     car.throttlePedal = THREE.MathUtils.lerp(car.throttlePedal, wantThrottle, 1 - Math.exp(-thrRate * dt));
@@ -1902,7 +1970,7 @@
     }
     car.currentGrip = surfaceMu;
 
-    // SLIP-AWARE STEERING ANGLE (supports full analog stick & touch drag precision!)
+    // SLIP-AWARE STEERING ANGLE
     const halfA = sp.wheelZ;
     const halfB = sp.wheelZ;
     const wheelbase = halfA + halfB;
@@ -2124,7 +2192,7 @@
       car.yawRate = THREE.MathUtils.clamp(car.yawRate, -3.8, 3.8);
       car.heading += car.yawRate * subDt;
 
-      // 6) ZERO-SLIP LOW-SPEED ROLLING CONSTRAINT (< 9.0 m/s / ~32 km/h when off handbrake)
+      // 6) Zero-Slip Low-Speed Rolling Constraint (< 9.0 m/s when off handbrake)
       if (car.grounded && !car.inWater && !handbrake && speed < 9.0 && speed > 0.08) {
         const nfx2 = -Math.sin(car.heading);
         const nfz2 = -Math.cos(car.heading);
@@ -2481,8 +2549,8 @@
       );
 
       if (world.isPointInTunnel(desiredPos.x, desiredPos.z)) {
-        desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -8.8, 8.8);
-        desiredPos.y = Math.min(desiredPos.y, 8.4);
+        desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -9.8, 9.8);
+        desiredPos.y = Math.min(desiredPos.y, 8.8);
       }
 
       camPosCurrent.lerp(desiredPos, 1 - Math.exp(-8.5 * dt));
@@ -2499,11 +2567,11 @@
       camera.position.copy(camPosCurrent);
       camera.lookAt(camLookCurrent);
     } else {
-      const orbitH = car.inTunnel ? 7.8 : 26;
+      const orbitH = car.inTunnel ? 8.4 : 26;
       const orbitD = car.inTunnel ? 11 : 21;
       const desiredPos = new THREE.Vector3(car.x - fx * orbitD, car.y + orbitH, car.z - fz * orbitD);
       if (world.isPointInTunnel(desiredPos.x, desiredPos.z)) {
-        desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -8.5, 8.5);
+        desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -9.5, 9.5);
       }
       camPosCurrent.lerp(desiredPos, 1 - Math.exp(-5 * dt));
       camLookCurrent.set(car.x, car.y + 1.1, car.z);
@@ -2565,7 +2633,7 @@
   }
 
   // =========================================================================
-  // 7. HUD TELEMETRY, PHYSICS BADGES & MULTI-CITY MINIMAP
+  // 7. HUD TELEMETRY, PHYSICS BADGES & MULTI-CITY MINIMAP WITH TRAFFIC LIGHTS
   // =========================================================================
   const speedEl = document.getElementById("speed-value");
   const gearEl = document.getElementById("gear-value");
@@ -2587,6 +2655,10 @@
   const minimapCanvas = document.getElementById("minimap");
   const mapCtx = minimapCanvas.getContext("2d");
 
+  function signalColorHex(state) {
+    return state === "GREEN" ? "#22c55e" : state === "YELLOW" ? "#facc15" : "#ef4444";
+  }
+
   function drawMinimap() {
     const w = minimapCanvas.width;
     const h = minimapCanvas.height;
@@ -2599,6 +2671,7 @@
     mapCtx.save();
     mapCtx.translate(w / 2, h / 2);
 
+    // 1) 3 Distinct City Islands + Lagoon Cutout
     for (let i = 0; i < ISLANDS.length; i++) {
       const isl = ISLANDS[i];
       mapCtx.fillStyle = isl.id === "palm" ? "#1e3a2f" : isl.id === "pinecrest" ? "#152a24" : "#0f172a";
@@ -2619,14 +2692,22 @@
       }
     }
 
+    // 2) Alpine Mountain Ridge
     mapCtx.fillStyle = "rgba(71, 85, 105, 0.55)";
     mapCtx.fillRect((-290 - car.x) * scale, (-870 - car.z) * scale, 580 * scale, 520 * scale);
 
+    // 3) Roads, 4-Lane Highways, Suspension Bridge & Coastal Viaduct
     mapCtx.lineCap = "round";
     for (let i = 0; i < world.roadSegments.length; i++) {
       const s = world.roadSegments[i];
       mapCtx.strokeStyle =
-        s.kind === "bridge" ? "#f97316" : s.kind === "viaduct" ? "#38bdf8" : "#475569";
+        s.kind === "bridge"
+          ? "#f97316"
+          : s.kind === "viaduct"
+          ? "#38bdf8"
+          : s.kind === "highway"
+          ? "#64748b"
+          : "#334155";
       mapCtx.lineWidth = Math.max(2.2, s.w * scale);
       mapCtx.beginPath();
       mapCtx.moveTo((s.x1 - car.x) * scale, (s.z1 - car.z) * scale);
@@ -2634,7 +2715,8 @@
       mapCtx.stroke();
     }
 
-    mapCtx.fillStyle = "#64748b";
+    // 4) Buildings within view
+    mapCtx.fillStyle = "#475569";
     const viewRange = w / scale;
     for (let i = 0; i < world.minimapBuildings.length; i++) {
       const b = world.minimapBuildings[i];
@@ -2642,12 +2724,30 @@
       mapCtx.fillRect((b.minX - car.x) * scale, (b.minZ - car.z) * scale, b.w * scale, b.d * scale);
     }
 
+    // 5) Live Traffic Light Signal Indicators (N-S & E-W bars)
+    if (world.trafficLights) {
+      for (let i = 0; i < world.trafficLights.length; i++) {
+        const tl = world.trafficLights[i];
+        const lx = (tl.x - car.x) * scale;
+        const lz = (tl.z - car.z) * scale;
+        if (Math.abs(lx) > w || Math.abs(lz) > h) continue;
+
+        mapCtx.fillStyle = signalColorHex(tl.nsState);
+        mapCtx.fillRect(lx - 1.2, lz - 4.2, 2.4, 8.4);
+
+        mapCtx.fillStyle = signalColorHex(tl.ewState);
+        mapCtx.fillRect(lx - 4.2, lz - 1.2, 8.4, 2.4);
+      }
+    }
+
+    // 6) Stunt Ramps
     mapCtx.fillStyle = "#fb923c";
     for (let i = 0; i < world.ramps.length; i++) {
       const r = world.ramps[i];
       mapCtx.fillRect((r.x - car.x) * scale - 3, (r.z - car.z) * scale - 3, 6, 6);
     }
 
+    // 7) Moving AI Traffic & Boats
     if (trafficEnabled) {
       mapCtx.fillStyle = "#facc15";
       for (let i = 0; i < world.trafficCars.length; i++) {
@@ -2655,7 +2755,7 @@
         const tx = (ai.x - car.x) * scale;
         const tz = (ai.z - car.z) * scale;
         if (Math.abs(tx) > w || Math.abs(tz) > h) continue;
-        mapCtx.fillRect(tx - 1.8, tz - 1.8, 3.6, 3.6);
+        mapCtx.fillRect(tx - 1.7, tz - 1.7, 3.4, 3.4);
       }
 
       mapCtx.fillStyle = "#e0f2fe";
@@ -2670,6 +2770,7 @@
       }
     }
 
+    // 8) Player Arrow
     mapCtx.rotate(-car.heading);
     mapCtx.fillStyle = "#38bdf8";
     mapCtx.beginPath();
@@ -2768,7 +2869,6 @@
     const dt = Math.min(clock.getDelta(), 0.05);
     elapsed += dt;
 
-    // Poll Gamepad API (Xbox / PlayStation / Bluetooth controllers)
     if (controls) controls.poll(dt);
 
     const weather = WEATHER_PRESETS[weatherIndex];

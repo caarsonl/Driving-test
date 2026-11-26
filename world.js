@@ -7,7 +7,7 @@ window.HorizonWorld = (() => {
   const CONFIG = {
     WORLD_BOUNDS: { minX: -620, maxX: 1860, minZ: -1620, maxZ: 580 },
     ROAD_WIDTH: 16,
-    HIGHWAY_WIDTH: 20,
+    HIGHWAY_WIDTH: 22, // Wider 4-lane expressway, bridge & viaduct decks
 
     ISLANDS: [
       { id: "metro", name: "METRO BAY CITY", minX: -420, maxX: 320, minZ: -340, maxZ: 380 },
@@ -18,13 +18,13 @@ window.HorizonWorld = (() => {
         maxX: 1660,
         minZ: -380,
         maxZ: 360,
-        hole: { minX: 1340, maxX: 1600, minZ: 60, maxZ: 290 }, // Marina Lagoon
+        hole: { minX: 1340, maxX: 1600, minZ: 60, maxZ: 290 },
       },
       { id: "pinecrest", name: "PINECREST ALPINE", minX: -420, maxX: 460, minZ: -1440, maxZ: -880 },
     ],
 
-    BRIDGE: { startX: 320, endX: 960, z: 0, halfW: 10.0, peakH: 24.0 },
-    TUNNEL: { x: 0, startZ: -340, endZ: -880, halfW: 10.2, height: 11.4 },
+    BRIDGE: { startX: 320, endX: 960, z: 0, halfW: 11.0, peakH: 24.0 },
+    TUNNEL: { x: 0, startZ: -340, endZ: -880, halfW: 11.0, height: 11.6 },
     VIADUCT: {
       eastStartX: 460,
       eastRampEndX: 580,
@@ -34,7 +34,7 @@ window.HorizonWorld = (() => {
       southRampStartZ: -500,
       southEndZ: -380,
       deckH: 12.0,
-      halfW: 10.0,
+      halfW: 11.0,
     },
   };
 
@@ -116,7 +116,6 @@ window.HorizonWorld = (() => {
     },
   ];
 
-  // Weather automatically drives road moisture wetting & evaporation
   const WEATHER_PRESETS = [
     {
       name: "CLEAR",
@@ -189,7 +188,7 @@ window.HorizonWorld = (() => {
   ];
 
   // =========================================================================
-  // 2. SHARED NOISE, PUDDLE & ELEVATION MATH (EXACT MATCH TO GLSL SHADERS)
+  // 2. SHARED NOISE, PUDDLE & ELEVATION MATH (MATCHED BETWEEN JS & GLSL)
   // =========================================================================
   function fract(x) {
     return x - Math.floor(x);
@@ -279,7 +278,7 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 3. SOFT VOLUMETRIC HEADLIGHT BEAM SHADER (FIXES POLYGONAL BUBBLE CONES!)
+  // 3. SOFT VOLUMETRIC HEADLIGHT BEAM SHADER
   // =========================================================================
   function createSoftBeamMaterial(colorHex = 0xfff5d6, opacity = 0.16) {
     return new THREE.ShaderMaterial({
@@ -310,9 +309,7 @@ window.HorizonWorld = (() => {
         varying vec3 vNormalV;
         varying vec3 vViewDir;
         void main() {
-          // Smoothly dissolve silhouette edges so no circular cone rim is ever visible
           float edgeSoft = pow(clamp(abs(dot(normalize(vNormalV), normalize(vViewDir))), 0.0, 1.0), 2.4);
-          // Fade smoothly from the headlight tip (vUv.y = 1) down to zero at the far end (vUv.y = 0)
           float lengthFade = smoothstep(0.0, 0.72, vUv.y) * smoothstep(1.0, 0.84, vUv.y);
           float alpha = edgeSoft * lengthFade * uOpacity;
           gl_FragColor = vec4(uColor * alpha, alpha);
@@ -322,7 +319,7 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 4. PROCEDURAL TEXTURES (TERRAIN, ASPHALT, 6 CITY FACADES & RAMPS)
+  // 4. PROCEDURAL TEXTURES (CITY ROAD, 4-LANE HIGHWAY/BRIDGE, SIGNS & FACADES)
   // =========================================================================
   function createGrassTexture(tintHex, grainDelta) {
     const c = document.createElement("canvas");
@@ -343,6 +340,7 @@ window.HorizonWorld = (() => {
     return tex;
   }
 
+  // 2-Lane Urban Avenue Asphalt
   function createRoadTexture() {
     const c = document.createElement("canvas");
     c.width = 256;
@@ -373,6 +371,99 @@ window.HorizonWorld = (() => {
     const tex = new THREE.CanvasTexture(c);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.anisotropy = 8;
+    return tex;
+  }
+
+  // Dedicated 4-Lane Expressway & Bridge Deck Texture (double yellow median, 4 lanes, shoulders & expansion joints)
+  function createHighwayTexture(isBridge = false) {
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 512;
+    const ctx = c.getContext("2d");
+
+    // Rich high-grip expressway asphalt
+    ctx.fillStyle = isBridge ? "#2e3540" : "#2b313b";
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Fine aggregate & subtle longitudinal paving grooves
+    for (let i = 0; i < 7500; i++) {
+      const v = 32 + Math.floor(Math.random() * 38);
+      ctx.fillStyle = `rgb(${v},${v + 3},${v + 7})`;
+      ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 3);
+    }
+
+    // Emergency asphalt shoulders (slightly lighter weathered apron)
+    ctx.fillStyle = "rgba(148, 163, 184, 0.08)";
+    ctx.fillRect(0, 0, 36, 512);
+    ctx.fillRect(476, 0, 36, 512);
+
+    // Subtle dark wheel-wear ruts in all 4 lanes
+    ctx.fillStyle = "rgba(10, 14, 20, 0.22)";
+    [76, 178, 304, 406].forEach((lx) => ctx.fillRect(lx, 0, 30, 512));
+
+    // Steel/concrete bridge expansion joint seams + rumble edges on bridge decks
+    if (isBridge) {
+      ctx.fillStyle = "rgba(15, 23, 42, 0.65)";
+      ctx.fillRect(0, 0, 512, 7);
+      ctx.fillStyle = "rgba(148, 163, 184, 0.22)";
+      ctx.fillRect(0, 7, 512, 3);
+
+      // Subtle shoulder rumble notches
+      ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
+      for (let y = 16; y < 512; y += 20) {
+        ctx.fillRect(14, y, 16, 6);
+        ctx.fillRect(482, y, 16, 6);
+      }
+    }
+
+    // Crisp solid white outer expressway shoulder lines
+    ctx.fillStyle = "#f1f5f9";
+    ctx.fillRect(36, 0, 7, 512);
+    ctx.fillRect(469, 0, 7, 512);
+
+    // Double solid yellow center expressway median lines
+    ctx.fillStyle = "#facc15";
+    ctx.fillRect(246, 0, 7, 512);
+    ctx.fillRect(259, 0, 7, 512);
+
+    // Dashed white lane dividers separating fast & slow lanes in each direction
+    ctx.fillStyle = "#e2e8f0";
+    for (let y = 26; y < 512; y += 128) {
+      ctx.fillRect(141, y, 6, 68);
+      ctx.fillRect(365, y, 6, 68);
+    }
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = 8;
+    return tex;
+  }
+
+  // Highway Overhead Gantry Direction Sign Texture
+  function createGantrySignTexture(title, subtitle, arrow = "↑") {
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 160;
+    const ctx = c.getContext("2d");
+
+    ctx.fillStyle = "#065f46";
+    ctx.fillRect(0, 0, 512, 160);
+
+    ctx.strokeStyle = "#f8fafc";
+    ctx.lineWidth = 8;
+    ctx.strokeRect(10, 10, 492, 140);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 38px Segoe UI, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(title, 256, 68);
+
+    ctx.fillStyle = "#fde047";
+    ctx.font = "bold 26px Segoe UI, sans-serif";
+    ctx.fillText(`${arrow}  ${subtitle}  ${arrow}`, 256, 120);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.anisotropy = 4;
     return tex;
   }
 
@@ -571,7 +662,6 @@ window.HorizonWorld = (() => {
           return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
         }
 
-        // Returns vec3(rippleNormalX, rippleNormalZ, visibleImpactRingBrightness)
         vec3 rainImpactLayer(vec2 pos, float t, float speed) {
           vec2 cell = floor(pos);
           vec2 local = fract(pos) - 0.5;
@@ -582,7 +672,6 @@ window.HorizonWorld = (() => {
           float dist = length(diff);
 
           float radius = phase * 0.42;
-          // Crisp expanding water-drop ring + tiny bright impact dot at birth
           float ringEdge = exp(-pow((dist - radius) * 26.0, 2.0)) * (1.0 - phase);
           float splashDot = exp(-dist * 28.0) * smoothstep(0.28, 0.0, phase);
           float wave = sin((dist - radius) * 44.0) * exp(-dist * 10.0) * (1.0 - phase);
@@ -593,11 +682,10 @@ window.HorizonWorld = (() => {
 
         void main() {
           vec3 rawAlbedo = uIsIntersection > 0.5
-            ? vec3(0.22, 0.24, 0.28)
+            ? vec3(0.21, 0.23, 0.27)
             : texture2D(uRoadMap, vUv).rgb;
 
-          // Sheltered inside Alpine Tunnel: stays completely dry & rain-free
-          float inTunnel = step(-880.0, vWorldPos.z) * step(vWorldPos.z, -340.0) * step(abs(vWorldPos.x), 12.5);
+          float inTunnel = step(-880.0, vWorldPos.z) * step(vWorldPos.z, -340.0) * step(abs(vWorldPos.x), 13.5);
           float localMoisture = uRoadMoisture * (1.0 - inTunnel);
           float activeRain = uRainIntensity * (1.0 - inTunnel);
 
@@ -606,7 +694,6 @@ window.HorizonWorld = (() => {
           float microX = noise2D(vWorldPos.xz * 2.4) - 0.5;
           float microZ = noise2D(vWorldPos.xz * 2.4 + 19.7) - 0.5;
 
-          // Organic puddles matched to JS samplePuddleAt()
           float p1 = noise2D(vWorldPos.xz * 0.026);
           float p2 = noise2D(vWorldPos.xz * 0.085);
           float pNoise = p1 * 0.68 + p2 * 0.32;
@@ -615,14 +702,12 @@ window.HorizonWorld = (() => {
           float drainFactor = 1.0 - smoothstep(2.0, 12.0, vWorldPos.y) * 0.45;
           puddle *= drainFactor;
 
-          // Dual-scale raindrop impact ripples + visible pavement splash rings
           vec2 ripGrad = vec2(0.0);
           float impactRing = 0.0;
           if (activeRain > 0.03) {
             vec3 r1 = rainImpactLayer(vWorldPos.xz * 0.72, uTime, 1.55);
             vec3 r2 = rainImpactLayer(vWorldPos.xz * 1.38 + 11.4, uTime + 0.37, 2.15);
             ripGrad = (r1.xy * 0.65 + r2.xy * 0.45) * activeRain * (0.28 + puddle * 0.72);
-            // Distance-faded crisp surface rings visible wherever rain strikes road
             float camDist = length(cameraPosition - vWorldPos);
             float distMask = smoothstep(130.0, 18.0, camDist);
             impactRing = (r1.z * 0.62 + r2.z * 0.55) * activeRain * distMask * (0.35 + localMoisture * 0.45 + puddle * 0.55);
@@ -646,16 +731,21 @@ window.HorizonWorld = (() => {
           float specStr = mix(mix(0.04, 0.28, localMoisture), 1.15, puddle) * (1.0 - inTunnel);
           float spec = pow(max(dot(N, H), 0.0), specPow) * specStr;
 
-          vec3 tunnelGlow = vec3(0.0);
+          // Warm overhead lighting glow inside Alpine Tunnel & under Highway/Bridge Lamp Posts at night
+          vec3 lampGlow = vec3(0.0);
           if (inTunnel > 0.5) {
             float lampCycle = 0.5 + 0.5 * cos((vWorldPos.z + 340.0) * (6.28318 / 28.0));
-            tunnelGlow = vec3(0.46, 0.37, 0.26) * (0.58 + 0.42 * pow(lampCycle, 2.0));
+            lampGlow = vec3(0.46, 0.37, 0.26) * (0.58 + 0.42 * pow(lampCycle, 2.0));
+          } else if (uHeadlightsOn > 0.5 && vWorldPos.y > 1.0) {
+            // Subtle warm bridge & coastal viaduct overhead streetlamp pools
+            float spanCoord = abs(vWorldPos.z) < 25.0 ? vWorldPos.x : (abs(vWorldPos.z + 1140.0) < 25.0 ? vWorldPos.x : vWorldPos.z);
+            float pool = 0.5 + 0.5 * cos(spanCoord * (6.28318 / 48.0));
+            lampGlow = vec3(0.36, 0.29, 0.19) * pow(pool, 3.0) * (0.55 + localMoisture * 0.65);
           }
 
-          vec3 color = albedo * (uAmbientColor * (1.0 - inTunnel * 0.65) + tunnelGlow + uSunColor * NdotL * 0.9)
+          vec3 color = albedo * (uAmbientColor * (1.0 - inTunnel * 0.65) + lampGlow + uSunColor * NdotL * 0.9)
                      + uSunColor * spec * 0.62;
 
-          // Headlight pool on road (also illuminates raindrop impact rings vividly!)
           vec3 toFrag = vWorldPos - uCarPos;
           float carDist = length(toFrag.xz);
           float headlightFactor = 0.0;
@@ -666,7 +756,6 @@ window.HorizonWorld = (() => {
             color += vec3(1.0, 0.94, 0.82) * headlightFactor * mix(0.32, 0.72, max(localMoisture * 0.5, puddle));
           }
 
-          // Visible Rain-on-Road Impact Rings & Splash Glints
           if (impactRing > 0.005) {
             vec3 ringTint = mix(vec3(0.75, 0.85, 0.96), vec3(1.0, 0.97, 0.9), headlightFactor);
             color += ringTint * impactRing * (0.28 + headlightFactor * 0.55);
@@ -682,7 +771,6 @@ window.HorizonWorld = (() => {
             }
           }
 
-          // Physically grounded Schlick Fresnel Reflections (F0 = 0.03)
           if (uRTEnabled > 0.5 && localMoisture > 0.04) {
             float NdotV = max(dot(N, V), 0.0);
             float fresnel = 0.03 + 0.97 * pow(1.0 - NdotV, 4.2);
@@ -700,8 +788,8 @@ window.HorizonWorld = (() => {
               float reflFactor = clamp(max(dampRefl, puddleRefl), 0.0, 0.72) * (1.0 - isMarking * 0.35);
               color = mix(color, reflSample * 1.04, reflFactor);
             } else {
-              float deckSheen = clamp((localMoisture * 0.25 + puddle * 0.35) * fresnel, 0.0, 0.45);
-              color = mix(color, uFogColor * 1.15 + uSunColor * 0.25, deckSheen);
+              float deckSheen = clamp((localMoisture * 0.28 + puddle * 0.38) * fresnel, 0.0, 0.48);
+              color = mix(color, uFogColor * 1.15 + uSunColor * 0.28 + lampGlow * 0.8, deckSheen);
             }
           }
 
@@ -876,7 +964,6 @@ window.HorizonWorld = (() => {
             color = waterBase * (0.65 + NdotL * 0.65);
           }
 
-          // Visible raindrop impact rings on ocean & lagoon surface
           color += vec3(0.78, 0.88, 0.96) * rip.z * 0.28;
           color = mix(color, vec3(0.84, 0.92, 0.97), clamp(shoreFoam * 0.55, 0.0, 0.65));
 
@@ -892,7 +979,7 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 6. WORLD BUILDER INITIALIZATION (SKY, COLLIDERS, 3 ISLANDS & FLAT ROADS)
+  // 6. WORLD BUILDER INITIALIZATION (SKY, COLLIDERS, ISLANDS & 4-LANE HIGHWAYS)
   // =========================================================================
   function buildWorld(scene, reflTarget, drawingBufferSize) {
     const { ISLANDS, BRIDGE, TUNNEL, VIADUCT, ROAD_WIDTH, HIGHWAY_WIDTH } = CONFIG;
@@ -1080,10 +1167,15 @@ window.HorizonWorld = (() => {
     waterGroup.add(waterMesh);
     scene.add(waterGroup);
 
-    // Flat Road Network & Tunnel Floor
-    const roadTex = createRoadTexture();
-    const roadMatStrip = createRealisticRoadMaterial(roadTex, reflTarget.texture, drawingBufferSize, false);
-    const roadMatInter = createRealisticRoadMaterial(roadTex, reflTarget.texture, drawingBufferSize, true);
+    // Distinct Road Materials: 2-Lane City, 4-Lane Highway, 4-Lane Bridge/Viaduct & Intersections
+    const roadTexCity = createRoadTexture();
+    const roadTexHighway = createHighwayTexture(false);
+    const roadTexBridge = createHighwayTexture(true);
+
+    const roadMatCity = createRealisticRoadMaterial(roadTexCity, reflTarget.texture, drawingBufferSize, false);
+    const roadMatHighway = createRealisticRoadMaterial(roadTexHighway, reflTarget.texture, drawingBufferSize, false);
+    const roadMatBridge = createRealisticRoadMaterial(roadTexBridge, reflTarget.texture, drawingBufferSize, false);
+    const roadMatInter = createRealisticRoadMaterial(roadTexCity, reflTarget.texture, drawingBufferSize, true);
     const roadShadowMat = new THREE.ShadowMaterial({ opacity: 0.34 });
 
     const roadGroup = new THREE.Group();
@@ -1095,17 +1187,19 @@ window.HorizonWorld = (() => {
     const roadSegments = [];
     const dummy = new THREE.Object3D();
 
-    function addFlatRoad(axis, coord, minP, maxP, width = ROAD_WIDTH, y = 0.035) {
+    function addFlatRoad(axis, coord, minP, maxP, width = ROAD_WIDTH, y = 0.035, isHighway = false) {
       const len = maxP - minP;
       const mid = (minP + maxP) * 0.5;
+      const tileLen = isHighway ? 24.0 : 16.0;
       const geo = new THREE.PlaneGeometry(width, len);
       const uvAttr = geo.attributes.uv;
       for (let i = 0; i < uvAttr.count; i++) {
-        uvAttr.setY(i, uvAttr.getY(i) * (len / 16.0));
+        uvAttr.setY(i, uvAttr.getY(i) * (len / tileLen));
       }
       uvAttr.needsUpdate = true;
 
-      const mesh = new THREE.Mesh(geo, roadMatStrip);
+      const mat = isHighway ? roadMatHighway : roadMatCity;
+      const mesh = new THREE.Mesh(geo, mat);
       const shadow = new THREE.Mesh(geo, roadShadowMat);
       mesh.rotation.x = -Math.PI / 2;
       shadow.rotation.x = -Math.PI / 2;
@@ -1114,76 +1208,76 @@ window.HorizonWorld = (() => {
         mesh.position.set(coord, y, mid);
         shadow.position.set(coord, y + 0.025, mid);
         flatRoadRects.push({ minX: coord - width * 0.5, maxX: coord + width * 0.5, minZ: minP, maxZ: maxP });
-        roadSegments.push({ x1: coord, z1: minP, x2: coord, z2: maxP, w: width });
+        roadSegments.push({ x1: coord, z1: minP, x2: coord, z2: maxP, w: width, kind: isHighway ? "highway" : "city" });
       } else {
         mesh.rotation.z = Math.PI / 2;
         shadow.rotation.z = Math.PI / 2;
         mesh.position.set(mid, y + 0.008, coord);
         shadow.position.set(mid, y + 0.032, coord);
         flatRoadRects.push({ minX: minP, maxX: maxP, minZ: coord - width * 0.5, maxZ: coord + width * 0.5 });
-        roadSegments.push({ x1: minP, z1: coord, x2: maxP, z2: coord, w: width });
+        roadSegments.push({ x1: minP, z1: coord, x2: maxP, z2: coord, w: width, kind: isHighway ? "highway" : "city" });
       }
       shadow.receiveShadow = true;
       roadGroup.add(mesh);
       roadShadowGroup.add(shadow);
     }
 
-    function addIntersection(x, z, size = ROAD_WIDTH + 0.8) {
+    function addIntersection(x, z, size = HIGHWAY_WIDTH + 0.6) {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), roadMatInter);
       mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(x, 0.052, z);
+      mesh.position.set(x, 0.056, z);
       roadGroup.add(mesh);
     }
 
-    // 1) Metro Bay City Streets
-    addFlatRoad("z", 0, -340, 260, HIGHWAY_WIDTH);
-    addFlatRoad("x", 0, -260, 320, HIGHWAY_WIDTH);
-    addFlatRoad("z", -260, -240, 260, ROAD_WIDTH);
-    addFlatRoad("z", 220, -240, 260, ROAD_WIDTH);
-    addFlatRoad("x", -240, -260, 220, ROAD_WIDTH);
-    addFlatRoad("x", 260, -260, 220, ROAD_WIDTH);
-    addFlatRoad("z", -130, -240, 120, ROAD_WIDTH);
-    addFlatRoad("x", 120, -260, 220, ROAD_WIDTH);
+    // 1) Metro Bay City Streets (4-lane Expressways on X=0 & Z=0 + 2-lane city avenues)
+    addFlatRoad("z", 0, -340, 260, HIGHWAY_WIDTH, 0.038, true);
+    addFlatRoad("x", 0, -260, 320, HIGHWAY_WIDTH, 0.038, true);
+    addFlatRoad("z", -260, -240, 260, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", 220, -240, 260, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("x", -240, -260, 220, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("x", 260, -260, 220, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", -130, -240, 120, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("x", 120, -260, 220, ROAD_WIDTH, 0.032, false);
 
     [
-      [0, 0], [0, -240], [0, 120], [0, 260],
-      [-260, -240], [-260, 0], [-260, 120], [-260, 260],
-      [220, -240], [220, 0], [220, 120], [220, 260],
-      [-130, -240], [-130, 0], [-130, 120],
-    ].forEach(([ix, iz]) => addIntersection(ix, iz, HIGHWAY_WIDTH + 0.8));
+      [0, 0, HIGHWAY_WIDTH + 0.8], [0, -240, HIGHWAY_WIDTH + 0.6], [0, 120, HIGHWAY_WIDTH + 0.6], [0, 260, HIGHWAY_WIDTH + 0.6],
+      [-260, -240, ROAD_WIDTH + 0.8], [-260, 0, HIGHWAY_WIDTH + 0.6], [-260, 120, ROAD_WIDTH + 0.8], [-260, 260, ROAD_WIDTH + 0.8],
+      [220, -240, ROAD_WIDTH + 0.8], [220, 0, HIGHWAY_WIDTH + 0.6], [220, 120, ROAD_WIDTH + 0.8], [220, 260, ROAD_WIDTH + 0.8],
+      [-130, -240, ROAD_WIDTH + 0.8], [-130, 0, HIGHWAY_WIDTH + 0.6], [-130, 120, ROAD_WIDTH + 0.8],
+    ].forEach(([ix, iz, sz]) => addIntersection(ix, iz, sz));
 
     // 2) Palm Island Marina Streets
-    addFlatRoad("x", 0, 960, 1540, HIGHWAY_WIDTH);
-    addFlatRoad("z", 1080, -280, 260, ROAD_WIDTH);
-    addFlatRoad("z", 1280, -380, 260, HIGHWAY_WIDTH);
-    addFlatRoad("z", 1540, -280, 0, ROAD_WIDTH);
-    addFlatRoad("x", -280, 1080, 1540, ROAD_WIDTH);
-    addFlatRoad("x", 260, 1080, 1280, ROAD_WIDTH);
+    addFlatRoad("x", 0, 960, 1540, HIGHWAY_WIDTH, 0.038, true);
+    addFlatRoad("z", 1080, -280, 260, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", 1280, -380, 260, HIGHWAY_WIDTH, 0.038, true);
+    addFlatRoad("z", 1540, -280, 0, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("x", -280, 1080, 1540, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("x", 260, 1080, 1280, ROAD_WIDTH, 0.032, false);
 
     [
-      [1080, 0], [1080, -280], [1080, 260],
-      [1280, 0], [1280, -280], [1280, 260],
-      [1540, 0], [1540, -280],
-    ].forEach(([ix, iz]) => addIntersection(ix, iz, HIGHWAY_WIDTH + 0.8));
+      [1080, 0, HIGHWAY_WIDTH + 0.6], [1080, -280, ROAD_WIDTH + 0.8], [1080, 260, ROAD_WIDTH + 0.8],
+      [1280, 0, HIGHWAY_WIDTH + 0.8], [1280, -280, HIGHWAY_WIDTH + 0.6], [1280, 260, HIGHWAY_WIDTH + 0.6],
+      [1540, 0, HIGHWAY_WIDTH + 0.6], [1540, -280, ROAD_WIDTH + 0.8],
+    ].forEach(([ix, iz, sz]) => addIntersection(ix, iz, sz));
 
     // 3) Pinecrest Alpine Streets
-    addFlatRoad("z", 0, -1340, -880, HIGHWAY_WIDTH);
-    addFlatRoad("x", -1020, -300, 340, ROAD_WIDTH);
-    addFlatRoad("x", -1140, 0, 460, HIGHWAY_WIDTH);
-    addFlatRoad("x", -1340, -300, 340, ROAD_WIDTH);
-    addFlatRoad("z", -300, -1340, -1020, ROAD_WIDTH);
-    addFlatRoad("z", 340, -1340, -1020, ROAD_WIDTH);
+    addFlatRoad("z", 0, -1340, -880, HIGHWAY_WIDTH, 0.038, true);
+    addFlatRoad("x", -1020, -300, 340, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("x", -1140, 0, 460, HIGHWAY_WIDTH, 0.038, true);
+    addFlatRoad("x", -1340, -300, 340, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", -300, -1340, -1020, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", 340, -1340, -1020, ROAD_WIDTH, 0.032, false);
 
     [
-      [0, -1020], [0, -1140], [0, -1340],
-      [-300, -1020], [-300, -1340],
-      [340, -1020], [340, -1140], [340, -1340],
-    ].forEach(([ix, iz]) => addIntersection(ix, iz, HIGHWAY_WIDTH + 0.8));
+      [0, -1020, HIGHWAY_WIDTH + 0.6], [0, -1140, HIGHWAY_WIDTH + 0.8], [0, -1340, HIGHWAY_WIDTH + 0.6],
+      [-300, -1020, ROAD_WIDTH + 0.8], [-300, -1340, ROAD_WIDTH + 0.8],
+      [340, -1020, ROAD_WIDTH + 0.8], [340, -1140, HIGHWAY_WIDTH + 0.6], [340, -1340, ROAD_WIDTH + 0.8],
+    ].forEach(([ix, iz, sz]) => addIntersection(ix, iz, sz));
 
-    // 4) Sheltered Alpine Tunnel Road Floor
-    addFlatRoad("z", 0, TUNNEL.endZ, TUNNEL.startZ, HIGHWAY_WIDTH, 0.04);
+    // 4) Sheltered 4-Lane Alpine Tunnel Expressway Floor
+    addFlatRoad("z", 0, TUNNEL.endZ, TUNNEL.startZ, HIGHWAY_WIDTH, 0.042, true);
 
-    // Elevated Sloped/Curved Highway Ribbon Builder (used by Bridge & Viaduct in Part 2/2)
+    // Elevated Sloped/Curved Highway Ribbon Builder (24m tile scale for 4-lane bridge texture)
     function buildElevatedRibbon(samples, halfW, mat) {
       const positions = [];
       const normals = [];
@@ -1204,7 +1298,7 @@ window.HorizonWorld = (() => {
 
         positions.push(lx, s.y + 0.04, lz, rx, s.y + 0.04, rz);
         normals.push(s.nx, s.ny, s.nz, s.nx, s.ny, s.nz);
-        uvs.push(0, accumDist / 16.0, 1, accumDist / 16.0);
+        uvs.push(0, accumDist / 24.0, 1, accumDist / 24.0);
 
         if (i < samples.length - 1) {
           const base = i * 2;
@@ -1221,13 +1315,16 @@ window.HorizonWorld = (() => {
     }
 
     // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
+
     // =========================================================================
-    // 7. GOLDEN BAY SUSPENSION BRIDGE (x = 320 -> 960, z = 0, peak y = 24m)
+    // 7. UPGRADED GOLDEN BAY SUSPENSION BRIDGE (4-LANE DECK, LAMPS & GANTRIES)
     // =========================================================================
     const bridgeSteelRed = new THREE.MeshStandardMaterial({ color: 0xb91c1c, metalness: 0.45, roughness: 0.42 });
     const bridgeDeckUndersideMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.55, roughness: 0.5 });
     const cableMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.78, roughness: 0.25 });
-    const guardrailMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.65, roughness: 0.35 });
+    const jerseyBarrierMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.78, metalness: 0.15 });
+    const steelRailMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.75, roughness: 0.28 });
+    const gantrySteelMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.7, roughness: 0.35 });
 
     const neonMaterials = [];
     [0x38bdf8, 0xf43f5e, 0xa855f7, 0x22d3ee, 0xfbbf24].forEach((hex) => {
@@ -1241,6 +1338,62 @@ window.HorizonWorld = (() => {
       );
     });
 
+    // Collectors for highway cat's-eye studs & cobra-head streetlamps (instanced for 60 FPS)
+    const catsEyeAmberBatch = [];
+    const catsEyeWhiteBatch = [];
+    const highwayLampBatch = [];
+
+    // Helper: Overhead Expressway Direction Gantry Sign (strictly outside ±12.8m shoulders)
+    function addHighwayGantry(x, z, rotY, title, subtitle, arrow = "↑") {
+      const g = new THREE.Group();
+      const spanHalf = 13.0;
+
+      [-spanHalf, spanHalf].forEach((lx) => {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.45, 11.2, 8), gantrySteelMat);
+        leg.position.set(lx, 5.6, 0);
+        g.add(leg);
+      });
+
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(spanHalf * 2 + 1.0, 0.7, 0.7), gantrySteelMat);
+      beam.position.set(0, 10.6, 0);
+      g.add(beam);
+
+      const signTex = createGantrySignTexture(title, subtitle, arrow);
+      const signMat = new THREE.MeshStandardMaterial({
+        map: signTex,
+        emissiveMap: signTex,
+        emissive: new THREE.Color(0xd1fae5),
+        emissiveIntensity: 0.55,
+        roughness: 0.35,
+      });
+      const signBoard = new THREE.Mesh(new THREE.BoxGeometry(15.2, 4.0, 0.35), [
+        gantrySteelMat, gantrySteelMat, gantrySteelMat, gantrySteelMat, signMat, signMat,
+      ]);
+      signBoard.position.set(0, 10.4, 0);
+      g.add(signBoard);
+
+      g.position.set(x, 0, z);
+      g.rotation.y = rotY;
+      scene.add(g);
+
+      // Accurate leg colliders outside road shoulders
+      const cosR = Math.cos(rotY);
+      const sinR = Math.sin(rotY);
+      [-spanHalf, spanHalf].forEach((lx) => {
+        const wx = x + lx * cosR;
+        const wz = z - lx * sinR;
+        addCircleCollider(wx, wz, 0.65, -2, 12, false);
+      });
+    }
+
+    // Place 6 Iconic Expressway Overhead Gantries
+    addHighwayGantry(292, 0, Math.PI / 2, "GOLDEN BAY BRIDGE", "PALM ISLAND MARINA");
+    addHighwayGantry(988, 0, -Math.PI / 2, "GOLDEN BAY BRIDGE", "METRO BAY CITY");
+    addHighwayGantry(0, -315, 0, "ALPINE RIDGE TUNNEL", "PINECREST VALLEY");
+    addHighwayGantry(0, -905, Math.PI, "ALPINE RIDGE TUNNEL", "METRO BAY CITY");
+    addHighwayGantry(435, -1140, Math.PI / 2, "COASTAL VIADUCT", "PALM ISLAND MARINA");
+    addHighwayGantry(1280, -355, 0, "COASTAL VIADUCT", "PINECREST ALPINE");
+
     const bridgeSegs = 48;
     const bridgeSamples = [];
     for (let i = 0; i <= bridgeSegs; i++) {
@@ -1249,10 +1402,9 @@ window.HorizonWorld = (() => {
       const nLen = Math.hypot(dhdx, 1);
       bridgeSamples.push({ x, y: h, z: 0, rx: 0, rz: 1, nx: -dhdx / nLen, ny: 1 / nLen, nz: 0 });
     }
-    roadGroup.add(buildElevatedRibbon(bridgeSamples, BRIDGE.halfW, roadMatStrip));
+    roadGroup.add(buildElevatedRibbon(bridgeSamples, BRIDGE.halfW, roadMatBridge));
     roadSegments.push({ x1: BRIDGE.startX, z1: 0, x2: BRIDGE.endX, z2: 0, w: HIGHWAY_WIDTH, kind: "bridge" });
 
-    // Underside girders, guardrails & smooth continuous height-bounded guardrail hitboxes
     for (let i = 0; i < bridgeSegs; i++) {
       const a = bridgeSamples[i];
       const b = bridgeSamples[i + 1];
@@ -1261,22 +1413,39 @@ window.HorizonWorld = (() => {
       const segLen = Math.hypot(b.x - a.x, b.y - a.y);
       const pitch = Math.atan2(b.y - a.y, b.x - a.x);
 
+      // Deep bridge structural box girder
       const girder = new THREE.Mesh(
-        new THREE.BoxGeometry(segLen + 0.4, 2.0, HIGHWAY_WIDTH + 1.4),
+        new THREE.BoxGeometry(segLen + 0.4, 2.3, HIGHWAY_WIDTH + 2.2),
         bridgeDeckUndersideMat
       );
-      girder.position.set(mx, my - 1.0, 0);
+      girder.position.set(mx, my - 1.15, 0);
       girder.rotation.z = pitch;
       scene.add(girder);
 
-      [-1, 1].forEach((side) => {
-        const rz = side * (BRIDGE.halfW + 0.5);
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.3, 1.35, 0.7), guardrailMat);
-        rail.position.set(mx, my + 0.65, rz);
-        rail.rotation.z = pitch;
-        scene.add(rail);
+      // Center median glowing amber cat's-eye studs + shoulder white reflectors
+      catsEyeAmberBatch.push({ x: mx, y: my + 0.08, z: 0 });
+      catsEyeWhiteBatch.push({ x: mx, y: my + 0.08, z: -(BRIDGE.halfW - 0.8) });
+      catsEyeWhiteBatch.push({ x: mx, y: my + 0.08, z: BRIDGE.halfW - 0.8 });
 
-        // Flush segment joints (no X overhang) prevent bumper snagging when scraping guardrails
+      // Cobra-head highway lamp poles every 3 segments
+      if (i % 3 === 1) {
+        highwayLampBatch.push({ x: mx, y: my, z: -(BRIDGE.halfW + 0.85), rotY: 0 });
+        highwayLampBatch.push({ x: mx, y: my, z: BRIDGE.halfW + 0.85, rotY: Math.PI });
+      }
+
+      // Jersey concrete barriers + top steel safety rail + flush height-bounded hitboxes
+      [-1, 1].forEach((side) => {
+        const rz = side * (BRIDGE.halfW + 0.55);
+        const barrier = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.25, 1.05, 0.85), jerseyBarrierMat);
+        barrier.position.set(mx, my + 0.52, rz);
+        barrier.rotation.z = pitch;
+        scene.add(barrier);
+
+        const topRail = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.25, 0.22, 0.24), steelRailMat);
+        topRail.position.set(mx, my + 1.32, rz);
+        topRail.rotation.z = pitch;
+        scene.add(topRail);
+
         addAABB(
           Math.min(a.x, b.x),
           Math.max(a.x, b.x),
@@ -1289,18 +1458,18 @@ window.HorizonWorld = (() => {
       });
     }
 
-    // Twin Suspension Bridge Towers (x = 500 & x = 780) + Catenary Cables + Suspenders
+    // Twin Suspension Bridge Towers (x = 500 & x = 780) — strictly outside ±11m road
     const towerXs = [500, 780];
     const towerTopY = 92;
     towerXs.forEach((tx) => {
       const deckY = evalBridge(tx).h;
-      [-12.4, 12.4].forEach((tz) => {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(4.2, towerTopY + 12, 4.2), bridgeSteelRed);
+      [-13.8, 13.8].forEach((tz) => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(4.4, towerTopY + 12, 4.4), bridgeSteelRed);
         leg.position.set(tx, (towerTopY - 12) * 0.5, tz);
         leg.castShadow = true;
         scene.add(leg);
 
-        const beacon = new THREE.Mesh(new THREE.SphereGeometry(1.1, 8, 8), neonMaterials[1]);
+        const beacon = new THREE.Mesh(new THREE.SphereGeometry(1.15, 8, 8), neonMaterials[1]);
         beacon.position.set(tx, towerTopY + 1.2, tz);
         scene.add(beacon);
 
@@ -1308,7 +1477,7 @@ window.HorizonWorld = (() => {
       });
 
       [deckY + 24, deckY + 48, towerTopY - 6].forEach((cy) => {
-        const brace = new THREE.Mesh(new THREE.BoxGeometry(3.2, 3.0, 24.8), bridgeSteelRed);
+        const brace = new THREE.Mesh(new THREE.BoxGeometry(3.2, 3.0, 27.6), bridgeSteelRed);
         brace.position.set(tx, cy, 0);
         scene.add(brace);
       });
@@ -1327,13 +1496,11 @@ window.HorizonWorld = (() => {
       }
     }
 
-    [-12.0, 12.0].forEach((cz) => {
+    [-13.4, 13.4].forEach((cz) => {
       const pts = [];
-      for (let x = 320; x <= 960; x += 10) {
-        pts.push(new THREE.Vector3(x, evalCableY(x), cz));
-      }
+      for (let x = 320; x <= 960; x += 10) pts.push(new THREE.Vector3(x, evalCableY(x), cz));
       const curve = new THREE.CatmullRomCurve3(pts);
-      scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 64, 0.52, 6, false), cableMat));
+      scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 64, 0.55, 6, false), cableMat));
 
       for (let x = 340; x <= 940; x += 20) {
         if (Math.abs(x - 500) < 6 || Math.abs(x - 780) < 6) continue;
@@ -1349,7 +1516,7 @@ window.HorizonWorld = (() => {
     });
 
     // =========================================================================
-    // 8. FIXED ALPINE RIDGE MOUNTAIN TUNNEL (100% CLEAR OVERHEAD ARCH & CLIFFS)
+    // 8. ALPINE RIDGE MOUNTAIN TUNNEL (4-LANE BORE, 100% CLEAR OVERHEAD ARCH)
     // =========================================================================
     const tunnelConcreteMat = new THREE.MeshStandardMaterial({
       color: 0x454d59,
@@ -1357,45 +1524,25 @@ window.HorizonWorld = (() => {
       metalness: 0.08,
       side: THREE.DoubleSide,
     });
-    const tunnelRibMat = new THREE.MeshStandardMaterial({
-      color: 0x333942,
-      roughness: 0.82,
-      metalness: 0.15,
-    });
+    const tunnelRibMat = new THREE.MeshStandardMaterial({ color: 0x333942, roughness: 0.82, metalness: 0.15 });
     const tunnelPortalMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.78 });
-    const tunnelStripMat = new THREE.MeshStandardMaterial({
-      color: 0xffedd5,
-      emissive: 0xfdba74,
-      emissiveIntensity: 2.8,
-    });
-    const tunnelSignMat = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      emissive: 0x10b981,
-      emissiveIntensity: 2.3,
-    });
-    const reflectorMat = new THREE.MeshStandardMaterial({
-      color: 0xfef08a,
-      emissive: 0xfacc15,
-      emissiveIntensity: 2.0,
-    });
+    const tunnelStripMat = new THREE.MeshStandardMaterial({ color: 0xffedd5, emissive: 0xfdba74, emissiveIntensity: 2.8 });
+    const tunnelSignMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 2.3 });
+    const reflectorMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfacc15, emissiveIntensity: 2.1 });
 
-    const tunnelLen = TUNNEL.startZ - TUNNEL.endZ; // 540m
+    const tunnelLen = TUNNEL.startZ - TUNNEL.endZ;
     const tunnelMidZ = (TUNNEL.startZ + TUNNEL.endZ) * 0.5;
 
-    // FIXED Arch Orientation: theta [-PI/2 .. +PI/2] + single rotateX(-PI/2) arches overhead along Z!
-    const archGeo = new THREE.CylinderGeometry(11.6, 11.6, tunnelLen, 26, 1, true, -Math.PI / 2, Math.PI);
+    const archGeo = new THREE.CylinderGeometry(12.6, 12.6, tunnelLen, 26, 1, true, -Math.PI / 2, Math.PI);
     archGeo.rotateX(-Math.PI / 2);
     const tunnelShell = new THREE.Mesh(archGeo, tunnelConcreteMat);
     tunnelShell.position.set(0, 0, tunnelMidZ);
     scene.add(tunnelShell);
 
-    // Structural concrete tunnel ribs & side reflector chevrons every 28m
     const ribCount = Math.floor(tunnelLen / 28);
-    const ribGeo = new THREE.TorusGeometry(11.32, 0.28, 6, 22, Math.PI); // Natively arches in XY plane!
-    const ribInst = new THREE.InstancedMesh(ribGeo, tunnelRibMat, ribCount);
-    const stripInst = new THREE.InstancedMesh(new THREE.BoxGeometry(4.6, 0.34, 3.8), tunnelStripMat, ribCount);
-    const reflGeo = new THREE.BoxGeometry(0.18, 0.45, 0.9);
-    const reflInst = new THREE.InstancedMesh(reflGeo, reflectorMat, ribCount * 2);
+    const ribInst = new THREE.InstancedMesh(new THREE.TorusGeometry(12.3, 0.3, 6, 22, Math.PI), tunnelRibMat, ribCount);
+    const stripInst = new THREE.InstancedMesh(new THREE.BoxGeometry(5.0, 0.34, 3.8), tunnelStripMat, ribCount);
+    const reflInst = new THREE.InstancedMesh(new THREE.BoxGeometry(0.18, 0.45, 0.9), reflectorMat, ribCount * 2);
 
     for (let i = 0; i < ribCount; i++) {
       const rz = TUNNEL.startZ - 16 - i * 28;
@@ -1406,17 +1553,19 @@ window.HorizonWorld = (() => {
       dummy.updateMatrix();
       ribInst.setMatrixAt(i, dummy.matrix);
 
-      dummy.position.set(0, 10.95, rz);
+      dummy.position.set(0, 11.85, rz);
       dummy.updateMatrix();
       stripInst.setMatrixAt(i, dummy.matrix);
 
-      dummy.position.set(-10.15, 1.35, rz);
+      dummy.position.set(-11.15, 1.35, rz);
       dummy.updateMatrix();
       reflInst.setMatrixAt(i * 2, dummy.matrix);
 
-      dummy.position.set(10.15, 1.35, rz);
+      dummy.position.set(11.15, 1.35, rz);
       dummy.updateMatrix();
       reflInst.setMatrixAt(i * 2 + 1, dummy.matrix);
+
+      catsEyeAmberBatch.push({ x: 0, y: 0.08, z: rz });
     }
     ribInst.instanceMatrix.needsUpdate = true;
     stripInst.instanceMatrix.needsUpdate = true;
@@ -1425,49 +1574,43 @@ window.HorizonWorld = (() => {
     scene.add(stripInst);
     scene.add(reflInst);
 
-    // Concrete tunnel sidewalks / curbs + exact smooth wall colliders (strictly outside ±10.2m road!)
-    [-10.85, 10.85].forEach((wx) => {
+    [-11.85, 11.85].forEach((wx) => {
       const curb = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.5, tunnelLen), tunnelPortalMat);
       curb.position.set(wx, 0.75, tunnelMidZ);
       scene.add(curb);
       addAABB(wx - 0.6, wx + 0.6, TUNNEL.endZ, TUNNEL.startZ, -2, 14, false);
     });
 
-    // Tunnel Entrance & Exit Concrete Portals (strictly outside ±11.5m bore & above 11.5m roof)
     [TUNNEL.startZ, TUNNEL.endZ].forEach((pz) => {
-      const lintel = new THREE.Mesh(new THREE.BoxGeometry(44, 9.2, 4.6), tunnelPortalMat);
-      lintel.position.set(0, 16.1, pz);
+      const lintel = new THREE.Mesh(new THREE.BoxGeometry(48, 9.2, 4.6), tunnelPortalMat);
+      lintel.position.set(0, 17.1, pz);
       scene.add(lintel);
 
-      [-16.8, 16.8].forEach((px) => {
-        const pillar = new THREE.Mesh(new THREE.BoxGeometry(10.4, 20.8, 5.6), tunnelPortalMat);
-        pillar.position.set(px, 10.4, pz);
+      [-18.0, 18.0].forEach((px) => {
+        const pillar = new THREE.Mesh(new THREE.BoxGeometry(10.8, 21.8, 5.6), tunnelPortalMat);
+        pillar.position.set(px, 10.9, pz);
         scene.add(pillar);
-        addAABB(px - 5.2, px + 5.2, pz - 2.8, pz + 2.8, -2, 21, false);
+        addAABB(px - 5.4, px + 5.4, pz - 2.8, pz + 2.8, -2, 22, false);
       });
 
-      const sign = new THREE.Mesh(new THREE.BoxGeometry(11.5, 1.25, 0.45), tunnelSignMat);
-      sign.position.set(0, 11.9, pz + (pz === TUNNEL.startZ ? 2.4 : -2.4));
+      const sign = new THREE.Mesh(new THREE.BoxGeometry(12.5, 1.3, 0.45), tunnelSignMat);
+      sign.position.set(0, 12.9, pz + (pz === TUNNEL.startZ ? 2.4 : -2.4));
       scene.add(sign);
     });
 
-    // FIXED Alpine Mountain Ridge: exterior cliff flanks strictly at |x| >= 13.5, cap at y >= 13.2!
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x3b424c, roughness: 0.94 });
     const snowMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.85 });
 
-    // Overhead rock ridge cap cleanly above the tunnel arch (bottom = 36 - 22.5 = 13.5m > 11.6m)
-    const ridgeCap = new THREE.Mesh(new THREE.BoxGeometry(260, 45, tunnelLen - 6), rockMat);
-    ridgeCap.position.set(0, 36, tunnelMidZ);
+    const ridgeCap = new THREE.Mesh(new THREE.BoxGeometry(264, 45, tunnelLen - 6), rockMat);
+    ridgeCap.position.set(0, 37, tunnelMidZ);
     scene.add(ridgeCap);
 
-    // Left & Right exterior rock cliffs sealing outside of tunnel shell (inner face at |x| = 13.5m)
-    [-73.5, 73.5].forEach((cx) => {
+    [-74.5, 74.5].forEach((cx) => {
       const flank = new THREE.Mesh(new THREE.BoxGeometry(120, 48, tunnelLen - 6), rockMat);
       flank.position.set(cx, 22, tunnelMidZ);
       scene.add(flank);
     });
 
-    // Sculpted Alpine Peaks — EVERY ground-level cone guarantees (|x| - r >= 25m) so ZERO rocks enter the tunnel!
     const peakData = [
       { x: -128, z: -455, r: 90, h: 132 },
       { x: 130, z: -470, r: 92, h: 142 },
@@ -1475,8 +1618,8 @@ window.HorizonWorld = (() => {
       { x: 168, z: -620, r: 115, h: 176 },
       { x: -128, z: -760, r: 90, h: 128 },
       { x: 130, z: -755, r: 92, h: 136 },
-      { x: 0, z: -525, r: 108, h: 148, yBase: 16 }, // High summit perched strictly above the ridge cap
-      { x: 0, z: -695, r: 105, h: 142, yBase: 16 },
+      { x: 0, z: -525, r: 108, h: 148, yBase: 17 },
+      { x: 0, z: -695, r: 105, h: 142, yBase: 17 },
       { x: -265, z: -555, r: 112, h: 120 },
       { x: 268, z: -575, r: 112, h: 124 },
       { x: -248, z: -725, r: 106, h: 110 },
@@ -1505,7 +1648,7 @@ window.HorizonWorld = (() => {
     });
 
     // =========================================================================
-    // 9. NE COASTAL ELEVATED HIGHWAY VIADUCT & SWEEPING OCEAN CURVE
+    // 9. UPGRADED NE COASTAL VIADUCT HIGHWAY (4-LANE DECK, BARRIERS & LAMPS)
     // =========================================================================
     const pierMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.8 });
 
@@ -1518,7 +1661,7 @@ window.HorizonWorld = (() => {
       const nLen = Math.hypot(dhdx, 1);
       eastSamples.push({ x, y: h, z: -1140, rx: 0, rz: 1, nx: -dhdx / nLen, ny: 1 / nLen, nz: 0 });
     }
-    roadGroup.add(buildElevatedRibbon(eastSamples, VIADUCT.halfW, roadMatStrip));
+    roadGroup.add(buildElevatedRibbon(eastSamples, VIADUCT.halfW, roadMatBridge));
     roadSegments.push({ x1: VIADUCT.eastStartX, z1: -1140, x2: VIADUCT.curveCX, z2: -1140, w: HIGHWAY_WIDTH, kind: "viaduct" });
 
     for (let i = 0; i < eastSegs; i++) {
@@ -1530,23 +1673,35 @@ window.HorizonWorld = (() => {
       const pitch = Math.atan2(b.y - a.y, b.x - a.x);
 
       const deckSlab = new THREE.Mesh(
-        new THREE.BoxGeometry(segLen + 0.4, 1.6, HIGHWAY_WIDTH + 1.2),
+        new THREE.BoxGeometry(segLen + 0.4, 1.8, HIGHWAY_WIDTH + 1.8),
         bridgeDeckUndersideMat
       );
-      deckSlab.position.set(mx, my - 0.82, -1140);
+      deckSlab.position.set(mx, my - 0.92, -1140);
       deckSlab.rotation.z = pitch;
       scene.add(deckSlab);
 
-      if (i % 3 === 1 && my > 3) {
-        const pier = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.4, my + 4, 8), pierMat);
-        pier.position.set(mx, (my - 4) * 0.5, -1140);
-        scene.add(pier);
+      catsEyeAmberBatch.push({ x: mx, y: my + 0.08, z: -1140 });
+      catsEyeWhiteBatch.push({ x: mx, y: my + 0.08, z: -1140 - (VIADUCT.halfW - 0.8) });
+      catsEyeWhiteBatch.push({ x: mx, y: my + 0.08, z: -1140 + (VIADUCT.halfW - 0.8) });
+
+      if (i % 3 === 1) {
+        if (my > 3) {
+          const pier = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.6, my + 4, 8), pierMat);
+          pier.position.set(mx, (my - 4) * 0.5, -1140);
+          scene.add(pier);
+        }
+        highwayLampBatch.push({ x: mx, y: my, z: -1140 - (VIADUCT.halfW + 0.8), rotY: 0 });
       }
 
       [-1, 1].forEach((side) => {
-        const rz = -1140 + side * (VIADUCT.halfW + 0.45);
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.3, 1.25, 0.65), guardrailMat);
-        rail.position.set(mx, my + 0.6, rz);
+        const rz = -1140 + side * (VIADUCT.halfW + 0.5);
+        const barrier = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.25, 1.05, 0.8), jerseyBarrierMat);
+        barrier.position.set(mx, my + 0.52, rz);
+        barrier.rotation.z = pitch;
+        scene.add(barrier);
+
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.25, 0.2, 0.22), steelRailMat);
+        rail.position.set(mx, my + 1.28, rz);
         rail.rotation.z = pitch;
         scene.add(rail);
 
@@ -1571,7 +1726,7 @@ window.HorizonWorld = (() => {
       const z = VIADUCT.curveCZ + Math.sin(ang) * VIADUCT.curveR;
       curveSamples.push({ x, y: VIADUCT.deckH, z, rx: -Math.cos(ang), rz: -Math.sin(ang), nx: 0, ny: 1, nz: 0 });
     }
-    roadGroup.add(buildElevatedRibbon(curveSamples, VIADUCT.halfW, roadMatStrip));
+    roadGroup.add(buildElevatedRibbon(curveSamples, VIADUCT.halfW, roadMatBridge));
 
     for (let i = 0; i < curveSegs; i++) {
       const a = curveSamples[i];
@@ -1586,28 +1741,48 @@ window.HorizonWorld = (() => {
       roadSegments.push({ x1: a.x, z1: a.z, x2: b.x, z2: b.z, w: HIGHWAY_WIDTH, kind: "viaduct" });
 
       const slab = new THREE.Mesh(
-        new THREE.BoxGeometry(HIGHWAY_WIDTH + 1.4, 1.6, segLen + 0.8),
+        new THREE.BoxGeometry(HIGHWAY_WIDTH + 1.8, 1.8, segLen + 0.8),
         bridgeDeckUndersideMat
       );
-      slab.position.set(mx, VIADUCT.deckH - 0.82, mz);
+      slab.position.set(mx, VIADUCT.deckH - 0.92, mz);
       slab.rotation.y = yaw;
       scene.add(slab);
 
+      const midAng = -Math.PI * 0.5 + ((i + 0.5) / curveSegs) * (Math.PI * 0.5);
+      catsEyeAmberBatch.push({ x: mx, y: VIADUCT.deckH + 0.08, z: mz });
+      catsEyeWhiteBatch.push({
+        x: VIADUCT.curveCX + Math.cos(midAng) * (VIADUCT.curveR + VIADUCT.halfW - 0.8),
+        y: VIADUCT.deckH + 0.08,
+        z: VIADUCT.curveCZ + Math.sin(midAng) * (VIADUCT.curveR + VIADUCT.halfW - 0.8),
+      });
+
       if (i % 3 === 1) {
-        const pier = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.6, VIADUCT.deckH + 4, 8), pierMat);
+        const pier = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.7, VIADUCT.deckH + 4, 8), pierMat);
         pier.position.set(mx, (VIADUCT.deckH - 4) * 0.5, mz);
         scene.add(pier);
+
+        const outerR = VIADUCT.curveR + VIADUCT.halfW + 0.8;
+        highwayLampBatch.push({
+          x: VIADUCT.curveCX + Math.cos(midAng) * outerR,
+          y: VIADUCT.deckH,
+          z: VIADUCT.curveCZ + Math.sin(midAng) * outerR,
+          rotY: -midAng - Math.PI * 0.5,
+        });
       }
 
-      const midAng = -Math.PI * 0.5 + ((i + 0.5) / curveSegs) * (Math.PI * 0.5);
       [-1, 1].forEach((side) => {
-        const rr = VIADUCT.curveR + side * (VIADUCT.halfW + 0.45);
+        const rr = VIADUCT.curveR + side * (VIADUCT.halfW + 0.5);
         const gx = VIADUCT.curveCX + Math.cos(midAng) * rr;
         const gz = VIADUCT.curveCZ + Math.sin(midAng) * rr;
-        const railLen = (rr / VIADUCT.curveR) * segLen + 0.3;
+        const railLen = (rr / VIADUCT.curveR) * segLen + 0.35;
 
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.25, railLen), guardrailMat);
-        rail.position.set(gx, VIADUCT.deckH + 0.6, gz);
+        const barrier = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.05, railLen), jerseyBarrierMat);
+        barrier.position.set(gx, VIADUCT.deckH + 0.52, gz);
+        barrier.rotation.y = yaw;
+        scene.add(barrier);
+
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, railLen), steelRailMat);
+        rail.position.set(gx, VIADUCT.deckH + 1.28, gz);
         rail.rotation.y = yaw;
         scene.add(rail);
 
@@ -1624,7 +1799,7 @@ window.HorizonWorld = (() => {
       const nLen = Math.hypot(dhdz, 1);
       southSamples.push({ x: 1280, y: h, z, rx: -1, rz: 0, nx: 0, ny: 1 / nLen, nz: -dhdz / nLen });
     }
-    roadGroup.add(buildElevatedRibbon(southSamples, VIADUCT.halfW, roadMatStrip));
+    roadGroup.add(buildElevatedRibbon(southSamples, VIADUCT.halfW, roadMatBridge));
     roadSegments.push({ x1: 1280, z1: VIADUCT.curveCZ, x2: 1280, z2: VIADUCT.southEndZ, w: HIGHWAY_WIDTH, kind: "viaduct" });
 
     for (let i = 0; i < southSegs; i++) {
@@ -1636,23 +1811,35 @@ window.HorizonWorld = (() => {
       const pitch = -Math.atan2(b.y - a.y, b.z - a.z);
 
       const deckSlab = new THREE.Mesh(
-        new THREE.BoxGeometry(HIGHWAY_WIDTH + 1.2, 1.6, segLen + 0.4),
+        new THREE.BoxGeometry(HIGHWAY_WIDTH + 1.8, 1.8, segLen + 0.4),
         bridgeDeckUndersideMat
       );
-      deckSlab.position.set(1280, my - 0.82, mz);
+      deckSlab.position.set(1280, my - 0.92, mz);
       deckSlab.rotation.x = pitch;
       scene.add(deckSlab);
 
-      if (i % 3 === 1 && my > 3) {
-        const pier = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.4, my + 4, 8), pierMat);
-        pier.position.set(1280, (my - 4) * 0.5, mz);
-        scene.add(pier);
+      catsEyeAmberBatch.push({ x: 1280, y: my + 0.08, z: mz });
+      catsEyeWhiteBatch.push({ x: 1280 - (VIADUCT.halfW - 0.8), y: my + 0.08, z: mz });
+      catsEyeWhiteBatch.push({ x: 1280 + (VIADUCT.halfW - 0.8), y: my + 0.08, z: mz });
+
+      if (i % 3 === 1) {
+        if (my > 3) {
+          const pier = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.6, my + 4, 8), pierMat);
+          pier.position.set(1280, (my - 4) * 0.5, mz);
+          scene.add(pier);
+        }
+        highwayLampBatch.push({ x: 1280 + (VIADUCT.halfW + 0.8), y: my, z: mz, rotY: Math.PI / 2 });
       }
 
       [-1, 1].forEach((side) => {
-        const rx = 1280 + side * (VIADUCT.halfW + 0.45);
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.65, 1.25, segLen + 0.3), guardrailMat);
-        rail.position.set(rx, my + 0.6, mz);
+        const rx = 1280 + side * (VIADUCT.halfW + 0.5);
+        const barrier = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.05, segLen + 0.25), jerseyBarrierMat);
+        barrier.position.set(rx, my + 0.52, mz);
+        barrier.rotation.x = pitch;
+        scene.add(barrier);
+
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, segLen + 0.25), steelRailMat);
+        rail.position.set(rx, my + 1.28, mz);
         rail.rotation.x = pitch;
         scene.add(rail);
 
@@ -1668,8 +1855,235 @@ window.HorizonWorld = (() => {
       });
     }
 
+    // Build Instanced Highway Cat's-Eye Studs & Cobra-Head Streetlamps
+    const studAmberMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xf59e0b, emissiveIntensity: 2.0 });
+    const studWhiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xe2e8f0, emissiveIntensity: 1.6 });
+    const studGeo = new THREE.BoxGeometry(0.24, 0.07, 0.24);
+
+    if (catsEyeAmberBatch.length) {
+      const instA = new THREE.InstancedMesh(studGeo, studAmberMat, catsEyeAmberBatch.length);
+      catsEyeAmberBatch.forEach((p, i) => {
+        dummy.position.set(p.x, p.y, p.z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        instA.setMatrixAt(i, dummy.matrix);
+      });
+      instA.instanceMatrix.needsUpdate = true;
+      scene.add(instA);
+    }
+
+    if (catsEyeWhiteBatch.length) {
+      const instW = new THREE.InstancedMesh(studGeo, studWhiteMat, catsEyeWhiteBatch.length);
+      catsEyeWhiteBatch.forEach((p, i) => {
+        dummy.position.set(p.x, p.y, p.z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        instW.setMatrixAt(i, dummy.matrix);
+      });
+      instW.instanceMatrix.needsUpdate = true;
+      scene.add(instW);
+    }
+
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.72, roughness: 0.35 });
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfde047, emissiveIntensity: 2.4 });
+
+    if (highwayLampBatch.length) {
+      const hPoleInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.2, 8.2, 5), poleMat, highwayLampBatch.length);
+      const hArmInst = new THREE.InstancedMesh(new THREE.BoxGeometry(0.18, 0.16, 2.8), poleMat, highwayLampBatch.length);
+      const hHeadInst = new THREE.InstancedMesh(new THREE.BoxGeometry(0.45, 0.16, 0.85), bulbMat, highwayLampBatch.length);
+
+      highwayLampBatch.forEach((l, i) => {
+        const cosR = Math.cos(l.rotY);
+        const sinR = Math.sin(l.rotY);
+
+        dummy.rotation.set(0, l.rotY, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.position.set(l.x, l.y + 4.1, l.z);
+        dummy.updateMatrix();
+        hPoleInst.setMatrixAt(i, dummy.matrix);
+
+        dummy.position.set(l.x + sinR * 1.3, l.y + 8.15, l.z + cosR * 1.3);
+        dummy.updateMatrix();
+        hArmInst.setMatrixAt(i, dummy.matrix);
+
+        dummy.position.set(l.x + sinR * 2.55, l.y + 8.05, l.z + cosR * 2.55);
+        dummy.updateMatrix();
+        hHeadInst.setMatrixAt(i, dummy.matrix);
+      });
+      hPoleInst.instanceMatrix.needsUpdate = true;
+      hArmInst.instanceMatrix.needsUpdate = true;
+      hHeadInst.instanceMatrix.needsUpdate = true;
+      scene.add(hPoleInst);
+      scene.add(hArmInst);
+      scene.add(hHeadInst);
+    }
+
     // =========================================================================
-    // 10. STUNT RAMPS & METRO BAY NEEDLE LANDMARK
+    // 10. WORKING 3D TRAFFIC LIGHTS (12 SIGNALIZED INTERSECTIONS)
+    // =========================================================================
+    const trafficLightsGroup = new THREE.Group();
+    scene.add(trafficLightsGroup);
+    const trafficLights = [];
+
+    // 3 staggered phase groups so city lights cascade naturally
+    const signalPhases = [0, 7.5, 15.0].map((offset) => ({
+      offset,
+      nsState: "GREEN",
+      ewState: "RED",
+      nsRedMat: new THREE.MeshStandardMaterial({ color: 0x3b0808, emissive: 0xff1e1e, emissiveIntensity: 0.08 }),
+      nsYelMat: new THREE.MeshStandardMaterial({ color: 0x3d2e05, emissive: 0xfacc15, emissiveIntensity: 0.08 }),
+      nsGrnMat: new THREE.MeshStandardMaterial({ color: 0x06381c, emissive: 0x22c55e, emissiveIntensity: 3.4 }),
+      ewRedMat: new THREE.MeshStandardMaterial({ color: 0x3b0808, emissive: 0xff1e1e, emissiveIntensity: 3.4 }),
+      ewYelMat: new THREE.MeshStandardMaterial({ color: 0x3d2e05, emissive: 0xfacc15, emissiveIntensity: 0.08 }),
+      ewGrnMat: new THREE.MeshStandardMaterial({ color: 0x06381c, emissive: 0x22c55e, emissiveIntensity: 0.08 }),
+    }));
+
+    const tlHousingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.35 });
+    const tlPoleMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.65, roughness: 0.35 });
+    const tlLensGeo = new THREE.SphereGeometry(0.24, 8, 8);
+    const tlBoxGeo = new THREE.BoxGeometry(0.75, 2.05, 0.55);
+
+    function createSignalHead(redMat, yelMat, grnMat) {
+      const h = new THREE.Group();
+      h.add(new THREE.Mesh(tlBoxGeo, tlHousingMat));
+
+      // Double-sided lenses so traffic approaching from either direction sees clear Red/Yellow/Green!
+      [-0.27, 0.27].forEach((zOff) => {
+        const r = new THREE.Mesh(tlLensGeo, redMat);
+        r.position.set(0, 0.6, zOff);
+        h.add(r);
+
+        const y = new THREE.Mesh(tlLensGeo, yelMat);
+        y.position.set(0, 0.0, zOff);
+        h.add(y);
+
+        const g = new THREE.Mesh(tlLensGeo, grnMat);
+        g.position.set(0, -0.6, zOff);
+        h.add(g);
+      });
+      return h;
+    }
+
+    const signalIntersections = [
+      // Metro Bay City
+      { x: 0, z: 0, halfW: 12.2, phaseIdx: 0 },
+      { x: 0, z: -240, halfW: 12.2, phaseIdx: 1 },
+      { x: 0, z: 120, halfW: 12.2, phaseIdx: 2 },
+      { x: 0, z: 260, halfW: 12.2, phaseIdx: 1 },
+      { x: -260, z: 0, halfW: 11.8, phaseIdx: 2 },
+      { x: 220, z: 0, halfW: 11.8, phaseIdx: 1 },
+      // Palm Island Marina
+      { x: 1080, z: 0, halfW: 11.8, phaseIdx: 0 },
+      { x: 1280, z: 0, halfW: 12.2, phaseIdx: 2 },
+      { x: 1280, z: -280, halfW: 11.8, phaseIdx: 1 },
+      // Pinecrest Alpine
+      { x: 0, z: -1020, halfW: 11.8, phaseIdx: 0 },
+      { x: 0, z: -1140, halfW: 12.2, phaseIdx: 2 },
+      { x: 340, z: -1140, halfW: 11.8, phaseIdx: 1 },
+    ];
+
+    signalIntersections.forEach((cfg) => {
+      const ph = signalPhases[cfg.phaseIdx];
+      const g = new THREE.Group();
+      g.position.set(cfg.x, 0, cfg.z);
+
+      const d = cfg.halfW;
+      const poleH = 8.4;
+
+      // Two diagonal corner cantilever mast-arms spanning overhead cleanly above traffic!
+      [
+        { px: d, pz: d, armDirX: -1, armDirZ: -1 },
+        { px: -d, pz: -d, armDirX: 1, armDirZ: 1 },
+      ].forEach(({ px, pz, armDirX, armDirZ }) => {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, poleH, 7), tlPoleMat);
+        pole.position.set(px, poleH * 0.5, pz);
+        g.add(pole);
+
+        // Arm extending over N-S roadway (faces Z)
+        const armNS = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.22, 0.22), tlPoleMat);
+        armNS.position.set(px + armDirX * 3.6, poleH - 0.3, pz);
+        g.add(armNS);
+
+        const headNS = createSignalHead(ph.nsRedMat, ph.nsYelMat, ph.nsGrnMat);
+        headNS.position.set(px + armDirX * 6.4, poleH - 1.35, pz);
+        g.add(headNS);
+
+        // Arm extending over E-W roadway (faces X)
+        const armEW = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 7.2), tlPoleMat);
+        armEW.position.set(px, poleH - 0.3, pz + armDirZ * 3.6);
+        g.add(armEW);
+
+        const headEW = createSignalHead(ph.ewRedMat, ph.ewYelMat, ph.ewGrnMat);
+        headEW.rotation.y = Math.PI / 2;
+        headEW.position.set(px, poleH - 1.35, pz + armDirZ * 6.4);
+        g.add(headEW);
+
+        // Pole collider strictly outside road corner
+        addCircleCollider(cfg.x + px, cfg.z + pz, 0.45, -2, poleH, false);
+      });
+
+      trafficLightsGroup.add(g);
+      trafficLights.push({
+        x: cfg.x,
+        z: cfg.z,
+        stopDist: cfg.halfW + 1.8,
+        phase: ph,
+        nsState: "GREEN",
+        ewState: "RED",
+      });
+    });
+
+    function updateTrafficLights(elapsed) {
+      const CYCLE = 22.0; // 8.5s Green -> 1.5s Yellow -> 1.0s All-Red -> switch
+      for (let i = 0; i < signalPhases.length; i++) {
+        const ph = signalPhases[i];
+        const t = (elapsed + ph.offset) % CYCLE;
+
+        let ns = "RED";
+        let ew = "RED";
+        if (t < 8.5) {
+          ns = "GREEN";
+          ew = "RED";
+        } else if (t < 10.0) {
+          ns = "YELLOW";
+          ew = "RED";
+        } else if (t < 11.0) {
+          ns = "RED";
+          ew = "RED";
+        } else if (t < 19.5) {
+          ns = "RED";
+          ew = "GREEN";
+        } else if (t < 21.0) {
+          ns = "RED";
+          ew = "YELLOW";
+        } else {
+          ns = "RED";
+          ew = "RED";
+        }
+
+        ph.nsState = ns;
+        ph.ewState = ew;
+
+        ph.nsRedMat.emissiveIntensity = ns === "RED" ? 3.5 : 0.06;
+        ph.nsYelMat.emissiveIntensity = ns === "YELLOW" ? 3.5 : 0.06;
+        ph.nsGrnMat.emissiveIntensity = ns === "GREEN" ? 3.5 : 0.06;
+
+        ph.ewRedMat.emissiveIntensity = ew === "RED" ? 3.5 : 0.06;
+        ph.ewYelMat.emissiveIntensity = ew === "YELLOW" ? 3.5 : 0.06;
+        ph.ewGrnMat.emissiveIntensity = ew === "GREEN" ? 3.5 : 0.06;
+      }
+
+      for (let i = 0; i < trafficLights.length; i++) {
+        const tl = trafficLights[i];
+        tl.nsState = tl.phase.nsState;
+        tl.ewState = tl.phase.ewState;
+      }
+    }
+
+    // =========================================================================
+    // 11. STUNT RAMPS & METRO BAY NEEDLE LANDMARK
     // =========================================================================
     const ramps = [];
     const rampMatShared = new THREE.MeshStandardMaterial({
@@ -1698,12 +2112,11 @@ window.HorizonWorld = (() => {
       ramps.push({ x, z, width, height, length, angleY });
     }
 
-    addRamp(-180, 315, 14, 5.2, 24, Math.PI / 2);   // Metro Bay Waterfront Jump
-    addRamp(1160, 315, 15, 5.8, 26, -Math.PI / 2);  // Palm Island Beach Jump
-    addRamp(1595, -140, 14, 5.5, 24, 0);            // Palm Island East Pier Jump
-    addRamp(-355, -1180, 14, 5.5, 24, 0);           // Pinecrest Valley Jump
+    addRamp(-180, 315, 14, 5.2, 24, Math.PI / 2);
+    addRamp(1160, 315, 15, 5.8, 26, -Math.PI / 2);
+    addRamp(1595, -140, 14, 5.5, 24, 0);
+    addRamp(-355, -1180, 14, 5.5, 24, 0);
 
-    // Metro Bay Needle Tower Landmark (x: 110, z: -120)
     const landmarkGroup = new THREE.Group();
     const needleMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.72, roughness: 0.25 });
     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 6.5, 136, 12), needleMat);
@@ -1733,10 +2146,10 @@ window.HorizonWorld = (() => {
     addCircleCollider(110, -120, 7.2, -2, 180, true);
 
     // =========================================================================
-    // 11. THREE DISTINCT ARCHITECTURAL CITIES (STRICT ROAD-CLEARANCE VALIDATED)
+    // 12. THREE DISTINCT ARCHITECTURAL CITIES (STRICT ROAD-CLEARANCE CHECKED)
     // =========================================================================
     function isClearOfRoadsAndWater(cx, cz, hw, hd) {
-      const pad = 5.5;
+      const pad = 6.2;
       for (let i = 0; i < flatRoadRects.length; i++) {
         const r = flatRoadRects[i];
         if (cx + hw + pad > r.minX && cx - hw - pad < r.maxX && cz + hd + pad > r.minZ && cz - hd - pad < r.maxZ) {
@@ -1796,16 +2209,15 @@ window.HorizonWorld = (() => {
       return (seed - 1) / 2147483646;
     }
 
-    // City 1: METRO BAY CITY
     const metroZones = [
-      [-245, -145, -225, -18],
-      [-115, -18, -225, -18],
-      [20, 205, -225, -18],
-      [-245, -145, 18, 105],
-      [-115, -18, 18, 105],
-      [20, 205, 18, 105],
-      [-245, -18, 138, 245],
-      [20, 205, 138, 245],
+      [-245, -145, -225, -20],
+      [-115, -20, -225, -20],
+      [22, 205, -225, -20],
+      [-245, -145, 20, 105],
+      [-115, -20, 20, 105],
+      [22, 205, 20, 105],
+      [-245, -20, 138, 245],
+      [22, 205, 138, 245],
       [-395, -280, -240, 260],
     ];
 
@@ -1857,11 +2269,10 @@ window.HorizonWorld = (() => {
       }
     });
 
-    // City 2: PALM ISLAND MARINA
     const palmZones = [
-      [1098, 1262, -262, -18],
-      [1298, 1522, -262, -18],
-      [1098, 1262, 18, 242],
+      [1098, 1260, -262, -20],
+      [1300, 1522, -262, -20],
+      [1098, 1260, 20, 242],
       [980, 1062, -260, 260],
       [1560, 1640, -280, 20],
     ];
@@ -1902,14 +2313,13 @@ window.HorizonWorld = (() => {
       }
     });
 
-    // City 3: PINECREST ALPINE & INDUSTRIAL VALLEY
     const containerPalette = [0xdc2626, 0x2563eb, 0xd97706, 0x059669, 0x7c3aed];
     const pineZones = [
-      { rect: [-282, -18, -1322, -1038], mode: "alpine" },
-      { rect: [20, 322, -1322, -1158], mode: "alpine" },
-      { rect: [20, 322, -1122, -1038], mode: "industrial" },
+      { rect: [-282, -20, -1322, -1038], mode: "alpine" },
+      { rect: [22, 322, -1322, -1160], mode: "alpine" },
+      { rect: [22, 322, -1120, -1038], mode: "industrial" },
       { rect: [-400, -320, -1380, -940], mode: "forest" },
-      { rect: [360, 440, -1380, -1165], mode: "industrial" },
+      { rect: [360, 440, -1380, -1168], mode: "industrial" },
       { rect: [-280, -25, -1000, -910], mode: "forest" },
       { rect: [25, 340, -1000, -910], mode: "alpine" },
     ];
@@ -1969,9 +2379,9 @@ window.HorizonWorld = (() => {
     });
 
     [
-      [-14, -180], [14, -180], [-14, -70], [14, -70], [-14, 70], [14, 70], [-14, 190], [14, 190],
-      [-180, -14], [110, -14], [250, -14], [1020, -14], [1180, -14], [1410, -14],
-      [1265, -140], [1265, 130], [-14, -950], [14, -1240], [-160, -1034], [180, -1154],
+      [-15, -180], [15, -180], [-15, -70], [15, -70], [-15, 70], [15, 70], [-15, 190], [15, 190],
+      [-180, -15], [110, -15], [250, -15], [1020, -15], [1180, -15], [1410, -15],
+      [1265, -140], [1265, 130], [-15, -950], [15, -1240], [-160, -1034], [180, -1156],
     ].forEach(([lx, lz]) => lampBatch.push({ x: lx, z: lz }));
 
     function buildInstanced(geo, mat, list, castShadow = true, receiveShadow = true) {
@@ -2044,8 +2454,6 @@ window.HorizonWorld = (() => {
       scene.add(crownInst);
     }
 
-    const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.7, roughness: 0.35 });
-    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfde047, emissiveIntensity: 2.4 });
     if (lampBatch.length) {
       const poleInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.2, 8.5, 5), poleMat, lampBatch.length);
       const bulbInst = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 6, 6), bulbMat, lampBatch.length);
@@ -2082,7 +2490,7 @@ window.HorizonWorld = (() => {
     scene.add(farMtnInst);
 
     // =========================================================================
-    // 12. EXACT SURFACE SAMPLER & SPATIAL HASH COLLIDER GRID
+    // 13. EXACT SURFACE SAMPLER & SPATIAL HASH COLLIDER GRID
     // =========================================================================
     function isOnIslandLand(x, z) {
       for (let i = 0; i < ISLANDS.length; i++) {
@@ -2221,7 +2629,7 @@ window.HorizonWorld = (() => {
     }
 
     // =========================================================================
-    // 13. EXPANDED AI TRAFFIC FLEET (7 VEHICLE TYPES + SOFT BEAMS + WET MIST)
+    // 14. JAM-FREE AI TRAFFIC (FILLETED LANES, IDM GAPS, TRAFFIC LIGHTS & EXACT OBB)
     // =========================================================================
     const trafficGroup = new THREE.Group();
     scene.add(trafficGroup);
@@ -2235,7 +2643,6 @@ window.HorizonWorld = (() => {
 
     const aiWheelGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.3, 10);
     aiWheelGeo.rotateZ(Math.PI / 2);
-    // Pointed tip at +Z (headlight), wide fadeout at -Z (forward)
     const aiBeamGeo = new THREE.ConeGeometry(1.5, 9.5, 14, 1, true);
     aiBeamGeo.rotateX(Math.PI / 2);
 
@@ -2247,10 +2654,10 @@ window.HorizonWorld = (() => {
     function createAIVehicle(type, colorHex) {
       const g = new THREE.Group();
       const paintMat = new THREE.MeshStandardMaterial({ color: colorHex, metalness: 0.55, roughness: 0.32 });
-      let len = 4.3, w = 1.98, rad = 2.15;
+      let len = 4.3, w = 1.98;
 
       if (type === "bus") {
-        len = 8.4; w = 2.4; rad = 3.8;
+        len = 8.4; w = 2.4;
         const body = new THREE.Mesh(new THREE.BoxGeometry(w, 2.3, len), new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.45 }));
         body.position.y = 1.65;
         body.castShadow = true;
@@ -2262,7 +2669,7 @@ window.HorizonWorld = (() => {
         winBand.position.y = 2.05;
         g.add(winBand);
       } else if (type === "truck") {
-        len = 6.2; w = 2.25; rad = 2.9;
+        len = 6.2; w = 2.25;
         const cab = new THREE.Mesh(new THREE.BoxGeometry(2.15, 1.55, 1.85), paintMat);
         cab.position.set(0, 1.2, -2.05);
         cab.castShadow = true;
@@ -2275,7 +2682,7 @@ window.HorizonWorld = (() => {
         cargo.castShadow = true;
         g.add(cargo);
       } else if (type === "van") {
-        len = 4.9; w = 2.05; rad = 2.4;
+        len = 4.9; w = 2.05;
         const body = new THREE.Mesh(new THREE.BoxGeometry(w, 1.55, len), new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.45 }));
         body.position.y = 1.2;
         body.castShadow = true;
@@ -2284,7 +2691,7 @@ window.HorizonWorld = (() => {
         ws.position.set(0, 1.48, -len * 0.5 - 0.02);
         g.add(ws);
       } else if (type === "suv") {
-        len = 4.65; w = 2.08; rad = 2.3;
+        len = 4.65; w = 2.08;
         const body = new THREE.Mesh(new THREE.BoxGeometry(w, 0.72, len), paintMat);
         body.position.y = 0.76;
         body.castShadow = true;
@@ -2294,7 +2701,7 @@ window.HorizonWorld = (() => {
         cabin.castShadow = true;
         g.add(cabin);
       } else if (type === "coupe") {
-        len = 4.4; w = 2.08; rad = 2.15;
+        len = 4.4; w = 2.08;
         const body = new THREE.Mesh(new THREE.BoxGeometry(w, 0.52, len), paintMat);
         body.position.y = 0.56;
         body.castShadow = true;
@@ -2306,7 +2713,7 @@ window.HorizonWorld = (() => {
         wing.position.set(0, 1.06, 1.95);
         g.add(wing);
       } else if (type === "hatchback") {
-        len = 3.75; w = 1.86; rad = 1.9;
+        len = 3.75; w = 1.86;
         const body = new THREE.Mesh(new THREE.BoxGeometry(w, 0.58, len), paintMat);
         body.position.y = 0.62;
         body.castShadow = true;
@@ -2315,7 +2722,6 @@ window.HorizonWorld = (() => {
         cabin.position.set(0, 1.16, 0.45);
         g.add(cabin);
       } else {
-        // Sedan / Taxi
         const isTaxi = type === "taxi";
         const bodyMat = isTaxi
           ? new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.4, roughness: 0.35 })
@@ -2348,13 +2754,13 @@ window.HorizonWorld = (() => {
       });
 
       const halfL = len * 0.5;
+      const halfW = w * 0.5;
       [-0.65, 0.65].forEach((lx) => {
         const hl = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.16, 0.08), aiHeadlightMat);
         hl.position.set(lx, 0.68, -halfL - 0.02);
         g.add(hl);
       });
 
-      // Soft downward-angled volumetric headlight beam (no hard circular bubble!)
       const beam = new THREE.Mesh(aiBeamGeo, aiHeadBeamMat);
       beam.position.set(0, 0.52, -halfL - 4.75);
       beam.rotation.x = -0.06;
@@ -2369,7 +2775,7 @@ window.HorizonWorld = (() => {
       });
 
       trafficGroup.add(g);
-      return { group: g, wheels, tailMat, radius: rad, halfLen: halfL };
+      return { group: g, wheels, tailMat, halfW, halfL, radius: Math.hypot(halfW, halfL) };
     }
 
     // Wet-Road Tire Mist Pool for AI Traffic Vehicles
@@ -2401,8 +2807,8 @@ window.HorizonWorld = (() => {
     }
 
     const curveWaypoints = [];
-    for (let i = 0; i <= 8; i++) {
-      const ang = -Math.PI * 0.5 + (i / 8) * (Math.PI * 0.5);
+    for (let i = 0; i <= 10; i++) {
+      const ang = -Math.PI * 0.5 + (i / 10) * (Math.PI * 0.5);
       curveWaypoints.push([
         VIADUCT.curveCX + Math.cos(ang) * VIADUCT.curveR,
         VIADUCT.curveCZ + Math.sin(ang) * VIADUCT.curveR,
@@ -2410,84 +2816,153 @@ window.HorizonWorld = (() => {
     }
 
     const ROUTES = [
+      // Route 0: Grand 4-Lane Inter-City Loop (Metro -> Tunnel -> Pinecrest -> Coastal Viaduct -> Palm -> Bridge -> Metro)
       [
         [0, 0], [0, -340], [0, -880], [0, -1140], [580, -1140],
         ...curveWaypoints,
         [1280, -500], [1280, 0], [960, 0], [320, 0],
       ],
+      // Route 1: Metro Bay Loop
       [[-260, -240], [220, -240], [220, 260], [-260, 260]],
+      // Route 2: Palm Island Marina Loop
       [[1080, -280], [1540, -280], [1540, 0], [1280, 0], [1280, 260], [1080, 260]],
+      // Route 3: Pinecrest Alpine Loop
       [[-300, -1340], [340, -1340], [340, -1020], [-300, -1020]],
     ];
 
-    function buildLoopData(pts, reverse = false) {
-      const arr = reverse ? [...pts].reverse() : pts;
+    // Builds C1-continuous, lane-offset, corner-filleted traffic loops (zero corner snapping or lane overlap!)
+    function buildSmoothLaneLoop(rawPts, reverse, laneOffset) {
+      const pts = reverse ? [...rawPts].reverse() : [...rawPts];
+      const n = pts.length;
+
+      // Step 1: Offset each edge along its right-hand normal and intersect consecutive offset edges
+      const offsetPts = [];
+      for (let i = 0; i < n; i++) {
+        const pPrev = pts[(i - 1 + n) % n];
+        const pCur = pts[i];
+        const pNext = pts[(i + 1) % n];
+
+        const d1x = pCur[0] - pPrev[0], d1z = pCur[1] - pPrev[1];
+        const l1 = Math.hypot(d1x, d1z) || 1;
+        const n1x = -d1z / l1, n1z = d1x / l1;
+
+        const d2x = pNext[0] - pCur[0], d2z = pNext[1] - pCur[1];
+        const l2 = Math.hypot(d2x, d2z) || 1;
+        const n2x = -d2z / l2, n2z = d2x / l2;
+
+        // Line 1: (pCur + n1*lane) + t * d1 ; Line 2: (pCur + n2*lane) + u * d2
+        const det = d1x * d2z - d1z * d2x;
+        if (Math.abs(det) < 0.001 * l1 * l2) {
+          offsetPts.push([pCur[0] + (n1x + n2x) * 0.5 * laneOffset, pCur[1] + (n1z + n2z) * 0.5 * laneOffset]);
+        } else {
+          const ax = pCur[0] + n1x * laneOffset, az = pCur[1] + n1z * laneOffset;
+          const bx = pCur[0] + n2x * laneOffset, bz = pCur[1] + n2z * laneOffset;
+          const t = ((bx - ax) * d2z - (bz - az) * d2x) / det;
+          const clampedT = THREE.MathUtils.clamp(t, -25 / l1, 25 / l1);
+          offsetPts.push([ax + d1x * clampedT, az + d1z * clampedT]);
+        }
+      }
+
+      // Step 2: Fillet sharp corners with smooth 5-segment quadratic Bezier arcs
+      const smoothPts = [];
+      for (let i = 0; i < n; i++) {
+        const prev = offsetPts[(i - 1 + n) % n];
+        const cur = offsetPts[i];
+        const next = offsetPts[(i + 1) % n];
+
+        const v1x = prev[0] - cur[0], v1z = prev[1] - cur[1];
+        const v2x = next[0] - cur[0], v2z = next[1] - cur[1];
+        const l1 = Math.hypot(v1x, v1z);
+        const l2 = Math.hypot(v2x, v2z);
+        if (l1 < 0.5 || l2 < 0.5) continue;
+
+        const cosAng = (v1x * v2x + v1z * v2z) / (l1 * l2);
+        if (cosAng > -0.92) {
+          // Corner bend -> insert smooth rounded curve
+          const trim = Math.min(11.0, l1 * 0.32, l2 * 0.32);
+          const pA = [cur[0] + (v1x / l1) * trim, cur[1] + (v1z / l1) * trim];
+          const pB = [cur[0] + (v2x / l2) * trim, cur[1] + (v2z / l2) * trim];
+          const steps = 5;
+          for (let s = 0; s <= steps; s++) {
+            const u = s / steps;
+            const mu = 1 - u;
+            const qx = mu * mu * pA[0] + 2 * mu * u * cur[0] + u * u * pB[0];
+            const qz = mu * mu * pA[1] + 2 * mu * u * cur[1] + u * u * pB[1];
+            smoothPts.push([qx, qz]);
+          }
+        } else {
+          smoothPts.push(cur);
+        }
+      }
+
+      // Step 3: Build arc-length parameterized segment list
       const segs = [];
       let totalLen = 0;
-      for (let i = 0; i < arr.length; i++) {
-        const a = arr[i];
-        const b = arr[(i + 1) % arr.length];
+      for (let i = 0; i < smoothPts.length; i++) {
+        const a = smoothPts[i];
+        const b = smoothPts[(i + 1) % smoothPts.length];
         const dx = b[0] - a[0];
         const dz = b[1] - a[1];
         const len = Math.hypot(dx, dz);
-        if (len < 0.5) continue;
-        segs.push({ x1: a[0], z1: a[1], x2: b[0], z2: b[1], dx, dz, len, rx: -dz / len, rz: dx / len, startDist: totalLen });
+        if (len < 0.4) continue;
+        segs.push({ x1: a[0], z1: a[1], dx, dz, len, startDist: totalLen, heading: Math.atan2(-dx, -dz) });
         totalLen += len;
       }
       return { segs, totalLen };
     }
 
-    const compiledLoops = [
-      { loop: buildLoopData(ROUTES[0], false), count: 18, lane: 4.1 },
-      { loop: buildLoopData(ROUTES[0], true), count: 18, lane: 4.1 },
-      { loop: buildLoopData(ROUTES[1], false), count: 8, lane: 3.6 },
-      { loop: buildLoopData(ROUTES[1], true), count: 6, lane: 3.6 },
-      { loop: buildLoopData(ROUTES[2], false), count: 7, lane: 3.6 },
-      { loop: buildLoopData(ROUTES[3], false), count: 7, lane: 3.6 },
-    ];
-
-    function sampleLoopPos(loopData, dist, laneOffset) {
+    function sampleLoopPos(loopData, dist) {
       const d = ((dist % loopData.totalLen) + loopData.totalLen) % loopData.totalLen;
       for (let i = 0; i < loopData.segs.length; i++) {
         const s = loopData.segs[i];
         if (d <= s.startDist + s.len || i === loopData.segs.length - 1) {
           const t = THREE.MathUtils.clamp((d - s.startDist) / s.len, 0, 1);
-          return {
-            x: s.x1 + s.dx * t + s.rx * laneOffset,
-            z: s.z1 + s.dz * t + s.rz * laneOffset,
-            heading: Math.atan2(-s.dx, -s.dz),
-          };
+          return { x: s.x1 + s.dx * t, z: s.z1 + s.dz * t, heading: s.heading };
         }
       }
       return { x: 0, z: 0, heading: 0 };
     }
 
-    const aiTypes = ["sedan", "taxi", "hatchback", "suv", "coupe", "van", "truck", "bus"];
-    compiledLoops.forEach(({ loop, count, lane }) => {
+    // Dual-lane 4-lane expressway traffic + well-spaced city loops (52 total smart AI vehicles)
+    const compiledLoops = [
+      { loop: buildSmoothLaneLoop(ROUTES[0], false, 3.2), count: 10 }, // Inner fast lane CW
+      { loop: buildSmoothLaneLoop(ROUTES[0], false, 7.2), count: 8 },  // Outer slow lane CW
+      { loop: buildSmoothLaneLoop(ROUTES[0], true, 3.2), count: 10 },  // Inner fast lane CCW
+      { loop: buildSmoothLaneLoop(ROUTES[0], true, 7.2), count: 8 },   // Outer slow lane CCW
+      { loop: buildSmoothLaneLoop(ROUTES[1], false, 3.8), count: 6 },  // Metro Loop CW
+      { loop: buildSmoothLaneLoop(ROUTES[2], false, 3.8), count: 5 },  // Palm Loop CW
+      { loop: buildSmoothLaneLoop(ROUTES[3], false, 3.8), count: 5 },  // Pinecrest Loop CW
+    ];
+
+    compiledLoops.forEach(({ loop, count }, loopIdx) => {
+      const isOuterSlowLane = loopIdx === 1 || loopIdx === 3;
       for (let i = 0; i < count; i++) {
         const r = rand();
         let type = "sedan";
-        if (r < 0.22) type = "sedan";
-        else if (r < 0.36) type = "taxi";
-        else if (r < 0.5) type = "hatchback";
-        else if (r < 0.66) type = "suv";
-        else if (r < 0.78) type = "coupe";
-        else if (r < 0.88) type = "van";
-        else if (r < 0.95) type = "truck";
-        else type = "bus";
+        if (isOuterSlowLane && r < 0.45) type = r < 0.25 ? "truck" : "bus";
+        else if (r < 0.24) type = "sedan";
+        else if (r < 0.38) type = "taxi";
+        else if (r < 0.52) type = "hatchback";
+        else if (r < 0.68) type = "suv";
+        else if (r < 0.82) type = "coupe";
+        else if (r < 0.92) type = "van";
+        else type = "truck";
 
         const colorHex = aiPalette[Math.floor(rand() * aiPalette.length)];
         const built = createAIVehicle(type, colorHex);
 
-        const dist = (i / count) * loop.totalLen + rand() * 24;
-        const p = sampleLoopPos(loop, dist, lane);
+        // Even spacing with tiny jitter guarantees zero spawn overlaps!
+        const dist = ((i + 0.15) / count) * loop.totalLen;
+        const p = sampleLoopPos(loop, dist);
         const surf = sampleSurface(p.x, p.z, 30, p.heading);
         const baseSpd =
           type === "bus" || type === "truck"
-            ? 14 + rand() * 3.5
+            ? 15 + rand() * 3
             : type === "coupe"
-            ? 23 + rand() * 7
-            : 17 + rand() * 7;
+            ? 24 + rand() * 5
+            : isOuterSlowLane
+            ? 17 + rand() * 3.5
+            : 20 + rand() * 4.5;
 
         built.group.position.set(p.x, surf.height, p.z);
         built.group.rotation.y = p.heading;
@@ -2496,10 +2971,11 @@ window.HorizonWorld = (() => {
           mesh: built.group,
           wheels: built.wheels,
           tailMat: built.tailMat,
+          halfW: built.halfW,
+          halfL: built.halfL,
           radius: built.radius,
-          halfLen: built.halfLen,
           loop,
-          lane,
+          loopIdx,
           dist,
           x: p.x,
           y: surf.height,
@@ -2511,12 +2987,14 @@ window.HorizonWorld = (() => {
           knockVx: 0,
           knockVz: 0,
           stunTimer: 0,
+          stuckTimer: 0,
+          deadlockGrace: 0,
         });
       }
     });
 
     // =========================================================================
-    // 14. HARBOR YACHTS & OCEAN SHIPS (SAILING UNDER THE SUSPENSION BRIDGE)
+    // 15. HARBOR YACHTS & OCEAN SHIPS (WITH EXACT OBB DIMENSIONS)
     // =========================================================================
     const boatsGroup = new THREE.Group();
     scene.add(boatsGroup);
@@ -2534,10 +3012,10 @@ window.HorizonWorld = (() => {
       const accentMat = new THREE.MeshStandardMaterial({ color: accentHex, roughness: 0.3, metalness: 0.35 });
       const darkTrim = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
 
-      let radius = 4.4, sternZ = 6.0;
+      let halfW = 2.0, halfL = 5.5, sternZ = 6.0;
 
       if (kind === "ship") {
-        radius = 12.0; sternZ = 24.0;
+        halfW = 5.4; halfL = 23.0; sternZ = 24.0;
         const hull = new THREE.Mesh(new THREE.BoxGeometry(10.5, 4.4, 42.0), accentMat);
         hull.position.set(0, 1.8, 0);
         g.add(hull);
@@ -2563,7 +3041,7 @@ window.HorizonWorld = (() => {
           g.add(stack);
         }
       } else if (kind === "yacht") {
-        radius = 5.0; sternZ = 7.2;
+        halfW = 2.0; halfL = 6.8; sternZ = 7.2;
         const hull = new THREE.Mesh(new THREE.BoxGeometry(3.8, 1.45, 11.2), hullWhite);
         hull.position.set(0, 0.55, 0.5);
         g.add(hull);
@@ -2586,7 +3064,7 @@ window.HorizonWorld = (() => {
         topL.position.set(0, 4.8, 0.8);
         g.add(topL);
       } else {
-        radius = 3.2; sternZ = 4.6;
+        halfW = 1.3; halfL = 4.2; sternZ = 4.6;
         const hull = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.85, 6.8), accentMat);
         hull.position.set(0, 0.35, 0.4);
         g.add(hull);
@@ -2618,7 +3096,7 @@ window.HorizonWorld = (() => {
       g.add(wake);
 
       boatsGroup.add(g);
-      return { group: g, wake, radius };
+      return { group: g, wake, halfW, halfL, radius: Math.hypot(halfW, halfL) };
     }
 
     const boatSpecs = [
@@ -2638,6 +3116,8 @@ window.HorizonWorld = (() => {
         ...s,
         mesh: built.group,
         wake: built.wake,
+        halfW: built.halfW,
+        halfL: built.halfL,
         radius: built.radius,
         angle: idx * 1.1,
         angSpeed: (s.speed || 0.2) * (s.dir || 1),
@@ -2649,10 +3129,12 @@ window.HorizonWorld = (() => {
     });
 
     function updateTrafficAndBoats(dt, elapsed, playerCar, waveStrength, roadMoisture, enabled) {
+      // Traffic lights always cycle cleanly even if AI traffic is toggled off
+      updateTrafficLights(elapsed);
+
       trafficGroup.visible = enabled;
       boatsGroup.visible = enabled;
 
-      // Decay AI tire mist particles
       for (let i = 0; i < AI_MIST_MAX; i++) {
         const m = aiMistPool[i];
         if (m.life > 0) {
@@ -2669,58 +3151,138 @@ window.HorizonWorld = (() => {
 
       if (!enabled) return;
 
+      // --- Smart Jam-Free AI Traffic Update ---
       for (let i = 0; i < trafficCars.length; i++) {
         const ai = trafficCars[i];
         if (ai.stunTimer > 0) {
           ai.stunTimer -= dt;
           ai.x += ai.knockVx * dt;
           ai.z += ai.knockVz * dt;
-          ai.knockVx *= Math.exp(-3.5 * dt);
-          ai.knockVz *= Math.exp(-3.5 * dt);
+          ai.knockVx *= Math.exp(-3.8 * dt);
+          ai.knockVz *= Math.exp(-3.8 * dt);
           ai.mesh.position.set(ai.x, ai.y, ai.z);
           continue;
         }
 
+        if (ai.deadlockGrace > 0) ai.deadlockGrace -= dt;
+
         const fx = -Math.sin(ai.heading);
         const fz = -Math.cos(ai.heading);
-        let blocked = false;
+        const rx = Math.cos(ai.heading);
+        const rz = -Math.sin(ai.heading);
 
-        // Yield for player ahead
-        const pdx = playerCar.x - ai.x;
-        const pdz = playerCar.z - ai.z;
-        if (Math.abs(playerCar.y - ai.y) < 3.5) {
-          const pFwd = pdx * fx + pdz * fz;
-          if (pFwd > 0 && pFwd < 24 && Math.abs(pdx * fz - pdz * fx) < 3.6) blocked = true;
-        }
+        let targetSpeed = ai.cruiseSpeed;
+        let atRedLight = false;
+        let blockedByPlayer = false;
 
-        // Yield for other AI vehicles ahead (including crossing city intersections!)
-        if (!blocked) {
-          for (let j = 0; j < trafficCars.length; j++) {
-            if (i === j) continue;
-            const o = trafficCars[j];
-            if (Math.abs(o.y - ai.y) > 3.0) continue;
-            const odx = o.x - ai.x;
-            const odz = o.z - ai.z;
-            if (Math.abs(odx) > 22 || Math.abs(odz) > 22) continue;
-            const oFwd = odx * fx + odz * fz;
-            if (oFwd > 0 && oFwd < 17.5 && Math.abs(odx * fz - odz * fx) < 3.4) {
-              blocked = true;
+        // 1) Obey Working Traffic Lights cleanly at stop lines (never stop inside the box!)
+        const isNS = Math.abs(fz) > Math.abs(fx);
+        for (let tIdx = 0; tIdx < trafficLights.length; tIdx++) {
+          const tl = trafficLights[tIdx];
+          const dx = tl.x - ai.x;
+          const dz = tl.z - ai.z;
+          if (Math.abs(dx) > 40 || Math.abs(dz) > 40) continue;
+
+          const fwd = dx * fx + dz * fz;
+          const lat = Math.abs(dx * rx + dz * rz);
+          // Only stop if approaching the intersection & still BEFORE the stop line!
+          if (lat < 9.5 && fwd > tl.stopDist && fwd < tl.stopDist + 24) {
+            const sig = isNS ? tl.nsState : tl.ewState;
+            if (sig === "RED" || (sig === "YELLOW" && fwd > tl.stopDist + 4.5)) {
+              const gapToLine = fwd - tl.stopDist - ai.halfL;
+              atRedLight = true;
+              if (gapToLine <= 0.8) {
+                targetSpeed = 0;
+              } else {
+                targetSpeed = Math.min(targetSpeed, ai.cruiseSpeed * THREE.MathUtils.clamp(gapToLine / 18, 0, 1));
+              }
               break;
             }
           }
         }
 
-        ai.speed = THREE.MathUtils.lerp(ai.speed, blocked ? 0 : ai.cruiseSpeed, (blocked ? 9.5 : 3.2) * dt);
-        ai.tailMat.emissiveIntensity = blocked ? 3.2 : 0.65;
+        // 2) Yield smoothly if Player Car is directly ahead in the same lane
+        const pdx = playerCar.x - ai.x;
+        const pdz = playerCar.z - ai.z;
+        if (Math.abs(playerCar.y - ai.y) < 3.2) {
+          const pFwd = pdx * fx + pdz * fz;
+          const pLat = Math.abs(pdx * rx + pdz * rz);
+          if (pFwd > 0 && pFwd < 26 && pLat < ai.halfW + 1.55) {
+            const pGap = pFwd - ai.halfL - 2.4;
+            blockedByPlayer = true;
+            if (pGap <= 2.2) targetSpeed = 0;
+            else targetSpeed = Math.min(targetSpeed, ai.cruiseSpeed * THREE.MathUtils.clamp((pGap - 2.2) / 18, 0, 1));
+          }
+        }
+
+        // 3) Direction-Aware IDM Following & Cross-Traffic Yielding (ignores oncoming traffic!)
+        for (let j = 0; j < trafficCars.length; j++) {
+          if (i === j) continue;
+          const o = trafficCars[j];
+          if (Math.abs(o.y - ai.y) > 3.0) continue;
+
+          const odx = o.x - ai.x;
+          const odz = o.z - ai.z;
+          if (Math.abs(odx) > 28 || Math.abs(odz) > 28) continue;
+
+          const ofx = -Math.sin(o.heading);
+          const ofz = -Math.cos(o.heading);
+          const align = fx * ofx + fz * ofz;
+
+          // Ignore oncoming traffic in opposing lanes completely
+          if (align < -0.55) continue;
+
+          const oFwd = odx * fx + odz * fz;
+          if (oFwd <= 0) continue;
+          const oLat = Math.abs(odx * rx + odz * rz);
+
+          if (align > 0.55) {
+            // Same-direction lane following (IDM smooth speed matching)
+            if (oLat < ai.halfW + o.halfW + 0.55 && oFwd < 26) {
+              const gap = oFwd - ai.halfL - o.halfL;
+              if (gap <= 2.6) {
+                targetSpeed = 0;
+              } else {
+                const safeSpd = o.speed + Math.max(0, (gap - 3.2) * 1.15);
+                targetSpeed = Math.min(targetSpeed, Math.max(0, safeSpd));
+              }
+            }
+          } else if (ai.deadlockGrace <= 0) {
+            // Cross-traffic inside an intersection: yield only if the other car is already crossing ahead
+            if (oFwd < ai.halfL + o.halfW + 10.5 && oLat < o.halfL + ai.halfW + 1.2) {
+              const crossGap = oFwd - ai.halfL - o.halfW;
+              if (crossGap <= 3.0) targetSpeed = 0;
+              else targetSpeed = Math.min(targetSpeed, ai.cruiseSpeed * THREE.MathUtils.clamp((crossGap - 2.5) / 8, 0, 1));
+            }
+          }
+        }
+
+        // 4) Anti-Deadlock Breaker: if stuck > 4.5s NOT at a red light or player, release cross-yield to clear
+        if (ai.speed < 0.6 && !atRedLight && !blockedByPlayer) {
+          ai.stuckTimer += dt;
+          if (ai.stuckTimer > 4.5) {
+            ai.deadlockGrace = 2.6;
+            ai.stuckTimer = 0;
+          }
+        } else {
+          ai.stuckTimer = Math.max(0, ai.stuckTimer - dt * 2);
+        }
+
+        const isBraking = targetSpeed < ai.speed - 0.8 || targetSpeed < 0.5;
+        const accelRate = isBraking ? 8.5 : 3.2;
+        ai.speed = THREE.MathUtils.lerp(ai.speed, targetSpeed, 1 - Math.exp(-accelRate * dt));
+        ai.tailMat.emissiveIntensity = isBraking ? 3.2 : 0.65;
 
         ai.dist += ai.speed * dt;
-        const p = sampleLoopPos(ai.loop, ai.dist, ai.lane);
-        const surf = sampleSurface(p.x, p.z, ai.y + 3.0, p.heading);
+        const p = sampleLoopPos(ai.loop, ai.dist);
+        const look = sampleLoopPos(ai.loop, ai.dist + 5.5);
+        const smoothHeading = Math.atan2(-(look.x - p.x), -(look.z - p.z));
+        const surf = sampleSurface(p.x, p.z, ai.y + 3.0, smoothHeading);
 
         ai.x = THREE.MathUtils.lerp(ai.x, p.x, Math.min(1, 14 * dt));
         ai.z = THREE.MathUtils.lerp(ai.z, p.z, Math.min(1, 14 * dt));
         ai.y = THREE.MathUtils.lerp(ai.y, surf.height, Math.min(1, 14 * dt));
-        ai.heading = lerpAngle(ai.heading, p.heading, Math.min(1, 10 * dt));
+        ai.heading = lerpAngle(ai.heading, smoothHeading, Math.min(1, 9 * dt));
         ai.pitch = THREE.MathUtils.lerp(ai.pitch, surf.slopePitch, Math.min(1, 8 * dt));
 
         ai.mesh.position.set(ai.x, ai.y, ai.z);
@@ -2729,7 +3291,6 @@ window.HorizonWorld = (() => {
         const spin = (ai.speed * dt) / 0.38;
         for (let w = 0; w < ai.wheels.length; w++) ai.wheels[w].rotation.x -= spin;
 
-        // Wet-road tire mist trailing behind moving AI cars near the player!
         if (
           roadMoisture > 0.38 &&
           ai.speed > 11 &&
@@ -2738,10 +3299,11 @@ window.HorizonWorld = (() => {
           Math.abs(ai.z - playerCar.z) < 95 &&
           Math.random() < 0.25 * roadMoisture
         ) {
-          spawnAiMist(ai.x - fx * ai.halfLen, ai.y + 0.28, ai.z - fz * ai.halfLen);
+          spawnAiMist(ai.x - fx * ai.halfL, ai.y + 0.28, ai.z - fz * ai.halfL);
         }
       }
 
+      // --- Update Harbor & Ocean Boats ---
       for (let i = 0; i < boats.length; i++) {
         const b = boats[i];
         let vx = 0, vz = 0;
@@ -2776,10 +3338,12 @@ window.HorizonWorld = (() => {
       aiHeadlightMat.emissiveIntensity = headlightsOn ? 3.2 : 0.45;
       aiHeadBeams.forEach((b) => (b.visible = headlightsOn && rtOn));
       boatCabinGlowMat.emissiveIntensity = headlightsOn ? 2.4 : 0.35;
+      studAmberMat.emissiveIntensity = headlightsOn ? 2.8 : 0.5;
+      studWhiteMat.emissiveIntensity = headlightsOn ? 2.2 : 0.4;
     }
 
     // =========================================================================
-    // 15. 3D WEATHER SYSTEM (FALLING RAIN + 3D GROUND SPLASH CROWNS & RINGS)
+    // 16. 3D WEATHER SYSTEM (FALLING RAIN + 3D GROUND SPLASH CROWNS & RINGS)
     // =========================================================================
     const MAX_RAIN = 2000;
     const RAIN_BOX_XZ = 100;
@@ -2805,33 +3369,26 @@ window.HorizonWorld = (() => {
     rainLines.frustumCulled = false;
     scene.add(rainLines);
 
-    // 3D Raindrop Surface Impact Splashes (upward water-crown + expanding pavement ring!)
     const MAX_SPLASHES = 200;
     const rainSplashGroup = new THREE.Group();
     scene.add(rainSplashGroup);
 
     const splashCrownGeo = new THREE.CylinderGeometry(0.18, 0.03, 0.26, 6, 1, true);
     splashCrownGeo.translate(0, 0.13, 0);
-    const splashCrownMat = new THREE.MeshBasicMaterial({
-      color: 0xe2e8f0,
-      transparent: true,
-      opacity: 0.52,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const splashCrownInst = new THREE.InstancedMesh(splashCrownGeo, splashCrownMat, MAX_SPLASHES);
+    const splashCrownInst = new THREE.InstancedMesh(
+      splashCrownGeo,
+      new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.52, depthWrite: false, side: THREE.DoubleSide }),
+      MAX_SPLASHES
+    );
     splashCrownInst.frustumCulled = false;
 
     const splashRingGeo = new THREE.RingGeometry(0.14, 0.22, 10);
     splashRingGeo.rotateX(-Math.PI / 2);
-    const splashRingMat = new THREE.MeshBasicMaterial({
-      color: 0xf1f5f9,
-      transparent: true,
-      opacity: 0.45,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const splashRingInst = new THREE.InstancedMesh(splashRingGeo, splashRingMat, MAX_SPLASHES);
+    const splashRingInst = new THREE.InstancedMesh(
+      splashRingGeo,
+      new THREE.MeshBasicMaterial({ color: 0xf1f5f9, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }),
+      MAX_SPLASHES
+    );
     splashRingInst.frustumCulled = false;
 
     rainSplashGroup.add(splashCrownInst);
@@ -2839,14 +3396,7 @@ window.HorizonWorld = (() => {
 
     const splashes = [];
     for (let i = 0; i < MAX_SPLASHES; i++) {
-      splashes.push({
-        x: 0,
-        y: -50,
-        z: 0,
-        age: Math.random() * 0.35,
-        life: 0.22 + Math.random() * 0.2,
-        scale: 0.75 + Math.random() * 0.65,
-      });
+      splashes.push({ x: 0, y: -50, z: 0, age: Math.random() * 0.35, life: 0.22 + Math.random() * 0.2, scale: 0.75 + Math.random() * 0.65 });
     }
 
     const lightningLight = new THREE.DirectionalLight(0xcbe8ff, 0.0);
@@ -2897,7 +3447,6 @@ window.HorizonWorld = (() => {
         }
         posAttr.needsUpdate = true;
 
-        // Animate 3D Raindrop Surface Splashes around & ahead of the car!
         rainSplashGroup.visible = true;
         const activeSplashes = weatherPreset.splashCount;
         const fx = -Math.sin(car.heading);
@@ -2918,7 +3467,6 @@ window.HorizonWorld = (() => {
             s.age = 0;
             s.life = 0.2 + Math.random() * 0.22;
             s.scale = 0.75 + Math.random() * 0.75;
-            // Bias splash spawns in front of & around the car so road impacts are super clear
             const ahead = -8 + Math.random() * 54;
             const side = (Math.random() - 0.5) * 44;
             const sx = car.x + fx * ahead + fz * side;
@@ -2942,7 +3490,6 @@ window.HorizonWorld = (() => {
           }
 
           const t = s.age / s.life;
-          // Upward water-crown burst pops quickly on impact
           const crownPulse = Math.sin(Math.min(1, t * 1.45) * Math.PI);
           const cXZ = (0.35 + t * 1.35) * s.scale;
           const cY = Math.max(0.001, crownPulse * 1.35 * s.scale);
@@ -2952,7 +3499,6 @@ window.HorizonWorld = (() => {
           dummy.updateMatrix();
           splashCrownInst.setMatrixAt(i, dummy.matrix);
 
-          // Expanding crisp pavement ring fades cleanly at end of life
           const rScale = (0.28 + t * 2.15) * s.scale * (1 - t * 0.2);
           dummy.position.set(s.x, s.y + 0.02, s.z);
           dummy.rotation.set(0, 0, 0);
@@ -3029,7 +3575,7 @@ window.HorizonWorld = (() => {
       return "GOLDEN BAY STRAIT";
     }
 
-    const allRoadMats = [roadMatStrip, roadMatInter];
+    const allRoadMats = [roadMatCity, roadMatHighway, roadMatBridge, roadMatInter];
     function setRoadUniform(name, val) {
       allRoadMats.forEach((m) => {
         if (m.uniforms[name].value && typeof m.uniforms[name].value.copy === "function") {
@@ -3058,6 +3604,7 @@ window.HorizonWorld = (() => {
       roadShadowGroup,
       trafficGroup,
       boatsGroup,
+      trafficLightsGroup,
       rainLines,
       rainSplashGroup,
       colliders,
@@ -3066,6 +3613,7 @@ window.HorizonWorld = (() => {
       ramps,
       trafficCars,
       boats,
+      trafficLights,
       buildingMaterials,
       neonMaterials,
       bulbMat,
