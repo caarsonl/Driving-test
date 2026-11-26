@@ -1308,21 +1308,65 @@
 
   // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
   // =========================================================================
-  // 5. RESPONSIVE 240Hz VEHICLE PHYSICS (SLIP-AWARE STEERING + PLANTED GRIP)
+  // 5. CONSOLE & MOBILE CONTROLS INTEGRATION + 240Hz VEHICLE PHYSICS
   // =========================================================================
+  const controls = window.HorizonControls;
+
+  // Optimize reflection target scale slightly on mobile GPUs for smooth 60 FPS
+  if (controls && controls.isTouchDevice) {
+    reflTarget.setSize(
+      Math.max(256, Math.floor(window.innerWidth * 0.45)),
+      Math.max(256, Math.floor(window.innerHeight * 0.45))
+    );
+  }
+
+  function stepGarageCar(delta) {
+    const ids = Object.keys(VEHICLE_SPECS);
+    const cur = ids.indexOf(activeCarId);
+    const next = (cur + delta + ids.length) % ids.length;
+    selectGarageCar(ids[next], true);
+  }
+
+  function stepGaragePaint(delta) {
+    const swatches = Array.from(document.querySelectorAll(".swatch"));
+    if (!swatches.length) return;
+    let cur = swatches.findIndex((s) => s.classList.contains("selected"));
+    if (cur < 0) cur = 0;
+    const next = (cur + delta + swatches.length) % swatches.length;
+    selectPaintColor(swatches[next].dataset.color);
+  }
+
+  if (controls) {
+    controls.init({
+      unlockAudio: () => audio.unlockAuto(),
+      onBanner: (msg) => showBanner(msg),
+      isGarageOpen: () => garageOpen,
+      toggleGarage: (force) => toggleGarage(force),
+      stepGarageCar,
+      stepGaragePaint,
+      cycleCamera,
+      cycleWeather,
+      cycleTimeOfDay,
+      cycleWarp,
+      toggleRayTracing,
+      toggleTraffic,
+      toggleSiren,
+      resetCar,
+    });
+  }
+
   const GRAVITY_PHYS = 9.81;
   const GEAR_RATIOS = [3.55, 2.38, 1.68, 1.25, 0.96, 0.76];
   const BASE_GEAR_THRESH = [52, 98, 148, 202, 260, 345];
 
-  // Tuned for crisp turn-in, planted stability (zero unwanted coasting drift) & controllable handbrake slides
   const HANDLING_PROFILES = {
     gt: {
       mass: 1480,
       Iz: 2350,
       cgHeight: 0.46,
-      tireMu: 1.9,           // Strong, planted sports-tire cornering bite
-      brakeMu: 1.62,         // Responsive dry braking (~1.6g), longer in rain
-      rearMuMult: 1.08,      // Stable rear tracking when coasting or cruising
+      tireMu: 1.9,
+      brakeMu: 1.62,
+      rearMuMult: 1.08,
       offroadMu: 1.05,
       wetMuDrop: 0.3,
       maxDriveForce: 16200,
@@ -1332,8 +1376,8 @@
       awdFrontSplit: 0.15,
       aeroDownforce: 1.25,
       aeroDrag: 0.4,
-      pacejkaB: 13.5,        // Fast, immediate turn-in response
-      pacejkaC: 1.15,        // Smooth plateau (no snap oversteer)
+      pacejkaB: 13.5,
+      pacejkaC: 1.15,
       tcsAllowSlip: 0.1,
     },
     muscle: {
@@ -1342,7 +1386,7 @@
       cgHeight: 0.52,
       tireMu: 1.78,
       brakeMu: 1.5,
-      rearMuMult: 1.0,       // Clean grip when coasting; kicks out cleanly on full throttle / handbrake
+      rearMuMult: 1.0,
       offroadMu: 0.98,
       wetMuDrop: 0.34,
       maxDriveForce: 19400,
@@ -1360,8 +1404,8 @@
       mass: 1360,
       Iz: 2100,
       cgHeight: 0.38,
-      tireMu: 2.28,          // Razor-sharp track-compound grip
-      brakeMu: 1.92,         // Carbon-ceramic stopping power
+      tireMu: 2.28,
+      brakeMu: 1.92,
       rearMuMult: 1.09,
       offroadMu: 0.9,
       wetMuDrop: 0.34,
@@ -1370,7 +1414,7 @@
       maxBrakeForce: 29000,
       brakeBiasFront: 0.62,
       awdFrontSplit: 0.35,
-      aeroDownforce: 2.65,   // High-speed cornering glue on Coastal Viaduct
+      aeroDownforce: 2.65,
       aeroDrag: 0.36,
       pacejkaB: 15.2,
       pacejkaC: 1.15,
@@ -1383,7 +1427,7 @@
       tireMu: 1.66,
       brakeMu: 1.44,
       rearMuMult: 1.1,
-      offroadMu: 1.55,       // Strong off-road grass & wet-shoulder grip
+      offroadMu: 1.55,
       wetMuDrop: 0.2,
       maxDriveForce: 20400,
       nitroForce: 7400,
@@ -1711,12 +1755,15 @@
 
     if (maxImpact > 4.2 && impactCooldown <= 0) {
       audio.playImpact(maxImpact);
+      if (controls) {
+        const rStr = Math.min(1, maxImpact / 28);
+        controls.rumble(rStr, rStr * 0.85, 160);
+      }
       car.suspVel -= Math.min(1.8, maxImpact * 0.055);
       impactCooldown = 0.22;
     }
   }
 
-  // Smooth Pacejka tire curve (fast initial bite, high plateau without drop-off)
   function pacejkaNorm(slipAngle, B, C) {
     const E = 0.2;
     const x = B * slipAngle;
@@ -1731,14 +1778,23 @@
     const sp = activeSpec;
     const hp = HANDLING_PROFILES[sp.id] || HANDLING_PROFILES.gt;
 
-    const rawAccelKey = !garageOpen && Boolean(keys.KeyW || keys.ArrowUp);
-    const rawBrakeKey = !garageOpen && Boolean(keys.KeyS || keys.ArrowDown);
-    const rawSteerInput = garageOpen
-      ? 0
-      : (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
-    const handbrake = !garageOpen && Boolean(keys.Space);
-    const wantsNitro = !garageOpen && Boolean(keys.ShiftLeft || keys.ShiftRight);
-    const hornPressed = !garageOpen && Boolean(keys.KeyH);
+    // Combine Keyboard + Console Gamepad + Mobile Multi-Touch Inputs
+    const ext = controls
+      ? controls.getInput()
+      : { accel: 0, brake: 0, steer: 0, isAnalogSteer: false, handbrake: false, nitro: false, horn: false };
+
+    const kbAccel = keys.KeyW || keys.ArrowUp ? 1 : 0;
+    const kbBrake = keys.KeyS || keys.ArrowDown ? 1 : 0;
+    const kbSteer = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0);
+
+    const rawAccel = garageOpen ? 0 : Math.max(kbAccel, ext.accel);
+    const rawBrake = garageOpen ? 0 : Math.max(kbBrake, ext.brake);
+    const rawSteerInput = garageOpen ? 0 : kbSteer !== 0 ? kbSteer : ext.steer;
+    const isAnalogSteer = kbSteer === 0 && ext.isAnalogSteer;
+
+    const handbrake = !garageOpen && (Boolean(keys.Space) || ext.handbrake);
+    const wantsNitro = !garageOpen && (Boolean(keys.ShiftLeft || keys.ShiftRight) || ext.nitro);
+    const hornPressed = !garageOpen && (Boolean(keys.KeyH) || ext.horn);
 
     const initFx = -Math.sin(car.heading);
     const initFz = -Math.cos(car.heading);
@@ -1748,43 +1804,43 @@
     let wantBrake = 0;
     let wantReverse = 0;
 
-    if (rawAccelKey && !rawBrakeKey) {
+    if (rawAccel > 0.03 && rawBrake <= 0.08) {
       if (initVLong < -0.6) {
-        wantBrake = 1;
+        wantBrake = rawAccel;
         car.reverseHoldTimer = 0;
       } else {
-        wantThrottle = 1;
+        wantThrottle = rawAccel;
         car.reverseHoldTimer = 0;
       }
-    } else if (rawBrakeKey && !rawAccelKey) {
+    } else if (rawBrake > 0.03 && rawAccel <= 0.08) {
       if (initVLong > 0.45) {
-        wantBrake = 1;
+        wantBrake = rawBrake;
         car.reverseHoldTimer = 0;
       } else if (initVLong < -0.25) {
-        wantReverse = 1;
+        wantReverse = rawBrake;
       } else {
-        wantBrake = 1;
+        wantBrake = rawBrake;
         car.reverseHoldTimer += dt;
         if (car.reverseHoldTimer >= 0.16) {
           wantBrake = 0;
-          wantReverse = 1;
+          wantReverse = rawBrake;
         }
       }
-    } else if (rawAccelKey && rawBrakeKey) {
-      wantBrake = 1;
-      wantThrottle = 0.25;
+    } else if (rawAccel > 0.03 && rawBrake > 0.03) {
+      wantBrake = rawBrake;
+      wantThrottle = rawAccel * 0.25;
       car.reverseHoldTimer = 0;
     } else {
       car.reverseHoldTimer = 0;
     }
 
-    // Smooth hydraulic pedal pressure ramp
-    const thrRate = wantThrottle > car.throttlePedal ? 10.5 : 16.0;
-    const brkRate = wantBrake > car.brakePedal ? 11.0 : 18.0;
+    // Analog triggers respond faster; keyboard taps ramp smoothly
+    const thrRate = ext.accel > 0.03 ? 22.0 : wantThrottle > car.throttlePedal ? 10.5 : 16.0;
+    const brkRate = ext.brake > 0.03 ? 22.0 : wantBrake > car.brakePedal ? 11.0 : 18.0;
     car.throttlePedal = THREE.MathUtils.lerp(car.throttlePedal, wantThrottle, 1 - Math.exp(-thrRate * dt));
     car.brakePedal = THREE.MathUtils.lerp(car.brakePedal, wantBrake, 1 - Math.exp(-brkRate * dt));
 
-    const usingNitro = wantsNitro && car.nitro > 1 && car.throttlePedal > 0.2;
+    const usingNitro = wantsNitro && car.nitro > 1 && car.throttlePedal > 0.15;
     if (usingNitro) car.nitro = Math.max(0, car.nitro - 24 * dt);
     else car.nitro = Math.min(100, car.nitro + 10.5 * dt);
 
@@ -1846,8 +1902,7 @@
     }
     car.currentGrip = surfaceMu;
 
-    // SLIP-AWARE STEERING ANGLE:
-    // Geometric turn angle (L * a_y / v^2) PLUS the optimal tire slip angle (~0.12 rad) needed to reach full grip!
+    // SLIP-AWARE STEERING ANGLE (supports full analog stick & touch drag precision!)
     const halfA = sp.wheelZ;
     const halfB = sp.wheelZ;
     const wheelbase = halfA + halfB;
@@ -1856,16 +1911,16 @@
     const maxLatAccel = hp.tireMu * GRAVITY_PHYS + (hp.aeroDownforce * initSpeed * initSpeed * hp.tireMu) / hp.mass;
     const geoSteer = Math.atan((wheelbase * maxLatAccel) / Math.max(12, initSpeed * initSpeed));
     const speedBlend = THREE.MathUtils.clamp((initSpeed - 3.0) / 14.0, 0.0, 1.0);
-    const slipAllowance = 0.125 * speedBlend; // Lets front tires reach peak cornering force at every speed!
+    const slipAllowance = 0.125 * speedBlend;
 
     const driftBonus = handbrake ? 0.2 : sp.id === "muscle" && car.throttlePedal > 0.5 && initSpeed > 12 ? 0.06 : 0.0;
     const maxSteer = THREE.MathUtils.clamp(geoSteer + slipAllowance + driftBonus, 0.12, 0.62);
 
-    const steerInRate = THREE.MathUtils.lerp(11.5, 6.8, Math.min(1, initSpeed / 70));
-    const steerReturnRate = 15.0;
+    const steerInRate = isAnalogSteer ? 16.5 : THREE.MathUtils.lerp(11.5, 6.8, Math.min(1, initSpeed / 70));
+    const steerReturnRate = 15.5;
 
     let targetSteer = rawSteerInput * maxSteer;
-    if (rawSteerInput === 0 && car.grounded && initSpeed > 10 && car.drifting) {
+    if (Math.abs(rawSteerInput) < 0.02 && car.grounded && initSpeed > 10 && car.drifting) {
       const initRx = Math.cos(car.heading);
       const initRz = -Math.sin(car.heading);
       const vLatNow = car.vx * initRx + car.vz * initRz;
@@ -1873,7 +1928,7 @@
       targetSteer = THREE.MathUtils.clamp(-bodySlip * 0.52, -0.45, 0.45);
     }
 
-    const activeSteerRate = rawSteerInput !== 0 ? steerInRate : steerReturnRate;
+    const activeSteerRate = Math.abs(rawSteerInput) >= 0.02 ? steerInRate : steerReturnRate;
     car.steerAngle = THREE.MathUtils.lerp(car.steerAngle, targetSteer, 1 - Math.exp(-activeSteerRate * dt));
 
     // =====================================================================
@@ -1938,8 +1993,8 @@
           driveForce =
             (hp.maxDriveForce * gearScale * torqueShape * car.throttlePedal + (usingNitro ? hp.nitroForce : 0)) *
             speedLimiter;
-        } else if (wantReverse > 0 && vLong > -22) {
-          driveForce = -hp.maxDriveForce * 0.54;
+        } else if (wantReverse > 0.02 && vLong > -22) {
+          driveForce = -hp.maxDriveForce * 0.54 * wantReverse;
         } else if (Math.abs(vLong) > 0.4) {
           driveForce = -Math.sign(vLong) * (420 + Math.abs(vLong) * 26);
         }
@@ -1969,7 +2024,7 @@
           const dir = Math.sign(vLong);
           fLongFrontTire = driveForce * hp.awdFrontSplit - dir * brakeForceF;
           fLongRearTire = driveForce * (1.0 - hp.awdFrontSplit) - dir * brakeForceR;
-        } else if (car.brakePedal > 0.15 && wantReverse === 0 && car.throttlePedal < 0.05) {
+        } else if (car.brakePedal > 0.15 && wantReverse <= 0.02 && car.throttlePedal < 0.05) {
           car.vx *= Math.exp(-26 * subDt);
           car.vz *= Math.exp(-26 * subDt);
           car.yawRate *= Math.exp(-26 * subDt);
@@ -2003,7 +2058,7 @@
         fLongFrontTire = THREE.MathUtils.clamp(fLongFrontTire, -maxLongGripF, maxLongGripF);
         fLongRearTire = THREE.MathUtils.clamp(fLongRearTire, -maxLongGripR, maxLongGripR);
 
-        // 3) Tire Slip Angles & Elliptical Friction Circle (keeps ~75% steering bite while braking!)
+        // 3) Tire Slip Angles & Elliptical Friction Circle
         const vLatF = vLat - car.yawRate * halfA;
         const vLatR = vLat + car.yawRate * halfB;
         lastVLatR = vLatR;
@@ -2049,7 +2104,6 @@
         totalFLong = fLongFrontCar + fLongRearTire + fAero + fRoll + fSlope;
         totalFLat = fLatFrontCar + fLatRearCar + fWaterLatDrag;
 
-        // Minimal artificial yaw damping — tires provide sharp turn-in and clean straightening
         const yawDamp = -car.yawRate * hp.Iz * (handbrake ? 0.15 : 0.32);
         yawTorque = -halfA * fLatFrontCar + halfB * fLatRearCar + yawDamp;
       } else {
@@ -2104,6 +2158,7 @@
       if (latestSurf.hitWall) {
         if (Math.abs(vLong) > 6 && impactCooldown <= 0) {
           audio.playImpact(Math.abs(vLong));
+          if (controls) controls.rumble(0.65, 0.55, 140);
           impactCooldown = 0.25;
         }
         car.x = prevX;
@@ -2123,6 +2178,10 @@
         if (!car.grounded) {
           const impactVy = Math.abs(car.vy);
           car.suspVel -= Math.min(3.8, impactVy * 0.22);
+          if (controls && impactVy > 4.5) {
+            const landStr = Math.min(0.95, impactVy / 18);
+            controls.rumble(landStr, landStr * 0.6, 150);
+          }
           if (latestSurf.overWater) {
             audio.playWaterSplash(impactVy + Math.abs(vLong));
             showBanner("WATER SPLASH!");
@@ -2144,6 +2203,7 @@
 
       if (car.inWater && !wasInWater && splashCooldown <= 0) {
         audio.playWaterSplash(Math.abs(vLong) + 8);
+        if (controls) controls.rumble(0.5, 0.7, 160);
         splashCooldown = 0.6;
         for (let s = 0; s < 12; s++) {
           spawnParticle(car.x + (Math.random() - 0.5) * 2.4, 0.0, car.z + (Math.random() - 0.5) * 2.4, "splash");
@@ -2163,6 +2223,17 @@
     const nrx = Math.cos(car.heading);
     const nrz = -Math.sin(car.heading);
 
+    // Subtle console controller rumble on drifts, off-road grass & nitro boost
+    if (controls && ext.gamepadConnected && car.grounded) {
+      if (car.drifting) {
+        controls.rumble(0.18, 0.35, 90);
+      } else if (usingNitro) {
+        controls.rumble(0.14, 0.28, 90);
+      } else if (!latestSurf.onRoad && absSpeed > 8) {
+        controls.rumble(0.12, 0.22, 90);
+      }
+    }
+
     // Spring-Damper Suspension
     let targetHeave = 0;
     if (car.inWater) {
@@ -2180,7 +2251,7 @@
     let newGearNum = 0;
     let gearRatio = 0;
 
-    if (lastVLong < -0.45 || wantReverse > 0) {
+    if (lastVLong < -0.45 || wantReverse > 0.02) {
       gearStr = "R";
       newGearNum = -1;
       gearRatio = Math.min(1, kmh / 72);
@@ -2205,7 +2276,6 @@
     const targetRpm = 850 + gearRatio * 7100 + (car.throttlePedal > 0.1 && newGearNum <= 1 ? 750 * car.throttlePedal : 0);
     car.rpm = THREE.MathUtils.lerp(car.rpm, targetRpm, 12 * dt);
 
-    // Flag DRIFT only on real rear-axle slides or handbrake drifts
     car.drifting =
       car.grounded &&
       !car.inWater &&
@@ -2265,7 +2335,7 @@
       wheelPivots[i].position.y = THREE.MathUtils.lerp(wheelPivots[i].position.y, sp.wheelRadius + wheelDroop, 12 * dt);
     }
 
-    // Dynamic Car Lights & Police Lightbar Strobe
+    // Dynamic Car Lights, Police Lightbar & Touch Siren Sync
     const brakingVisual = car.brakePedal > 0.08 || handbrake;
     const preset = TIME_PRESETS[timeIndex];
     const headlightsOn = preset.headlights || weather.forceHeadlights || car.inTunnel;
@@ -2279,6 +2349,8 @@
       rearGlowLight.color.setHex(usingNitro ? 0x38bdf8 : 0xff2222);
       rearGlowLight.intensity = rtEnabled ? (usingNitro ? 1.8 : brakingVisual ? 1.35 : 0.42) : 0;
     }
+
+    if (controls) controls.syncPoliceSirenUI(sp.isPolice, sirenActive);
 
     if (policeLightbar) {
       if (sirenActive) {
@@ -2479,7 +2551,8 @@
     world.rainLines.visible = prevRainVis;
     world.rainSplashGroup.visible = prevSplashVis;
 
-    if (frameCounter % 2 === 0) {
+    const cubeInterval = controls && controls.isTouchDevice ? 4 : 2;
+    if (frameCounter % cubeInterval === 0) {
       carGroup.visible = false;
       world.rainLines.visible = false;
       world.rainSplashGroup.visible = false;
@@ -2675,9 +2748,10 @@
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 
+    const activeReflScale = controls && controls.isTouchDevice ? 0.45 : reflScale;
     reflTarget.setSize(
-      Math.max(256, Math.floor(window.innerWidth * reflScale)),
-      Math.max(256, Math.floor(window.innerHeight * reflScale))
+      Math.max(256, Math.floor(window.innerWidth * activeReflScale)),
+      Math.max(256, Math.floor(window.innerHeight * activeReflScale))
     );
     renderer.getDrawingBufferSize(drawingBufferSize);
     world.setRoadUniform("uResolution", drawingBufferSize);
@@ -2693,6 +2767,9 @@
     frameCounter++;
     const dt = Math.min(clock.getDelta(), 0.05);
     elapsed += dt;
+
+    // Poll Gamepad API (Xbox / PlayStation / Bluetooth controllers)
+    if (controls) controls.poll(dt);
 
     const weather = WEATHER_PRESETS[weatherIndex];
     world.setRoadUniform("uTime", elapsed);

@@ -794,3 +794,359 @@ kbd {
     overflow-y: auto;
   }
 }
+/* =========================================================================
+   CONSOLE GAMEPAD BADGE & MOBILE MULTI-TOUCH CONTROLS
+   ========================================================================= */
+html,
+body,
+#canvas-container {
+  touch-action: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+}
+
+.pad-badge {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.pad-badge.connected {
+  opacity: 1;
+  border-color: rgba(74, 222, 128, 0.7);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.28);
+}
+
+.pad-badge.connected span {
+  color: #4ade80;
+}
+
+/* Mobile Touch Controls Layer */
+.touch-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 22;
+  pointer-events: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 14px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+.touch-left,
+.touch-right {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  touch-action: none;
+}
+
+.touch-aux-row,
+.touch-action-row {
+  display: flex;
+  gap: 8px;
+}
+
+.touch-action-row {
+  justify-content: flex-end;
+}
+
+.touch-chip {
+  background: rgba(10, 15, 28, 0.76);
+  backdrop-filter: blur(8px);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+  touch-action: none;
+}
+
+.touch-chip.pressed {
+  background: rgba(56, 189, 248, 0.38);
+  border-color: #38bdf8;
+  transform: scale(0.95);
+}
+
+.touch-chip.siren.siren-on {
+  animation: sirenPulse 0.65s infinite alternate;
+  color: #ffffff;
+}
+
+/* Hybrid Tap + Smooth Analog Slide Steering Pad */
+.touch-steer-pad {
+  position: relative;
+  width: 214px;
+  height: 92px;
+  border-radius: 18px;
+  background: rgba(10, 15, 28, 0.72);
+  backdrop-filter: blur(10px);
+  border: 1.5px solid rgba(148, 163, 184, 0.34);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  touch-action: none;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+.touch-steer-pad.active {
+  border-color: #38bdf8;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.3);
+}
+
+.steer-arrow {
+  font-size: 20px;
+  color: rgba(226, 232, 240, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.steer-track {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.22);
+  pointer-events: none;
+}
+
+.steer-thumb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 35% 35%, #7dd3fc, #0284c7);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.55);
+  pointer-events: none;
+  transition: transform 0.04s linear;
+}
+
+/* Drift & Nitro Action Buttons */
+.touch-action {
+  min-width: 82px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(148, 163, 184, 0.35);
+  background: rgba(10, 15, 28, 0.78);
+  backdrop-filter: blur(8px);
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  touch-action: none;
+}
+
+.touch-action.drift {
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+}
+
+.touch-action.drift.pressed {
+  background: rgba(245, 158, 11, 0.45);
+  border-color: #fbbf24;
+  transform: scale(0.95);
+}
+
+.touch-action.nitro {
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #7dd3fc;
+}
+
+.touch-action.nitro.pressed {
+  background: rgba(14, 165, 233, 0.48);
+  border-color: #38bdf8;
+  transform: scale(0.95);
+}
+
+/* Gas & Brake Pedals */
+.touch-pedal-row {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.touch-pedal {
+  width: 84px;
+  height: 106px;
+  border-radius: 16px;
+  border: 1.5px solid rgba(148, 163, 184, 0.35);
+  background: rgba(10, 15, 28, 0.78);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #f8fafc;
+  touch-action: none;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.42);
+}
+
+.touch-pedal .pedal-icon {
+  font-size: 18px;
+}
+
+.touch-pedal .pedal-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.touch-pedal.gas {
+  border-color: rgba(34, 197, 94, 0.6);
+  background: linear-gradient(180deg, rgba(22, 163, 74, 0.22), rgba(10, 15, 28, 0.84));
+}
+
+.touch-pedal.gas.pressed {
+  background: rgba(34, 197, 94, 0.48);
+  border-color: #4ade80;
+  transform: scale(0.96);
+}
+
+.touch-pedal.brake {
+  border-color: rgba(239, 68, 68, 0.6);
+  background: linear-gradient(180deg, rgba(220, 38, 38, 0.22), rgba(10, 15, 28, 0.84));
+}
+
+.touch-pedal.brake.pressed {
+  background: rgba(239, 68, 68, 0.48);
+  border-color: #f87171;
+  transform: scale(0.96);
+}
+
+/* =========================================================================
+   TOUCH-MODE HUD REFLOW (ZERO OVERLAP WITH ON-SCREEN CONTROLS)
+   ========================================================================= */
+body.touch-mode .controls-panel {
+  display: none !important;
+}
+
+body.touch-mode #hud {
+  padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+
+body.touch-mode .hud-top {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+body.touch-mode .brand-badge {
+  padding: 6px 10px;
+}
+
+body.touch-mode .brand-badge .title {
+  font-size: 12px;
+}
+
+body.touch-mode .brand-badge .subtitle,
+body.touch-mode .brand-badge .car-tag {
+  font-size: 9px;
+}
+
+body.touch-mode .toolbar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: calc(100vw - 165px);
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+body.touch-mode .toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+body.touch-mode .hud-btn {
+  flex-shrink: 0;
+  padding: 6px 9px;
+  font-size: 10px;
+}
+
+/* Move Minimap to Top-Left under Brand Badge so Bottom-Left stays clear for Steering */
+body.touch-mode .minimap-panel {
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  top: 76px;
+  transform: scale(0.62);
+  transform-origin: top left;
+  padding: 6px;
+}
+
+/* Center Compact Speedometer between Steering Pad and Pedals */
+body.touch-mode .hud-bottom {
+  justify-content: center;
+  align-items: flex-end;
+}
+
+body.touch-mode .telemetry-panel {
+  width: 210px;
+  padding: 8px 11px;
+  gap: 5px;
+}
+
+body.touch-mode #speed-value {
+  font-size: 30px;
+}
+
+body.touch-mode .gear-box {
+  width: 38px;
+  height: 38px;
+}
+
+body.touch-mode #gear-value {
+  font-size: 17px;
+}
+
+/* Compact Landscape Phones (short viewport height) */
+@media (max-height: 480px) {
+  body.touch-mode .minimap-panel {
+    display: none;
+  }
+  body.touch-mode .touch-steer-pad {
+    width: 185px;
+    height: 76px;
+  }
+  body.touch-mode .touch-pedal {
+    width: 72px;
+    height: 86px;
+  }
+  body.touch-mode .telemetry-panel {
+    width: 185px;
+  }
+}
+
+/* Narrow Portrait Phones */
+@media (max-width: 680px) {
+  body.touch-mode .telemetry-panel {
+    position: fixed;
+    right: max(12px, env(safe-area-inset-right));
+    top: 66px;
+    width: 182px;
+  }
+  body.touch-mode .touch-steer-pad {
+    width: 164px;
+    height: 82px;
+  }
+  body.touch-mode .touch-pedal {
+    width: 70px;
+    height: 92px;
+  }
+  body.touch-mode .touch-action {
+    min-width: 70px;
+    height: 38px;
+    font-size: 10px;
+  }
+}
