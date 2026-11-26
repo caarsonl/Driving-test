@@ -62,14 +62,14 @@ window.HorizonWorld = (() => {
       hemiGround: 0x1e293b,
       hemiIntensity: 0.7,
       ambientRoad: 0x543e49,
-      waterDeep: 0x08203a,
-      waterShallow: 0x1a586e,
+      waterDeep: 0x071e38,
+      waterShallow: 0x185c72,
       windowGlow: 0.92,
       neonGlow: 2.35,
       headlights: true,
       nightMix: 0.18,
       dryRate: 0.045,
-      puddleDryRate: 0.011, // Standing puddles linger long after open asphalt dries
+      puddleDryRate: 0.011,
       exposure: 1.14,
     },
     {
@@ -86,8 +86,8 @@ window.HorizonWorld = (() => {
       hemiGround: 0x050811,
       hemiIntensity: 0.52,
       ambientRoad: 0x1e2e4d,
-      waterDeep: 0x030c1c,
-      waterShallow: 0x0b2644,
+      waterDeep: 0x020a18,
+      waterShallow: 0x0a2847,
       windowGlow: 1.55,
       neonGlow: 3.1,
       headlights: true,
@@ -110,8 +110,8 @@ window.HorizonWorld = (() => {
       hemiGround: 0x3f6212,
       hemiIntensity: 0.82,
       ambientRoad: 0x6b7482,
-      waterDeep: 0x053a60,
-      waterShallow: 0x1088ad,
+      waterDeep: 0x05385e,
+      waterShallow: 0x0f8cb3,
       windowGlow: 0.08,
       neonGlow: 0.45,
       headlights: false,
@@ -122,7 +122,6 @@ window.HorizonWorld = (() => {
     },
   ];
 
-  // Separate asphalt wetness & puddle accumulation for natural rain-to-dry transitions
   const WEATHER_PRESETS = [
     {
       name: "CLEAR",
@@ -136,7 +135,7 @@ window.HorizonWorld = (() => {
       targetMoisture: 0.0,
       puddleFillRate: 0.0,
       targetPuddle: 0.0,
-      waveStrength: 0.42,
+      waveStrength: 0.48,
       fogMult: 1.0,
       skyDarken: 1.0,
       sunMult: 1.0,
@@ -147,7 +146,7 @@ window.HorizonWorld = (() => {
     {
       name: "RAIN",
       rainCount: 1350,
-      splashCount: 120,
+      splashCount: 95,
       rainSpeed: 46,
       rainTiltX: 3.8,
       rainIntensity: 0.75,
@@ -156,7 +155,7 @@ window.HorizonWorld = (() => {
       targetMoisture: 0.84,
       puddleFillRate: 0.052,
       targetPuddle: 0.82,
-      waveStrength: 0.78,
+      waveStrength: 0.92,
       fogMult: 1.45,
       skyDarken: 0.68,
       sunMult: 0.58,
@@ -167,7 +166,7 @@ window.HorizonWorld = (() => {
     {
       name: "STORM",
       rainCount: 2000,
-      splashCount: 200,
+      splashCount: 150,
       rainSpeed: 66,
       rainTiltX: 12.0,
       rainIntensity: 1.0,
@@ -176,7 +175,7 @@ window.HorizonWorld = (() => {
       targetMoisture: 1.0,
       puddleFillRate: 0.095,
       targetPuddle: 1.0,
-      waveStrength: 1.4,
+      waveStrength: 1.55,
       fogMult: 1.9,
       skyDarken: 0.46,
       sunMult: 0.34,
@@ -196,7 +195,7 @@ window.HorizonWorld = (() => {
       targetMoisture: 0.24,
       puddleFillRate: 0.0,
       targetPuddle: 0.0,
-      waveStrength: 0.25,
+      waveStrength: 0.3,
       fogMult: 3.3,
       skyDarken: 0.78,
       sunMult: 0.45,
@@ -207,7 +206,7 @@ window.HorizonWorld = (() => {
   ];
 
   // =========================================================================
-  // 2. SHARED NOISE, PUDDLE & ELEVATION MATH (EXACT MATCH TO GLSL SHADERS)
+  // 2. SHARED NOISE, PUDDLE & ELEVATION MATH (MATCHED 1:1 BETWEEN JS & GLSL)
   // =========================================================================
   function fract(x) {
     return x - Math.floor(x);
@@ -252,7 +251,6 @@ window.HorizonWorld = (() => {
     return Math.abs(x - T.x) <= T.halfW + 1.8 && z <= T.startZ && z >= T.endZ;
   }
 
-  // Smooth organic standing-puddle field (matched 1:1 with GLSL road shader)
   function samplePuddleAt(x, z, puddleLevel) {
     if (puddleLevel <= 0.02 || isPointInTunnel(x, z)) return 0.0;
     const p1 = noise2DJS(x * 0.022, z * 0.022);
@@ -353,7 +351,6 @@ window.HorizonWorld = (() => {
     return tex;
   }
 
-  // Smooth organic grass turf (soft radial tonal blotches + fine blades, zero blocky dots)
   function createGrassTexture(tintHex, grainDelta) {
     const c = document.createElement("canvas");
     c.width = 512;
@@ -362,7 +359,6 @@ window.HorizonWorld = (() => {
     ctx.fillStyle = tintHex;
     ctx.fillRect(0, 0, 512, 512);
 
-    // Soft overlapping organic turf patches
     for (let i = 0; i < 160; i++) {
       const gx = Math.random() * 512;
       const gy = Math.random() * 512;
@@ -380,7 +376,6 @@ window.HorizonWorld = (() => {
       ctx.fill();
     }
 
-    // Fine anti-aliased grass micro-texture
     ctx.lineWidth = 1;
     for (let i = 0; i < 2400; i++) {
       const x = Math.random() * 512;
@@ -396,12 +391,10 @@ window.HorizonWorld = (() => {
     return configureSmoothTexture(new THREE.CanvasTexture(c), 0.055, 0.055);
   }
 
-  // Smooth Asphalt Helper (soft tonal mottling + ultra-fine mineral grain, no blocky pixels!)
   function paintSmoothAsphaltBase(ctx, w, h, baseHex) {
     ctx.fillStyle = baseHex;
     ctx.fillRect(0, 0, w, h);
 
-    // Subtle smooth asphalt aggregate washes
     for (let i = 0; i < 220; i++) {
       const x = Math.random() * w;
       const y = Math.random() * h;
@@ -416,7 +409,6 @@ window.HorizonWorld = (() => {
       ctx.fill();
     }
 
-    // Ultra-fine pixel-level mineral noise (1px at 1024 resolution = silky smooth!)
     const img = ctx.getImageData(0, 0, w, h);
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
@@ -428,7 +420,6 @@ window.HorizonWorld = (() => {
     ctx.putImageData(img, 0, 0);
   }
 
-  // Soft-feathered tire wear lane gradient (eliminates harsh rectangular lane stripes)
   function paintSoftWearBand(ctx, centerX, halfW, h, alpha = 0.22) {
     const grad = ctx.createLinearGradient(centerX - halfW, 0, centerX + halfW, 0);
     grad.addColorStop(0.0, "rgba(12, 16, 22, 0.0)");
@@ -440,7 +431,6 @@ window.HorizonWorld = (() => {
     ctx.fillRect(centerX - halfW, 0, halfW * 2, h);
   }
 
-  // 1024x1024 Smooth 2-Lane Urban Avenue Asphalt
   function createRoadTexture() {
     const c = document.createElement("canvas");
     c.width = 1024;
@@ -449,7 +439,6 @@ window.HorizonWorld = (() => {
 
     paintSmoothAsphaltBase(ctx, 1024, 1024, "#363d47");
 
-    // Subtle concrete curb transition at road edges so grass-to-road seam looks clean
     const leftEdge = ctx.createLinearGradient(0, 0, 44, 0);
     leftEdge.addColorStop(0, "rgba(148, 163, 184, 0.34)");
     leftEdge.addColorStop(0.55, "rgba(100, 116, 139, 0.14)");
@@ -464,16 +453,13 @@ window.HorizonWorld = (() => {
     ctx.fillStyle = rightEdge;
     ctx.fillRect(980, 0, 44, 1024);
 
-    // Smoothly feathered tire wear tracks in each lane
     paintSoftWearBand(ctx, 275, 115, 1024, 0.22);
     paintSoftWearBand(ctx, 749, 115, 1024, 0.22);
 
-    // Crisp anti-aliased solid white outer shoulder lines
     ctx.fillStyle = "rgba(235, 241, 248, 0.92)";
     ctx.fillRect(46, 0, 16, 1024);
     ctx.fillRect(962, 0, 16, 1024);
 
-    // Crisp rounded dashed yellow center divider
     ctx.fillStyle = "rgba(246, 200, 32, 0.94)";
     for (let y = 70; y < 1024; y += 512) {
       ctx.beginPath();
@@ -484,7 +470,6 @@ window.HorizonWorld = (() => {
     return configureSmoothTexture(new THREE.CanvasTexture(c));
   }
 
-  // 1024x1024 Smooth 4-Lane Expressway & Bridge Deck Texture
   function createHighwayTexture(isBridge = false) {
     const c = document.createElement("canvas");
     c.width = 1024;
@@ -493,15 +478,12 @@ window.HorizonWorld = (() => {
 
     paintSmoothAsphaltBase(ctx, 1024, 1024, isBridge ? "#303743" : "#2d333e");
 
-    // Soft shoulder apron shading
     ctx.fillStyle = "rgba(148, 163, 184, 0.09)";
     ctx.fillRect(0, 0, 74, 1024);
     ctx.fillRect(950, 0, 74, 1024);
 
-    // Smoothly feathered tire tracks across all 4 lanes
     [182, 388, 636, 842].forEach((cx) => paintSoftWearBand(ctx, cx, 72, 1024, 0.2));
 
-    // Subtle bridge expansion seams & shoulder rumble strips
     if (isBridge) {
       const jointGrad = ctx.createLinearGradient(0, 0, 0, 22);
       jointGrad.addColorStop(0, "rgba(15, 23, 42, 0.62)");
@@ -517,17 +499,14 @@ window.HorizonWorld = (() => {
       }
     }
 
-    // Crisp outer solid white lines
     ctx.fillStyle = "rgba(241, 245, 249, 0.94)";
     ctx.fillRect(72, 0, 13, 1024);
     ctx.fillRect(939, 0, 13, 1024);
 
-    // Crisp double yellow center median
     ctx.fillStyle = "rgba(246, 200, 32, 0.94)";
     ctx.fillRect(492, 0, 13, 1024);
     ctx.fillRect(519, 0, 13, 1024);
 
-    // Dashed white lane dividers
     ctx.fillStyle = "rgba(226, 232, 240, 0.9)";
     for (let y = 52; y < 1024; y += 256) {
       ctx.fillRect(282, y, 11, 136);
@@ -565,13 +544,10 @@ window.HorizonWorld = (() => {
     return configureSmoothTexture(new THREE.CanvasTexture(c));
   }
 
-  // Helper: draws a smooth recessed architectural window with sill, frame, interior light gradient & reflection
   function drawDetailedWindow(ctx, x, y, w, h, lit, warmHex, darkHex, mullion = true) {
-    // Soft exterior recess shadow
     ctx.fillStyle = "rgba(8, 12, 18, 0.45)";
     ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
 
-    // Window glass gradient
     const g = ctx.createLinearGradient(x, y, x, y + h);
     if (lit) {
       g.addColorStop(0, warmHex);
@@ -585,11 +561,9 @@ window.HorizonWorld = (() => {
     ctx.fillStyle = g;
     ctx.fillRect(x, y, w, h);
 
-    // Subtle interior blind/curtain shadow at top
     ctx.fillStyle = lit ? "rgba(0, 0, 0, 0.14)" : "rgba(255, 255, 255, 0.05)";
     ctx.fillRect(x, y, w, h * 0.24);
 
-    // Diagonal soft glass sky-glint reflection
     ctx.fillStyle = "rgba(255, 255, 255, 0.09)";
     ctx.beginPath();
     ctx.moveTo(x + w * 0.15, y);
@@ -599,7 +573,6 @@ window.HorizonWorld = (() => {
     ctx.closePath();
     ctx.fill();
 
-    // Crisp frame & optional center mullion
     ctx.strokeStyle = "rgba(215, 224, 235, 0.36)";
     ctx.lineWidth = 2.5;
     ctx.strokeRect(x, y, w, h);
@@ -610,12 +583,10 @@ window.HorizonWorld = (() => {
       ctx.stroke();
     }
 
-    // Bottom architectural sill ledge
     ctx.fillStyle = "rgba(226, 232, 240, 0.28)";
     ctx.fillRect(x - 4, y + h + 1, w + 8, 5);
   }
 
-  // 512x1024 High-Resolution Smooth Architectural Building Facades (All 6 Styles)
   function createFacadeTexture(style) {
     const c = document.createElement("canvas");
     c.width = 512;
@@ -680,12 +651,10 @@ window.HorizonWorld = (() => {
 
       for (let r = 0; r < 14; r++) {
         const y = r * 73.1;
-        // Smooth balcony slab + shadow underside
         ctx.fillStyle = "rgba(15, 23, 42, 0.16)";
         ctx.fillRect(0, y + 66, 512, 7);
         ctx.fillStyle = "#f8fafc";
         ctx.fillRect(0, y + 52, 512, 14);
-        // Glass balcony railing
         ctx.fillStyle = "rgba(56, 189, 248, 0.22)";
         ctx.fillRect(0, y + 36, 512, 16);
 
@@ -695,14 +664,12 @@ window.HorizonWorld = (() => {
         }
       }
     } else if (style === "alpine") {
-      // Smooth warm alpine cedar planks + dressed stone foundation (fixes blocky flat brown look!)
       const woodGrad = ctx.createLinearGradient(0, 0, 0, 760);
       woodGrad.addColorStop(0, "#75523b");
       woodGrad.addColorStop(1, "#5c3e2b");
       ctx.fillStyle = woodGrad;
       ctx.fillRect(0, 0, 512, 760);
 
-      // Subtle horizontal cedar plank seams
       for (let y = 0; y < 760; y += 22) {
         ctx.fillStyle = "rgba(24, 14, 8, 0.16)";
         ctx.fillRect(0, y, 512, 2);
@@ -710,7 +677,6 @@ window.HorizonWorld = (() => {
         ctx.fillRect(0, y + 2, 512, 2);
       }
 
-      // Dressed stone foundation band with mortar lines
       const stoneGrad = ctx.createLinearGradient(0, 760, 0, 1024);
       stoneGrad.addColorStop(0, "#5e5a55");
       stoneGrad.addColorStop(1, "#44413d");
@@ -733,17 +699,14 @@ window.HorizonWorld = (() => {
         }
       }
 
-      // Stone trim cornice separating timber & stone
       ctx.fillStyle = "#8a847c";
       ctx.fillRect(0, 754, 512, 10);
 
-      // Crisp mullioned chalet windows with wooden shutters
       for (let r = 0; r < 8; r++) {
         for (let col = 0; col < 4; col++) {
           const wx = col * 128 + 28;
           const wy = r * 118 + 26;
           const lit = Math.random() > 0.32;
-          // Timber shutters flanking each window
           ctx.fillStyle = "#3f2b1e";
           ctx.fillRect(wx - 12, wy, 10, 54);
           ctx.fillRect(wx + 74, wy, 10, 54);
@@ -768,7 +731,6 @@ window.HorizonWorld = (() => {
         drawDetailedWindow(ctx, col * 84 + 12, 92, 60, 72, true, "#fef08a", "#1e293b", true);
       }
 
-      // Corrugated loading bay doors
       [48, 296].forEach((bx) => {
         ctx.fillStyle = "#1f2937";
         ctx.fillRect(bx, 680, 168, 344);
@@ -781,7 +743,6 @@ window.HorizonWorld = (() => {
         }
       });
     } else {
-      // Cyber Neon Tower
       const bg = ctx.createLinearGradient(0, 0, 0, 1024);
       bg.addColorStop(0, "#151b2b");
       bg.addColorStop(1, "#0b0f1a");
@@ -841,7 +802,7 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 5. SMOOTH RT PAVEMENT SHADER (PERSISTENT PUDDLES + LIVE CAR WAKE & WET TRACKS)
+  // 5. 3D PUDDLE SHADER (MENISCUS LIP, OPTICAL REFRACTION & 3D NORMAL RIPPLES)
   // =========================================================================
   function createRealisticRoadMaterial(roadTex, reflTexture, resolution, isIntersection) {
     const emptyTrailPos = Array.from({ length: 20 }, () => new THREE.Vector4(0, 0, 0, -999));
@@ -939,22 +900,38 @@ window.HorizonWorld = (() => {
           return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
         }
 
-        vec3 rainImpactLayer(vec2 pos, float t, float speed) {
+        // Exact puddle depression field (matched 1:1 to JS samplePuddleAt)
+        float puddleField(vec2 p) {
+          float p1 = noise2D(p * 0.022);
+          float p2 = noise2D(p * 0.056 + vec2(11.3, 7.1));
+          float p3 = noise2D(p * 0.13 + vec2(3.7, 19.4));
+          return p1 * 0.56 + p2 * 0.30 + p3 * 0.14;
+        }
+
+        // True 3D Normal-Mapped Rain Ripple Wave Slope (NO painted 2D circles!)
+        // Returns vec3(dh/dx, dh/dz, tinyCenterSplashPinpoint)
+        vec3 rainWaveNormalLayer(vec2 pos, float t, float speed) {
           vec2 cell = floor(pos);
           vec2 local = fract(pos) - 0.5;
           float rnd = hash21(cell);
           float phase = fract(t * speed + rnd * 13.71);
-          vec2 center = (vec2(hash21(cell + 7.1), hash21(cell + 19.3)) - 0.5) * 0.44;
+          vec2 center = (vec2(hash21(cell + 7.1), hash21(cell + 19.3)) - 0.5) * 0.42;
           vec2 diff = local - center;
           float dist = length(diff);
 
-          float radius = phase * 0.42;
-          float ringEdge = exp(-pow((dist - radius) * 24.0, 2.0)) * (1.0 - phase);
-          float splashDot = exp(-dist * 26.0) * smoothstep(0.28, 0.0, phase);
-          float wave = sin((dist - radius) * 42.0) * exp(-dist * 10.0) * (1.0 - phase);
+          float radius = phase * 0.44;
+          float delta = dist - radius;
+          // Physical wave packet: sinusoidal slope damped radially & over time
+          float env = exp(-delta * delta * 38.0) * smoothstep(0.46, 0.04, dist) * (1.0 - phase) * smoothstep(0.0, 0.07, phase);
+          float slope = cos(delta * 34.0) * env;
+          // Secondary trailing wave crest behind the primary ring for authentic liquid motion
+          float delta2 = dist - radius * 0.62;
+          float env2 = exp(-delta2 * delta2 * 48.0) * smoothstep(0.36, 0.02, dist) * (1.0 - phase) * 0.52;
+          slope += cos(delta2 * 42.0) * env2;
 
-          vec2 dir = normalize(diff + vec2(0.0001));
-          return vec3(dir * wave, clamp(ringEdge * 0.85 + splashDot * 1.1, 0.0, 1.35));
+          float centerPinpoint = exp(-dist * dist * 420.0) * smoothstep(0.16, 0.0, phase);
+          vec2 dir = diff / max(dist, 0.001);
+          return vec3(dir * slope, centerPinpoint);
         }
 
         vec3 sampleGlossyRT(vec2 uv, float blurRadius) {
@@ -971,38 +948,40 @@ window.HorizonWorld = (() => {
         }
 
         void main() {
-          vec3 rawAlbedo = uIsIntersection > 0.5
-            ? vec3(0.215, 0.235, 0.275)
-            : texture2D(uRoadMap, vUv).rgb;
-
           float inTunnel = step(-880.0, vWorldPos.z) * step(vWorldPos.z, -340.0) * step(abs(vWorldPos.x), 13.5);
           float baseMoisture = uRoadMoisture * (1.0 - inTunnel);
           float basePuddleLvl = uPuddleLevel * (1.0 - inTunnel);
           float activeRain = uRainIntensity * (1.0 - inTunnel);
 
-          // Smooth organic wear & fine asphalt texture (no pixelated floor() noise!)
-          float macroWear = noise2D(vWorldPos.xz * 0.075);
-          float softGrain = noise2D(vWorldPos.xz * 1.65) * 0.65 + noise2D(vWorldPos.xz * 3.4) * 0.35;
-          float microX = (noise2D(vWorldPos.xz * 1.8) - 0.5) * 0.7 + (noise2D(vWorldPos.xz * 4.2 + 7.3) - 0.5) * 0.3;
-          float microZ = (noise2D(vWorldPos.xz * 1.8 + 19.7) - 0.5) * 0.7 + (noise2D(vWorldPos.xz * 4.2 + 23.1) - 0.5) * 0.3;
+          vec3 toCam = cameraPosition - vWorldPos;
+          float camDist = length(toCam);
+          vec3 V = toCam / max(camDist, 0.0001);
+          vec3 L = normalize(uSunDir);
 
-          // Multi-octave standing puddle map matched 1:1 to JS samplePuddleAt()
-          float p1 = noise2D(vWorldPos.xz * 0.022);
-          float p2 = noise2D(vWorldPos.xz * 0.056 + vec2(11.3, 7.1));
-          float p3 = noise2D(vWorldPos.xz * 0.13 + vec2(3.7, 19.4));
-          float pNoise = p1 * 0.56 + p2 * 0.30 + p3 * 0.14;
-          float thresh = 0.78 - basePuddleLvl * 0.34;
-
+          // 1) 3D Puddle Depression Depth + Exact Meniscus Boundary Gradient
           float drainFactor = 1.0 - smoothstep(2.0, 12.0, vWorldPos.y) * 0.42;
-          float puddle = smoothstep(thresh - 0.055, thresh + 0.065, pNoise) * smoothstep(0.02, 0.24, basePuddleLvl) * drainFactor;
-          // Dark capillary damp border around lingering puddles even after main asphalt dries!
-          float puddleRim = smoothstep(thresh - 0.16, thresh - 0.01, pNoise) * smoothstep(0.02, 0.25, basePuddleLvl) * drainFactor;
+          float pNoise = puddleField(vWorldPos.xz);
+          float thresh = 0.78 - basePuddleLvl * 0.34;
+          float puddleVis = smoothstep(0.02, 0.24, basePuddleLvl) * drainFactor;
 
-          // =================================================================
-          // LIVE CAR-TO-PUDDLE TRANSFORMATION (WATER PARTING, WAKE RIPPLES & WET TIRE TRACKS)
-          // =================================================================
+          float puddle = smoothstep(thresh - 0.055, thresh + 0.065, pNoise) * puddleVis;
+          float puddleDepth = smoothstep(thresh - 0.03, thresh + 0.24, pNoise) * puddleVis;
+          float puddleRim = smoothstep(thresh - 0.16, thresh - 0.01, pNoise) * puddleVis;
+
+          // Finite-difference slope of the puddle edge -> creates a real 3D recessed meniscus lip!
+          vec2 meniscusSlope = vec2(0.0);
+          float rimBand = smoothstep(0.01, 0.32, puddle) * smoothstep(0.96, 0.28, puddle);
+          if (rimBand > 0.01) {
+            float eps = 0.24;
+            float pX = puddleField(vWorldPos.xz + vec2(eps, 0.0));
+            float pZ = puddleField(vWorldPos.xz + vec2(0.0, eps));
+            vec2 gradP = vec2(pX - pNoise, pZ - pNoise) / eps;
+            meniscusSlope = -gradP * rimBand * 3.8;
+          }
+
+          // 2) Live Car-to-Puddle Transformation (3D Wake Wave Slopes, Water Parting & Wet Tracks)
           vec2 wakeGrad = vec2(0.0);
-          float wakeFoam = 0.0;
+          float wakeRidge = 0.0;
           float puddlePart = 0.0;
           float wetTrack = 0.0;
 
@@ -1021,7 +1000,6 @@ window.HorizonWorld = (() => {
               vec4 tm = uTrailMeta[i];
               float cH = cos(tp.z);
               float sH = sin(tp.z);
-              // Local right & forward coordinates in this trail stamp's frame
               float lr = rel.x * cH - rel.y * sH;
               float lf = -rel.x * sH - rel.y * cH;
 
@@ -1029,65 +1007,89 @@ window.HorizonWorld = (() => {
               float sideDiff = abs(lr) - tm.x;
               float dtire = length(vec2(sideDiff, df));
 
-              // 1) Wet Tire Track dragged onto dry asphalt (evaporates smoothly over 8s)
               if (tm.w > 0.01) {
                 float trackFade = smoothstep(8.0, 0.0, age);
                 float trackBand = smoothstep(0.34, 0.09, dtire) * trackFade * tm.w;
                 wetTrack = max(wetTrack, trackBand);
               }
 
-              // 2) Active Puddle Water Parting & Expanding V-Wake Ripples
               if (tm.z > 0.01 && age < 4.2) {
-                float wakeFade = exp(-age * 0.95) * tm.z;
-                // Tires briefly displace/thin the puddle film right in their path before it refills
-                puddlePart = max(puddlePart, smoothstep(0.46, 0.08, dtire) * exp(-age * 0.72) * tm.z * 0.68);
+                float wakeFade = exp(-age * 0.92) * tm.z;
+                puddlePart = max(puddlePart, smoothstep(0.48, 0.08, dtire) * exp(-age * 0.72) * tm.z * 0.72);
 
-                // Expanding wake ripple waves pushing outward from both tires
                 float waveR = 0.28 + age * 2.15;
-                float ringEnv = exp(-abs(dtire - waveR) * 2.8) * smoothstep(3.8, 0.15, dtire);
-                float ringWave = sin((dtire - waveR) * 15.0) * ringEnv * wakeFade;
+                float ringEnv = exp(-abs(dtire - waveR) * 2.5) * smoothstep(4.2, 0.12, dtire);
+                float ringSlope = cos((dtire - waveR) * 14.0) * ringEnv * wakeFade;
 
                 vec2 worldRight = vec2(cH, -sH);
                 vec2 outDir = worldRight * (lr >= 0.0 ? 1.0 : -1.0) * (sideDiff >= 0.0 ? 1.0 : -1.0);
-                wakeGrad += outDir * ringWave * 0.55;
-                wakeFoam += smoothstep(0.25, 0.95, abs(ringWave)) * 0.48 * wakeFade;
+                wakeGrad += outDir * ringSlope * 0.95;
+                wakeRidge += max(0.0, ringSlope) * 0.35 * wakeFade;
               }
             }
           }
 
-          // Combine general moisture + damp puddle halo + wet tire tracks dragged onto dry asphalt
-          float localMoisture = clamp(max(max(baseMoisture, puddleRim * 0.72), wetTrack * 0.88), 0.0, 1.0);
+          float localMoisture = clamp(max(max(baseMoisture, puddleRim * 0.74), wetTrack * 0.88), 0.0, 1.0);
           float effectivePuddle = clamp(puddle * (1.0 - puddlePart), 0.0, 1.0);
+          float effectiveDepth = clamp(puddleDepth * (1.0 - puddlePart * 0.8), 0.0, 1.0);
 
-          // Raindrop impact ripples on wet asphalt & puddles
-          vec2 ripGrad = wakeGrad * clamp(puddle * 1.4, 0.0, 1.0);
-          float impactRing = 0.0;
+          // 3) True 3D Normal-Mapped Rain Ripples + Car Wake Wave Normals
+          vec2 waterWaveSlope = wakeGrad * clamp(puddle * 1.4, 0.0, 1.0) + meniscusSlope;
+          float centerGlint = 0.0;
           if (activeRain > 0.03) {
-            vec3 r1 = rainImpactLayer(vWorldPos.xz * 0.72, uTime, 1.55);
-            vec3 r2 = rainImpactLayer(vWorldPos.xz * 1.38 + 11.4, uTime + 0.37, 2.15);
-            ripGrad += (r1.xy * 0.62 + r2.xy * 0.42) * activeRain * (0.28 + effectivePuddle * 0.72);
-            float camDist = length(cameraPosition - vWorldPos);
-            float distMask = smoothstep(130.0, 18.0, camDist);
-            impactRing = (r1.z * 0.6 + r2.z * 0.52) * activeRain * distMask * (0.35 + localMoisture * 0.45 + effectivePuddle * 0.55);
+            float ripFade = smoothstep(105.0, 14.0, camDist);
+            vec3 r1 = rainWaveNormalLayer(vWorldPos.xz * 0.65, uTime, 1.45);
+            vec3 r2 = rainWaveNormalLayer(vWorldPos.xz * 1.18 + vec2(11.4, 5.7), uTime + 0.37, 1.95);
+            float waterPresence = clamp(effectivePuddle * 1.15 + localMoisture * 0.28, 0.0, 1.0);
+            waterWaveSlope += (r1.xy * 0.68 + r2.xy * 0.45) * activeRain * ripFade * waterPresence;
+            centerGlint = (r1.z + r2.z) * activeRain * ripFade * effectivePuddle;
           }
 
-          float roughAmt = mix(0.20, 0.10, localMoisture);
-          roughAmt = mix(roughAmt, 0.008, effectivePuddle);
-          vec3 N = normalize(normalize(vWorldNormal) + vec3(microX * roughAmt + ripGrad.x * 0.24, 0.0, microZ * roughAmt + ripGrad.y * 0.24));
+          // 4) Optical Refraction of Submerged Road Texture & Asphalt Grain Underneath Puddles!
+          vec2 refractUV = (waterWaveSlope * 0.011 + meniscusSlope * 0.004) * effectivePuddle;
+          vec3 rawAlbedo = uIsIntersection > 0.5
+            ? vec3(0.215, 0.235, 0.275)
+            : texture2D(uRoadMap, vUv + refractUV).rgb;
 
-          vec3 V = normalize(cameraPosition - vWorldPos);
-          vec3 L = normalize(uSunDir);
+          // Parallax-refracted asphalt grain coordinate (submerged road shifts subtly with view angle!)
+          vec2 parallaxXZ = vWorldPos.xz - (V.xz / max(V.y, 0.32)) * (effectiveDepth * 0.16);
+          float macroWear = noise2D(parallaxXZ * 0.075);
+          float softGrain = noise2D(parallaxXZ * 1.75) * 0.65 + noise2D(parallaxXZ * 3.6) * 0.35;
 
+          // 3D Micro-Relief Normal for Exposed Asphalt (flattens to glass-smooth water inside puddles!)
+          float eA = 0.08;
+          float g0 = noise2D(vWorldPos.xz * 2.8);
+          float gX = noise2D(vWorldPos.xz * 2.8 + vec2(eA, 0.0));
+          float gZ = noise2D(vWorldPos.xz * 2.8 + vec2(0.0, eA));
+          vec2 asphaltBump = vec2(g0 - gX, g0 - gZ) * (1.0 / eA) * 0.085;
+          float roughAmt = mix(0.92, 0.45, localMoisture) * (1.0 - effectivePuddle * 0.96);
+
+          vec3 N = normalize(
+            normalize(vWorldNormal)
+            + vec3(asphaltBump.x * roughAmt + waterWaveSlope.x * 0.42, 0.0, asphaltBump.y * roughAmt + waterWaveSlope.y * 0.42)
+          );
+
+          // 5) Beer-Lambert Water Volume Absorption + Submerged Road Albedo
           float isMarking = smoothstep(0.48, 0.65, max(rawAlbedo.r, rawAlbedo.g));
-          vec3 dryTex = rawAlbedo * (0.92 + softGrain * 0.1 + (macroWear - 0.5) * 0.06);
-          float darkenAmt = mix(localMoisture * 0.44 + effectivePuddle * 0.22, localMoisture * 0.15, isMarking);
-          vec3 albedo = dryTex * (1.0 - clamp(darkenAmt, 0.0, 0.58));
+          vec3 dryTex = rawAlbedo * (0.91 + softGrain * 0.12 + (macroWear - 0.5) * 0.06);
+          float darkenAmt = mix(localMoisture * 0.42 + effectivePuddle * 0.18, localMoisture * 0.14, isMarking);
+          vec3 albedo = dryTex * (1.0 - clamp(darkenAmt, 0.0, 0.56));
+          // Deep puddle volume absorbs light & adds cool translucent depth
+          vec3 deepWaterTint = albedo * vec3(0.42, 0.50, 0.58);
+          albedo = mix(albedo, deepWaterTint, effectiveDepth * 0.68);
+          // Subtle micro-AO darkening right along the depressed puddle edge
+          albedo *= 1.0 - rimBand * 0.14;
 
+          // 6) True 3D Lighting & Specular Across Ripples, Meniscus Rim & Asphalt Relief
           float NdotL = max(dot(N, L), 0.0) * (1.0 - inTunnel);
           vec3 H = normalize(L + V);
-          float specPow = mix(mix(18.0, 68.0, localMoisture), 320.0, effectivePuddle);
-          float specStr = mix(mix(0.05, 0.36, localMoisture), 1.4, effectivePuddle) * (1.0 - inTunnel);
-          float spec = pow(max(dot(N, H), 0.0), specPow) * specStr;
+          float NdotH = max(dot(N, H), 0.0);
+          float specPow = mix(mix(22.0, 76.0, localMoisture), 360.0, effectivePuddle);
+          float specStr = mix(mix(0.06, 0.36, localMoisture), 1.95, effectivePuddle) * (1.0 - inTunnel);
+          float spec = pow(NdotH, specPow) * specStr;
+
+          // Grazing rim highlight on the curved 3D puddle meniscus edge
+          float meniscusHighlight = pow(NdotH, 90.0) * rimBand * 0.55 * (1.0 - inTunnel);
 
           vec3 lampGlow = vec3(0.0);
           if (inTunnel > 0.5) {
@@ -1099,8 +1101,8 @@ window.HorizonWorld = (() => {
             lampGlow = vec3(0.38, 0.3, 0.2) * pow(pool, 3.0) * (0.55 + localMoisture * 0.7);
           }
 
-          vec3 color = albedo * (uAmbientColor * (1.0 - inTunnel * 0.65) + lampGlow + uSunColor * NdotL * 0.92)
-                     + uSunColor * spec * 0.72;
+          vec3 color = albedo * (uAmbientColor * (1.0 - inTunnel * 0.65) + lampGlow + uSunColor * NdotL * 0.94)
+                     + uSunColor * (spec * 0.8 + meniscusHighlight);
 
           // Analytic Under-Car Contact AO
           float contactAO = 1.0;
@@ -1115,29 +1117,25 @@ window.HorizonWorld = (() => {
           }
           color *= contactAO;
 
-          // Headlight pool + rain impact & puddle wake foam illumination
-          float headlightFactor = 0.0;
+          // 3D Headlight Specular Glints off Rain Ripple Ridges, Meniscus Edges & Wet Asphalt!
           if ((uHeadlightsOn > 0.5 || inTunnel > 0.5) && carDist < 76.0 && abs(toFrag.y) < 6.0) {
             vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
             float cone = dot(dir2, normalize(uCarForward.xz));
-            headlightFactor = smoothstep(0.62, 0.96, cone) * smoothstep(76.0, 2.5, carDist);
-            color += vec3(1.0, 0.94, 0.82) * headlightFactor * mix(0.36, 0.78, max(localMoisture * 0.5, effectivePuddle));
+            float headlightFactor = smoothstep(0.62, 0.96, cone) * smoothstep(76.0, 2.5, carDist);
+            vec3 headL = normalize(vec3(uCarPos.x - vWorldPos.x, 0.95, uCarPos.z - vWorldPos.z));
+            vec3 headH = normalize(headL + V);
+            float headSpec = pow(max(dot(N, headH), 0.0), mix(32.0, 180.0, effectivePuddle));
+            color += vec3(1.0, 0.94, 0.82) * headlightFactor * (mix(0.32, 0.52, localMoisture) + headSpec * mix(0.28, 1.35, effectivePuddle));
           }
 
-          if (impactRing > 0.005) {
-            vec3 ringTint = mix(vec3(0.76, 0.86, 0.98), vec3(1.0, 0.97, 0.9), headlightFactor);
-            color += ringTint * impactRing * (0.28 + headlightFactor * 0.58);
-          }
-
-          if (wakeFoam > 0.005 && puddle > 0.05) {
-            color += vec3(0.82, 0.92, 1.0) * wakeFoam * puddle * 0.55;
-          }
+          // Subtle physical specular glint at exact raindrop impact pinpoints & foaming wake crests (NO flat 2D circles!)
+          color += (uSunColor * 0.4 + vec3(0.55, 0.68, 0.82)) * (centerGlint * 0.35 + wakeRidge * effectivePuddle * 0.48);
 
           vec3 rearPos = uCarPos - uCarForward * (uCarHalfL + 0.1);
           float rearDist = length(vWorldPos.xz - rearPos.xz);
           if (rearDist < 16.0 && abs(toFrag.y) < 4.0) {
             float tailFalloff = smoothstep(16.0, 0.5, rearDist);
-            color += vec3(1.0, 0.1, 0.08) * tailFalloff * uBrakeIntensity * mix(0.16, 0.8, max(localMoisture * 0.5, effectivePuddle));
+            color += vec3(1.0, 0.1, 0.08) * tailFalloff * uBrakeIntensity * mix(0.16, 0.82, max(localMoisture * 0.5, effectivePuddle));
             if (uNitroActive > 0.5) {
               color += vec3(0.15, 0.82, 1.0) * tailFalloff * mix(0.3, 1.05, max(localMoisture * 0.5, effectivePuddle));
             }
@@ -1151,33 +1149,33 @@ window.HorizonWorld = (() => {
             }
           }
 
-          // Roughness-Blurred RT Reflections (damp road = soft gloss, wet tracks = glossy sheen, puddles = mirror-sharp!)
+          // 7) 3D Wave-Distorted RT Planar Reflections (warps skyscraper reflections across 3D ripples & meniscus!)
           if (uRTEnabled > 0.5) {
             float NdotV = max(dot(N, V), 0.0);
-            float fresnel = 0.025 + 0.975 * pow(1.0 - NdotV, 4.2);
-            float drySheen = (1.0 - inTunnel) * 0.045 * fresnel;
+            float fresnel = 0.02 + 0.98 * pow(1.0 - NdotV, 4.4);
+            float drySheen = (1.0 - inTunnel) * 0.042 * fresnel;
 
             if (vWorldPos.y < 1.5 && (localMoisture > 0.03 || effectivePuddle > 0.02 || drySheen > 0.01)) {
               vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
               vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
-              float distort = mix(0.018, 0.0018, effectivePuddle);
-              reflUv += vec2(microX, microZ) * distort + ripGrad * 0.052;
-              reflUv = clamp(reflUv, vec2(0.002), vec2(0.998));
 
-              float blurRad = mix(0.0095, 0.0009, effectivePuddle);
+              // Strong 3D normal bending in puddles makes reflections curve across ripples and edges
+              vec2 normalBend = vec2(N.x * 0.055, N.z * 0.085);
+              reflUv = clamp(reflUv + normalBend, vec2(0.002), vec2(0.998));
+
+              float blurRad = mix(0.0095, 0.0008, effectivePuddle);
               vec3 reflSample = sampleGlossyRT(reflUv, blurRad);
-              float dampRefl = localMoisture * 0.34 * (0.18 + fresnel * 0.82);
-              float puddleRefl = effectivePuddle * (0.24 + fresnel * 0.72);
-              float reflFactor = clamp(max(max(dampRefl, puddleRefl), drySheen), 0.0, 0.88) * (1.0 - isMarking * 0.32);
-              color = mix(color, reflSample * 1.1 * mix(0.45, 1.0, contactAO), reflFactor);
+              float dampRefl = localMoisture * 0.34 * (0.16 + fresnel * 0.84);
+              float puddleRefl = effectivePuddle * (0.16 + fresnel * 0.82);
+              float reflFactor = clamp(max(max(dampRefl, puddleRefl), drySheen), 0.0, 0.9) * (1.0 - isMarking * (0.38 - effectivePuddle * 0.2));
+              color = mix(color, reflSample * 1.12 * mix(0.42, 1.0, contactAO), reflFactor);
             } else if (vWorldPos.y >= 1.5 && (localMoisture > 0.04 || effectivePuddle > 0.02)) {
-              float deckSheen = clamp((localMoisture * 0.3 + effectivePuddle * 0.45) * fresnel, 0.0, 0.56);
-              color = mix(color, uFogColor * 1.15 + uSunColor * 0.32 + lampGlow * 0.9, deckSheen);
+              float deckSheen = clamp((localMoisture * 0.3 + effectivePuddle * 0.48) * fresnel, 0.0, 0.58);
+              color = mix(color, uFogColor * 1.15 + uSunColor * 0.34 + lampGlow * 0.9, deckSheen);
             }
           }
 
-          float depth = length(cameraPosition - vWorldPos);
-          float fogFactor = (1.0 - exp(-uFogDensity * uFogDensity * depth * depth)) * (1.0 - inTunnel * 0.78);
+          float fogFactor = (1.0 - exp(-uFogDensity * uFogDensity * camDist * camDist)) * (1.0 - inTunnel * 0.78);
           color = mix(color, uFogColor, clamp(fogFactor, 0.0, 1.0));
 
           gl_FragColor = vec4(color, 1.0);
@@ -1188,19 +1186,20 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 5B. UPGRADED RT WATER SHADER (6-WAVE NORMALS, 5-TAP PLANAR RT, CAUSTICS & WAKE)
+  // 5B. TRUE 3D GERSTNER WAVE OCEAN SHADER (3D GEOMETRY + 5-TAP PLANAR RT)
   // =========================================================================
   function createWaterMaterial(reflTexture, resolution) {
     return new THREE.ShaderMaterial({
       uniforms: {
         uReflMap: { value: reflTexture },
         uResolution: { value: resolution.clone() },
+        uPatchCenter: { value: new THREE.Vector2(0, 0) },
         uTime: { value: 0.0 },
         uRTEnabled: { value: 1.0 },
-        uWaveStrength: { value: 0.45 },
+        uWaveStrength: { value: 0.48 },
         uRainIntensity: { value: 0.0 },
-        uDeepColor: { value: new THREE.Color(0x08203a) },
-        uShallowColor: { value: new THREE.Color(0x1a586e) },
+        uDeepColor: { value: new THREE.Color(0x071e38) },
+        uShallowColor: { value: new THREE.Color(0x185c72) },
         uSunDir: { value: new THREE.Vector3(-0.6, 0.3, -0.5).normalize() },
         uSunColor: { value: new THREE.Color(0xffa85c) },
         uFogColor: { value: new THREE.Color(0xb65549) },
@@ -1211,18 +1210,71 @@ window.HorizonWorld = (() => {
         uNitroActive: { value: 0.0 },
       },
       vertexShader: `
+        uniform vec2 uPatchCenter;
         uniform float uTime;
         uniform float uWaveStrength;
+
         varying vec3 vWorldPos;
-        varying float vWaveH;
+        varying vec3 vGeoNormal;
+        varying float vWaveCrest;
+
+        float boxDist2D(vec2 p, vec2 bmin, vec2 bmax) {
+          vec2 c = (bmin + bmax) * 0.5;
+          vec2 ext = (bmax - bmin) * 0.5;
+          vec2 d = abs(p - c) - ext;
+          return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+        }
+
+        // True 3D Gerstner Wave displacement + tangent accumulation
+        void addGerstner(vec2 p, vec2 dir, float freq, float amp, float speed, float steep,
+                         inout vec3 disp, inout vec3 tangentX, inout vec3 tangentZ) {
+          vec2 d = normalize(dir);
+          float ph = dot(d, p) * freq + uTime * speed;
+          float c = cos(ph);
+          float s = sin(ph);
+          float qa = steep * amp;
+
+          disp.x += d.x * qa * c;
+          disp.z += d.y * qa * c;
+          disp.y += amp * s;
+
+          float wa = freq * amp;
+          tangentX += vec3(-d.x * d.x * steep * wa * s, d.x * wa * c, -d.x * d.y * steep * wa * s);
+          tangentZ += vec3(-d.x * d.y * steep * wa * s, d.y * wa * c, -d.y * d.y * steep * wa * s);
+        }
+
         void main() {
           vec4 wp = modelMatrix * vec4(position, 1.0);
-          float s1 = sin(wp.x * 0.055 + wp.z * 0.032 + uTime * 1.45);
-          float s2 = cos(wp.x * -0.042 + wp.z * 0.068 - uTime * 1.2);
-          float swell = (s1 * 0.6 + s2 * 0.4);
-          wp.y += swell * 0.14 * uWaveStrength;
-          vWaveH = swell * uWaveStrength;
+
+          // Fade 3D Gerstner vertex displacement smoothly at the outer rim of the 420m high-detail patch
+          vec2 relPatch = abs(wp.xz - uPatchCenter);
+          float patchFade = smoothstep(206.0, 152.0, max(relPatch.x, relPatch.y));
+
+          // Calm waves gently right against island concrete seawalls while rolling tall in open water
+          float dMetro = abs(boxDist2D(wp.xz, vec2(-420.0, -340.0), vec2(320.0, 380.0)));
+          float dPalm = abs(boxDist2D(wp.xz, vec2(960.0, -380.0), vec2(1660.0, 360.0)));
+          float dLagoon = abs(boxDist2D(wp.xz, vec2(1340.0, 60.0), vec2(1600.0, 290.0)));
+          float dPine = abs(boxDist2D(wp.xz, vec2(-420.0, -1440.0), vec2(460.0, -880.0)));
+          float edgeDist = min(min(dMetro, dPalm), min(dLagoon, dPine));
+          float shoreCalm = 0.22 + 0.78 * smoothstep(2.0, 24.0, edgeDist);
+
+          float ampScale = uWaveStrength * patchFade * shoreCalm;
+          vec3 disp = vec3(0.0);
+          vec3 tX = vec3(1.0, 0.0, 0.0);
+          vec3 tZ = vec3(0.0, 0.0, 1.0);
+
+          if (ampScale > 0.002) {
+            addGerstner(wp.xz, vec2( 0.85,  0.52), 0.11, 0.24 * ampScale,  1.65, 0.55, disp, tX, tZ);
+            addGerstner(wp.xz, vec2(-0.62,  0.78), 0.16, 0.17 * ampScale,  2.05, 0.50, disp, tX, tZ);
+            addGerstner(wp.xz, vec2( 0.35, -0.94), 0.24, 0.10 * ampScale, -2.55, 0.45, disp, tX, tZ);
+            addGerstner(wp.xz, vec2(-0.92, -0.38), 0.36, 0.055 * ampScale, 3.10, 0.40, disp, tX, tZ);
+          }
+
+          wp.xyz += disp;
           vWorldPos = wp.xyz;
+          vGeoNormal = normalize(cross(tZ, tX));
+          vWaveCrest = disp.y / max(0.25, uWaveStrength * 0.55);
+
           gl_Position = projectionMatrix * viewMatrix * wp;
         }
       `,
@@ -1245,7 +1297,8 @@ window.HorizonWorld = (() => {
         uniform float uNitroActive;
 
         varying vec3 vWorldPos;
-        varying float vWaveH;
+        varying vec3 vGeoNormal;
+        varying float vWaveCrest;
 
         float hash21(vec2 p) {
           p = fract(p * vec2(127.1, 311.7));
@@ -1264,31 +1317,29 @@ window.HorizonWorld = (() => {
           return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
         }
 
-        // Smooth 6-octave analytical Gerstner-inspired wave gradient (no blocky noise!)
-        vec2 waveGradient(vec2 p, float t) {
+        // High-frequency capillary & wind-chop normals layered onto the 3D Gerstner geometry
+        vec2 fineWaveGradient(vec2 p, float t) {
           vec2 g = vec2(0.0);
-          g += vec2(0.16, 0.11) * cos(p.x * 0.16 + p.y * 0.11 + t * 1.45) * 0.34;
-          g += vec2(-0.14, 0.21) * cos(p.x * -0.14 + p.y * 0.21 - t * 1.75) * 0.28;
-          g += vec2(0.32, -0.26) * cos(p.x * 0.32 - p.y * 0.26 + t * 2.35) * 0.18;
-          g += vec2(-0.46, -0.34) * cos(p.x * -0.46 - p.y * 0.34 + t * 2.95) * 0.11;
-          // Fine capillary ripples for crisp sun glitter
-          g += vec2(0.88, 0.54) * cos(p.x * 0.88 + p.y * 0.54 - t * 3.8) * 0.055;
-          g += vec2(-0.76, 0.96) * cos(p.x * -0.76 + p.y * 0.96 + t * 4.3) * 0.045;
+          g += vec2(0.42, 0.28) * cos(p.x * 0.42 + p.y * 0.28 + t * 2.45) * 0.16;
+          g += vec2(-0.34, 0.52) * cos(p.x * -0.34 + p.y * 0.52 - t * 2.85) * 0.14;
+          g += vec2(0.76, -0.58) * cos(p.x * 0.76 - p.y * 0.58 + t * 3.55) * 0.09;
+          g += vec2(-0.92, -0.78) * cos(p.x * -0.92 - p.y * 0.78 + t * 4.25) * 0.065;
+          g += vec2(1.45, 0.88) * cos(p.x * 1.45 + p.y * 0.88 - t * 5.1) * 0.038;
           return g;
         }
 
-        vec3 waterRainRipples(vec2 pos, float t) {
+        // True 3D normal-mapped raindrop ripples on ocean water
+        vec2 waterRainSlope(vec2 pos, float t) {
           vec2 cell = floor(pos);
           vec2 local = fract(pos) - 0.5;
           float rnd = hash21(cell);
           float phase = fract(t * 1.45 + rnd * 6.2831);
-          vec2 center = (vec2(hash21(cell + 4.3), hash21(cell + 19.1)) - 0.5) * 0.48;
+          vec2 center = (vec2(hash21(cell + 4.3), hash21(cell + 19.1)) - 0.5) * 0.46;
           vec2 diff = local - center;
           float dist = length(diff);
-          float rad = phase * 0.45;
-          float ring = sin((dist - rad) * 38.0) * exp(-dist * 9.0) * (1.0 - phase);
-          float glint = exp(-pow((dist - rad) * 24.0, 2.0)) * (1.0 - phase);
-          return vec3(normalize(diff + vec2(0.0001)) * ring, glint);
+          float delta = dist - phase * 0.44;
+          float env = exp(-delta * delta * 34.0) * smoothstep(0.46, 0.04, dist) * (1.0 - phase);
+          return (diff / max(dist, 0.001)) * cos(delta * 32.0) * env;
         }
 
         vec3 sampleWaterRT(vec2 uv, float spread) {
@@ -1313,23 +1364,23 @@ window.HorizonWorld = (() => {
           vec3 V = toCam / max(camDist, 0.0001);
           vec3 L = normalize(uSunDir);
 
-          // Attenuate high-frequency wave chop with distance so far RT reflections stay silky!
-          float distAtten = smoothstep(900.0, 40.0, camDist);
-          vec2 grad = waveGradient(vWorldPos.xz, uTime) * (0.15 + uWaveStrength * 0.24) * (0.35 + 0.65 * distAtten);
+          float distAtten = smoothstep(850.0, 35.0, camDist);
+          vec2 fineG = fineWaveGradient(vWorldPos.xz, uTime) * (0.45 + uWaveStrength * 0.55) * (0.28 + 0.72 * distAtten);
 
-          // Dynamic concentric splash ripples around the car when driving in water
+          // 3D concentric wake ripples around the car when driving in water
           vec3 toFrag = vWorldPos - uCarPos;
           float carDist = length(toFrag.xz);
-          if (uCarPos.y < 1.2 && carDist < 22.0) {
-            float cWave = sin(carDist * 2.4 - uTime * 8.5) * smoothstep(22.0, 1.5, carDist) * 0.22;
-            grad += normalize(toFrag.xz + vec2(0.0001)) * cWave;
+          if (uCarPos.y < 1.2 && carDist < 24.0) {
+            float cWave = cos(carDist * 2.4 - uTime * 8.5) * smoothstep(24.0, 1.5, carDist) * 0.32;
+            fineG += (toFrag.xz / max(carDist, 0.01)) * cWave;
           }
 
-          vec3 rip = uRainIntensity > 0.05
-            ? waterRainRipples(vWorldPos.xz * 0.55, uTime) * uRainIntensity * distAtten
-            : vec3(0.0);
+          vec2 rainG = uRainIntensity > 0.05
+            ? waterRainSlope(vWorldPos.xz * 0.55, uTime) * uRainIntensity * distAtten * 0.34
+            : vec2(0.0);
 
-          vec3 N = normalize(vec3(grad.x + rip.x * 0.24, 1.0, grad.y + rip.y * 0.24));
+          // Combine real 3D Gerstner geometric normal + fine capillary/chop + rain/wake normals
+          vec3 N = normalize(normalize(vGeoNormal) + vec3(fineG.x + rainG.x, 0.0, fineG.y + rainG.y));
 
           float dMetro = abs(boxDist2D(vWorldPos.xz, vec2(-420.0, -340.0), vec2(320.0, 380.0)));
           float dPalm = abs(boxDist2D(vWorldPos.xz, vec2(960.0, -380.0), vec2(1660.0, 360.0)));
@@ -1337,60 +1388,66 @@ window.HorizonWorld = (() => {
           float dPine = abs(boxDist2D(vWorldPos.xz, vec2(-420.0, -1440.0), vec2(460.0, -880.0)));
           float edgeDist = min(min(dMetro, dPalm), min(dLagoon, dPine));
 
-          // Animated shoreline foam + shallow seabed caustics
-          float foamNoise = noise2D(vWorldPos.xz * 0.45 + vec2(uTime * 0.28, -uTime * 0.22));
+          float foamNoise = noise2D(vWorldPos.xz * 0.42 + vec2(uTime * 0.28, -uTime * 0.22));
           float shoreWave = 0.5 + 0.5 * sin(edgeDist * 1.4 - uTime * 2.2);
-          float shoreFoam = smoothstep(3.8, 0.15, edgeDist) * smoothstep(0.28, 0.72, foamNoise + shoreWave * 0.28);
+          float shoreFoam = smoothstep(4.2, 0.15, edgeDist) * smoothstep(0.26, 0.72, foamNoise + shoreWave * 0.3);
 
-          float shallowMix = smoothstep(42.0, 2.0, edgeDist);
-          float caustics = noise2D(vWorldPos.xz * 0.55 + vec2(uTime * 0.65, uTime * 0.42))
-                         * noise2D(vWorldPos.xz * 0.72 - vec2(uTime * 0.48, -uTime * 0.55));
+          // Wind-blown 3D wave-crest whitecap foam (stronger in RAIN & STORM!)
+          float crestFoamNoise = noise2D(vWorldPos.xz * 0.35 + vec2(uTime * 0.4, -uTime * 0.3));
+          float whitecap = smoothstep(0.32, 0.85, vWaveCrest * (0.65 + uWaveStrength * 0.35) + crestFoamNoise * 0.35)
+                         * smoothstep(0.45, 1.3, uWaveStrength) * distAtten * 0.52;
+
+          // Parallax-refracted shallow seabed caustics near coasts & marina lagoon
+          float shallowMix = smoothstep(46.0, 2.0, edgeDist);
+          vec2 caustXZ = vWorldPos.xz - (V.xz / max(V.y, 0.35)) * (1.2 - shallowMix * 0.7) + N.xz * 1.4;
+          float caustics = noise2D(caustXZ * 0.55 + vec2(uTime * 0.65, uTime * 0.42))
+                         * noise2D(caustXZ * 0.74 - vec2(uTime * 0.48, -uTime * 0.55));
           vec3 waterBase = mix(uDeepColor, uShallowColor, shallowMix);
-          waterBase += uShallowColor * pow(caustics, 2.0) * shallowMix * 0.55;
+          waterBase += uShallowColor * pow(caustics, 1.8) * shallowMix * 0.68;
 
-          // Subsurface backlit wave-crest turquoise glow
-          float sss = clamp(vWaveH * 0.75 + 0.35, 0.0, 1.0) * pow(max(dot(V, -L), 0.0), 3.0);
-          waterBase += uShallowColor * sss * 0.55;
+          // 3D Wave-Slope Shading + Backlit Crest Subsurface Translucency (emerald/turquoise glow!)
+          float NdotL = max(dot(N, L), 0.0);
+          float troughShade = clamp(0.76 + vWaveCrest * 0.28 + NdotL * 0.35, 0.58, 1.28);
+          waterBase *= troughShade;
+          float sss = smoothstep(-0.1, 0.75, vWaveCrest) * (0.28 + 0.72 * pow(max(dot(V, -L), 0.0), 2.8));
+          waterBase += mix(uShallowColor, vec3(0.14, 0.68, 0.68), 0.45) * sss * 0.62;
 
           vec3 color;
           if (uRTEnabled > 0.5) {
             vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
             vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
-            // Realistic planar reflection distortion: stronger vertically than horizontally (elongates skyline lights!)
-            vec2 uvShift = vec2(N.x * 0.026, N.z * 0.052) * (0.55 + uWaveStrength * 0.45) * (0.3 + 0.7 * distAtten);
+            // Physically curved 3D wave planar reflection distortion
+            vec2 uvShift = vec2(N.x * 0.042, N.z * 0.072) * (0.5 + uWaveStrength * 0.4) * (0.3 + 0.7 * distAtten);
             reflUv = clamp(reflUv + uvShift, vec2(0.002), vec2(0.998));
 
-            float reflBlur = 0.0022 + (1.0 - distAtten) * 0.0025 + uWaveStrength * 0.0012;
-            vec3 reflColor = sampleWaterRT(reflUv, reflBlur) * 1.22;
+            float reflBlur = 0.002 + (1.0 - distAtten) * 0.0025 + uWaveStrength * 0.0012;
+            vec3 reflColor = sampleWaterRT(reflUv, reflBlur) * 1.2;
 
-            // Physical water Schlick Fresnel (F0 = 0.02, crisp mirror at grazing angles, clear depth looking down)
             float NdotV = max(dot(N, V), 0.0);
-            float fresnel = 0.02 + 0.98 * pow(1.0 - NdotV, 4.6);
-            color = mix(waterBase, reflColor, clamp(fresnel * 1.12, 0.14, 0.96));
+            float fresnel = 0.02 + 0.98 * pow(1.0 - NdotV, 4.4);
+            color = mix(waterBase, reflColor, clamp(fresnel * 1.1, 0.14, 0.96));
 
-            // Dual-lobe solar specular glitter path across wave crests
             vec3 H = normalize(L + V);
             float NdotH = max(dot(N, H), 0.0);
-            float glitter = pow(NdotH, 420.0) * 3.4;
-            float midSpec = pow(NdotH, 68.0) * 0.48;
+            float glitter = pow(NdotH, 420.0) * 3.8;
+            float midSpec = pow(NdotH, 62.0) * 0.52;
             color += uSunColor * (glitter + midSpec);
 
             if (uHeadlightsOn > 0.5 && carDist < 72.0 && abs(toFrag.y) < 12.0) {
               vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
               float cone = dot(dir2, normalize(uCarForward.xz));
               float beam = smoothstep(0.62, 0.95, cone) * smoothstep(72.0, 2.0, carDist);
-              color += vec3(1.0, 0.94, 0.82) * beam * 0.68;
+              color += vec3(1.0, 0.94, 0.82) * beam * 0.7;
             }
             if (uNitroActive > 0.5 && carDist < 18.0 && abs(toFrag.y) < 8.0) {
-              color += vec3(0.15, 0.8, 1.0) * smoothstep(18.0, 1.0, carDist) * 0.72;
+              color += vec3(0.15, 0.8, 1.0) * smoothstep(18.0, 1.0, carDist) * 0.75;
             }
           } else {
-            float NdotL = max(dot(N, L), 0.0);
-            color = waterBase * (0.65 + NdotL * 0.65);
+            color = waterBase * (0.72 + NdotL * 0.62);
           }
 
-          color += vec3(0.78, 0.88, 0.96) * rip.z * 0.28;
-          color = mix(color, vec3(0.86, 0.93, 0.98), clamp(shoreFoam * 0.52, 0.0, 0.62));
+          float totalFoam = clamp(shoreFoam * 0.55 + whitecap, 0.0, 0.72);
+          color = mix(color, vec3(0.88, 0.94, 0.99), totalFoam);
 
           float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * camDist * camDist);
           color = mix(color, uFogColor, clamp(fogFactor, 0.0, 1.0));
@@ -1403,7 +1460,7 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 6. WORLD BUILDER (ATMOSPHERIC SKY + CLOUDS + STARS, ISLANDS & HIGHWAYS)
+  // 6. WORLD BUILDER (ATMOSPHERIC SKY, 3 ISLANDS, 2-TIER 3D OCEAN & HIGHWAYS)
   // =========================================================================
   function buildWorld(scene, reflTarget, drawingBufferSize) {
     const { ISLANDS, BRIDGE, TUNNEL, VIADUCT, ROAD_WIDTH, HIGHWAY_WIDTH } = CONFIG;
@@ -1650,15 +1707,53 @@ window.HorizonWorld = (() => {
     beachStrip.receiveShadow = true;
     groundGroup.add(beachStrip);
 
-    // Reflective Ocean Surface
+    // 2-Tier 3D Gerstner Ocean Surface:
+    // High-density 420x420m (2.625m/vertex) 3D wave patch + seamless outer horizon skirt (zero Z-fighting!)
     const waterMat = createWaterMaterial(reflTarget.texture, drawingBufferSize);
     const waterGroup = new THREE.Group();
-    const waterGeo = new THREE.PlaneGeometry(6400, 6400, 160, 160);
-    waterGeo.rotateX(-Math.PI / 2);
-    const waterMesh = new THREE.Mesh(waterGeo, waterMat);
-    waterMesh.position.set(600, -0.26, -500);
-    waterGroup.add(waterMesh);
+    const WATER_NEAR_SIZE = 420;
+    const WATER_NEAR_SEGS = 160;
+    const WATER_GRID_STEP = WATER_NEAR_SIZE / WATER_NEAR_SEGS; // 2.625m
+
+    const waterNearGeo = new THREE.PlaneGeometry(WATER_NEAR_SIZE, WATER_NEAR_SIZE, WATER_NEAR_SEGS, WATER_NEAR_SEGS);
+    waterNearGeo.rotateX(-Math.PI / 2);
+    const waterNearMesh = new THREE.Mesh(waterNearGeo, waterMat);
+    waterNearMesh.position.set(0, -0.26, 0);
+    waterNearMesh.frustumCulled = false;
+    waterGroup.add(waterNearMesh);
+
+    const farOuter = 3600;
+    const farHole = WATER_NEAR_SIZE * 0.5 - 0.5;
+    const farShape = new THREE.Shape();
+    farShape.moveTo(-farOuter, -farOuter);
+    farShape.lineTo(farOuter, -farOuter);
+    farShape.lineTo(farOuter, farOuter);
+    farShape.lineTo(-farOuter, farOuter);
+    farShape.closePath();
+
+    const farCutout = new THREE.Path();
+    farCutout.moveTo(-farHole, -farHole);
+    farCutout.lineTo(-farHole, farHole);
+    farCutout.lineTo(farHole, farHole);
+    farCutout.lineTo(farHole, -farHole);
+    farCutout.closePath();
+    farShape.holes.push(farCutout);
+
+    const waterFarGeo = new THREE.ShapeGeometry(farShape);
+    waterFarGeo.rotateX(-Math.PI / 2);
+    const waterFarMesh = new THREE.Mesh(waterFarGeo, waterMat);
+    waterFarMesh.position.set(0, -0.26, 0);
+    waterFarMesh.frustumCulled = false;
+    waterGroup.add(waterFarMesh);
     scene.add(waterGroup);
+
+    function syncOceanPatch(camX, camZ) {
+      const snapX = Math.round(camX / WATER_GRID_STEP) * WATER_GRID_STEP;
+      const snapZ = Math.round(camZ / WATER_GRID_STEP) * WATER_GRID_STEP;
+      waterNearMesh.position.set(snapX, -0.26, snapZ);
+      waterFarMesh.position.set(snapX, -0.26, snapZ);
+      waterMat.uniforms.uPatchCenter.value.set(snapX, snapZ);
+    }
 
     const roadTexCity = createRoadTexture();
     const roadTexHighway = createHighwayTexture(false);
@@ -1805,7 +1900,7 @@ window.HorizonWorld = (() => {
       return new THREE.Mesh(geo, mat);
     }
 
-    // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
+    
 
     // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
 
@@ -2342,7 +2437,7 @@ window.HorizonWorld = (() => {
       });
     }
 
-    // Build Instanced Highway Cat's-Eye Studs & Cobra-Head Streetlamps
+    // Instanced Highway Cat's-Eye Studs & Cobra-Head Streetlamps
     const studAmberMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xf59e0b, emissiveIntensity: 2.5 });
     const studWhiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xe2e8f0, emissiveIntensity: 2.0 });
     const studGeo = new THREE.BoxGeometry(0.24, 0.07, 0.24);
@@ -2408,7 +2503,7 @@ window.HorizonWorld = (() => {
     }
 
     // =========================================================================
-    // 10. WORKING 3D TRAFFIC LIGHTS (12 SIGNALIZED INTERSECTIONS, BLOOM-READY)
+    // 10. WORKING 3D TRAFFIC LIGHTS (12 SIGNALIZED INTERSECTIONS)
     // =========================================================================
     const trafficLightsGroup = new THREE.Group();
     scene.add(trafficLightsGroup);
@@ -3483,7 +3578,7 @@ window.HorizonWorld = (() => {
     });
 
     // =========================================================================
-    // 15. HARBOR YACHTS & OCEAN SHIPS (EXACT OBB + MASSES)
+    // 15. HARBOR YACHTS & OCEAN SHIPS (MATCHED TO 3D GERSTNER OCEAN SWELLS)
     // =========================================================================
     const boatsGroup = new THREE.Group();
     scene.add(boatsGroup);
@@ -3494,6 +3589,14 @@ window.HorizonWorld = (() => {
     const navStbdMat = new THREE.MeshStandardMaterial({ color: 0x22ff55, emissive: 0x22ff55, emissiveIntensity: 3.4 });
     const navSternMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 3.2 });
     const wakeMatBase = new THREE.MeshBasicMaterial({ color: 0xdbeafe, transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide });
+
+    // Matches primary 3D Gerstner wave heights from the vertex shader so boats ride the swells!
+    function sampleGerstnerWaveHeight(x, z, t, waveStrength) {
+      const w1 = Math.sin((0.85 * x + 0.52 * z) * 0.11 + t * 1.65) * 0.24;
+      const w2 = Math.sin((-0.62 * x + 0.78 * z) * 0.16 + t * 2.05) * 0.17;
+      const w3 = Math.sin((0.35 * x - 0.94 * z) * 0.24 - t * 2.55) * 0.1;
+      return (w1 + w2 + w3) * waveStrength * 0.85;
+    }
 
     function createBoat(kind, accentHex) {
       const g = new THREE.Group();
@@ -3640,11 +3743,8 @@ window.HorizonWorld = (() => {
 
       if (!enabled) return;
 
-      // --- Smart Jam-Free AI Traffic + Physical Spin-Out & Recovery ---
       for (let i = 0; i < trafficCars.length; i++) {
         const ai = trafficCars[i];
-
-        // Decay visual body jolt from impacts
         ai.hitRoll *= Math.exp(-7.5 * dt);
         ai.hitPitch *= Math.exp(-7.5 * dt);
 
@@ -3654,13 +3754,11 @@ window.HorizonWorld = (() => {
           ai.z += ai.knockVz * dt;
           ai.heading += ai.knockYaw * dt;
 
-          // Tire-scrub friction slows sideways skid and spin naturally
           ai.knockVx *= Math.exp(-2.8 * dt);
           ai.knockVz *= Math.exp(-2.8 * dt);
           ai.knockYaw *= Math.exp(-3.4 * dt);
           ai.speed = Math.hypot(ai.knockVx, ai.knockVz);
 
-          // Keep knocked AI cars inside tunnel/bridge corridors
           if (isPointInTunnel(ai.x, ai.z)) {
             ai.x = THREE.MathUtils.clamp(ai.x, -9.2, 9.2);
           } else if (ai.x >= BRIDGE.startX && ai.x <= BRIDGE.endX && Math.abs(ai.z) < 16) {
@@ -3671,7 +3769,6 @@ window.HorizonWorld = (() => {
           ai.y = THREE.MathUtils.lerp(ai.y, surfStun.height, Math.min(1, 14 * dt));
           ai.pitch = THREE.MathUtils.lerp(ai.pitch, surfStun.slopePitch, Math.min(1, 8 * dt));
 
-          // Flash brake/hazard lights while spinning out!
           ai.tailMat.emissiveIntensity = Math.sin(elapsed * 18) > 0 ? 4.2 : 0.9;
           ai.mesh.position.set(ai.x, ai.y, ai.z);
           ai.mesh.rotation.set(ai.pitch + ai.hitPitch, ai.heading, ai.hitRoll, "YXZ");
@@ -3689,7 +3786,6 @@ window.HorizonWorld = (() => {
         let atRedLight = false;
         let blockedByPlayer = false;
 
-        // 1) Obey Working Traffic Lights at stop lines
         const isNS = Math.abs(fz) > Math.abs(fx);
         for (let tIdx = 0; tIdx < trafficLights.length; tIdx++) {
           const tl = trafficLights[tIdx];
@@ -3711,7 +3807,6 @@ window.HorizonWorld = (() => {
           }
         }
 
-        // 2) Yield smoothly if Player Car is directly ahead in the same lane
         const pdx = playerCar.x - ai.x;
         const pdz = playerCar.z - ai.z;
         if (Math.abs(playerCar.y - ai.y) < 3.2) {
@@ -3725,7 +3820,6 @@ window.HorizonWorld = (() => {
           }
         }
 
-        // 3) Direction-Aware IDM Following & Cross-Traffic Yielding
         for (let j = 0; j < trafficCars.length; j++) {
           if (i === j) continue;
           const o = trafficCars[j];
@@ -3764,7 +3858,6 @@ window.HorizonWorld = (() => {
           }
         }
 
-        // 4) Anti-Deadlock Breaker
         if (ai.speed < 0.6 && !atRedLight && !blockedByPlayer) {
           ai.stuckTimer += dt;
           if (ai.stuckTimer > 4.5) {
@@ -3786,7 +3879,6 @@ window.HorizonWorld = (() => {
         const smoothHeading = Math.atan2(-(look.x - p.x), -(look.z - p.z));
         const surf = sampleSurface(p.x, p.z, ai.y + 3.0, smoothHeading);
 
-        // Smooth lane re-entry after being knocked sideways
         const recoverRate = Math.hypot(ai.x - p.x, ai.z - p.z) > 2.5 ? 4.2 : 14.0;
         ai.x = THREE.MathUtils.lerp(ai.x, p.x, Math.min(1, recoverRate * dt));
         ai.z = THREE.MathUtils.lerp(ai.z, p.z, Math.min(1, recoverRate * dt));
@@ -3812,7 +3904,7 @@ window.HorizonWorld = (() => {
         }
       }
 
-      // --- Update Harbor & Ocean Boats ---
+      // Boats ride the live 3D Gerstner swells with realistic bow pitch & beam roll
       for (let i = 0; i < boats.length; i++) {
         const b = boats[i];
         let vx = 0, vz = 0;
@@ -3831,10 +3923,23 @@ window.HorizonWorld = (() => {
         }
 
         b.heading = lerpAngle(b.heading, Math.atan2(-vx, -vz), Math.min(1, 5 * dt));
-        const swell = Math.sin(b.x * 0.065 + elapsed * 1.5) * Math.cos(b.z * 0.06 - elapsed * 1.25);
-        const bobY = -0.24 + swell * 0.12 * (0.5 + waveStrength);
-        const pitch = Math.cos(elapsed * 2.0 + b.phase) * 0.025 * (0.5 + waveStrength);
-        const roll = Math.sin(elapsed * 1.6 + b.phase) * 0.04 * (0.5 + waveStrength);
+        const bfx = -Math.sin(b.heading);
+        const bfz = -Math.cos(b.heading);
+        const brx = Math.cos(b.heading);
+        const brz = -Math.sin(b.heading);
+
+        const hCenter = sampleGerstnerWaveHeight(b.x, b.z, elapsed, waveStrength);
+        const spanL = b.kind === "ship" ? 14 : 4.5;
+        const spanW = b.kind === "ship" ? 5 : 1.8;
+        const hBow = sampleGerstnerWaveHeight(b.x + bfx * spanL, b.z + bfz * spanL, elapsed, waveStrength);
+        const hStern = sampleGerstnerWaveHeight(b.x - bfx * spanL, b.z - bfz * spanL, elapsed, waveStrength);
+        const hPort = sampleGerstnerWaveHeight(b.x - brx * spanW, b.z - brz * spanW, elapsed, waveStrength);
+        const hStbd = sampleGerstnerWaveHeight(b.x + brx * spanW, b.z + brz * spanW, elapsed, waveStrength);
+
+        const dampScale = b.kind === "ship" ? 0.45 : 0.85;
+        const bobY = -0.24 + hCenter * dampScale;
+        const pitch = Math.atan2((hBow - hStern) * dampScale, spanL * 2);
+        const roll = Math.atan2((hPort - hStbd) * dampScale, spanW * 2);
 
         b.mesh.position.set(b.x, bobY, b.z);
         b.mesh.rotation.set(pitch, b.heading, roll, "YXZ");
@@ -3853,7 +3958,7 @@ window.HorizonWorld = (() => {
     }
 
     // =========================================================================
-    // 16. 3D WEATHER SYSTEM (FALLING RAIN + 3D GROUND SPLASH CROWNS & RINGS)
+    // 16. 3D WEATHER SYSTEM (FALLING RAIN + FINE 3D MICRO-DROPLET SPLASH BURSTS)
     // =========================================================================
     const MAX_RAIN = 2000;
     const RAIN_BOX_XZ = 100;
@@ -3879,34 +3984,35 @@ window.HorizonWorld = (() => {
     rainLines.frustumCulled = false;
     scene.add(rainLines);
 
-    const MAX_SPLASHES = 200;
+    // Delicate 3D Parabolic Micro-Droplet Splash Bursts (5 tiny glistening droplets per impact, NO white cones!)
+    const MAX_BURSTS = 150;
+    const DROPS_PER_BURST = 5;
     const rainSplashGroup = new THREE.Group();
     scene.add(rainSplashGroup);
 
-    const splashCrownGeo = new THREE.CylinderGeometry(0.18, 0.03, 0.26, 6, 1, true);
-    splashCrownGeo.translate(0, 0.13, 0);
-    const splashCrownInst = new THREE.InstancedMesh(
-      splashCrownGeo,
-      new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.52, depthWrite: false, side: THREE.DoubleSide }),
-      MAX_SPLASHES
-    );
-    splashCrownInst.frustumCulled = false;
+    const microDropGeo = new THREE.SphereGeometry(0.026, 5, 5);
+    const microDropMat = new THREE.MeshBasicMaterial({
+      color: 0xdbeafe,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const microDropInst = new THREE.InstancedMesh(microDropGeo, microDropMat, MAX_BURSTS * DROPS_PER_BURST);
+    microDropInst.frustumCulled = false;
+    rainSplashGroup.add(microDropInst);
 
-    const splashRingGeo = new THREE.RingGeometry(0.14, 0.22, 10);
-    splashRingGeo.rotateX(-Math.PI / 2);
-    const splashRingInst = new THREE.InstancedMesh(
-      splashRingGeo,
-      new THREE.MeshBasicMaterial({ color: 0xf1f5f9, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }),
-      MAX_SPLASHES
-    );
-    splashRingInst.frustumCulled = false;
-
-    rainSplashGroup.add(splashCrownInst);
-    rainSplashGroup.add(splashRingInst);
-
-    const splashes = [];
-    for (let i = 0; i < MAX_SPLASHES; i++) {
-      splashes.push({ x: 0, y: -50, z: 0, age: Math.random() * 0.35, life: 0.22 + Math.random() * 0.2, scale: 0.75 + Math.random() * 0.65 });
+    const bursts = [];
+    for (let i = 0; i < MAX_BURSTS; i++) {
+      bursts.push({
+        x: 0,
+        y: -999,
+        z: 0,
+        age: Math.random() * 0.25,
+        life: 0.16 + Math.random() * 0.14,
+        phase: Math.random() * Math.PI * 2,
+        power: 0.75 + Math.random() * 0.6,
+      });
     }
 
     const lightningLight = new THREE.DirectionalLight(0xcbe8ff, 0.0);
@@ -3923,7 +4029,13 @@ window.HorizonWorld = (() => {
     let lightningFlash = 0;
     let nextLightningTimer = 3.8;
 
+    // Position the 3D Gerstner ocean patch cleanly around the starting camera
+    syncOceanPatch(0, 45);
+
     function updateWeather(dt, weatherPreset, cameraPos, car, inTunnel, onThunder) {
+      // Keep the high-density 3D Gerstner ocean wave patch grid-snapped beneath the camera every frame
+      syncOceanPatch(cameraPos.x, cameraPos.z);
+
       if (weatherPreset.rainCount > 0 && !inTunnel) {
         rainLines.visible = true;
         rainGeo.setDrawRange(0, weatherPreset.rainCount * 2);
@@ -3957,67 +4069,74 @@ window.HorizonWorld = (() => {
         }
         posAttr.needsUpdate = true;
 
+        // Animate delicate 3D parabolic micro-droplet bursts strictly on roads, bridges & ocean water
         rainSplashGroup.visible = true;
-        const activeSplashes = weatherPreset.splashCount;
+        const activeBursts = Math.min(MAX_BURSTS, weatherPreset.splashCount);
         const fx = -Math.sin(car.heading);
         const fz = -Math.cos(car.heading);
 
-        for (let i = 0; i < MAX_SPLASHES; i++) {
-          const s = splashes[i];
-          if (i >= activeSplashes) {
+        for (let i = 0; i < MAX_BURSTS; i++) {
+          const b = bursts[i];
+          if (i >= activeBursts) {
             dummy.scale.set(0, 0, 0);
             dummy.updateMatrix();
-            splashCrownInst.setMatrixAt(i, dummy.matrix);
-            splashRingInst.setMatrixAt(i, dummy.matrix);
+            for (let k = 0; k < DROPS_PER_BURST; k++) {
+              microDropInst.setMatrixAt(i * DROPS_PER_BURST + k, dummy.matrix);
+            }
             continue;
           }
 
-          s.age += dt;
-          if (s.age >= s.life) {
-            s.age = 0;
-            s.life = 0.2 + Math.random() * 0.22;
-            s.scale = 0.75 + Math.random() * 0.75;
-            const ahead = -8 + Math.random() * 54;
-            const side = (Math.random() - 0.5) * 44;
+          b.age += dt;
+          if (b.age >= b.life) {
+            b.age = 0;
+            b.life = 0.16 + Math.random() * 0.14;
+            b.phase = Math.random() * Math.PI * 2;
+            b.power = 0.72 + Math.random() * 0.58;
+            const ahead = -6 + Math.random() * 44;
+            const side = (Math.random() - 0.5) * 32;
             const sx = car.x + fx * ahead + fz * side;
             const sz = car.z + fz * ahead - fx * side;
             const surf = sampleSurface(sx, sz, car.y + 4.5, car.heading);
-            if (surf.inTunnel) {
-              s.y = -999;
+            // Only spawn splashes on hard pavement/bridges or open water — never floating cones on grass or in tunnels!
+            if (surf.inTunnel || (!surf.onRoad && !surf.overWater)) {
+              b.y = -999;
             } else {
-              s.x = sx;
-              s.y = surf.height + 0.06;
-              s.z = sz;
+              b.x = sx;
+              b.y = surf.height + 0.05;
+              b.z = sz;
             }
           }
 
-          if (s.y < -10) {
+          if (b.y < -10) {
             dummy.scale.set(0, 0, 0);
             dummy.updateMatrix();
-            splashCrownInst.setMatrixAt(i, dummy.matrix);
-            splashRingInst.setMatrixAt(i, dummy.matrix);
+            for (let k = 0; k < DROPS_PER_BURST; k++) {
+              microDropInst.setMatrixAt(i * DROPS_PER_BURST + k, dummy.matrix);
+            }
             continue;
           }
 
-          const t = s.age / s.life;
-          const crownPulse = Math.sin(Math.min(1, t * 1.45) * Math.PI);
-          const cXZ = (0.35 + t * 1.35) * s.scale;
-          const cY = Math.max(0.001, crownPulse * 1.35 * s.scale);
-          dummy.position.set(s.x, s.y, s.z);
-          dummy.rotation.set(0, i * 1.3, 0);
-          dummy.scale.set(cXZ, cY, cXZ);
-          dummy.updateMatrix();
-          splashCrownInst.setMatrixAt(i, dummy.matrix);
-
-          const rScale = (0.28 + t * 2.15) * s.scale * (1 - t * 0.2);
-          dummy.position.set(s.x, s.y + 0.02, s.z);
+          const t = b.age / b.life;
+          const fadeScale = Math.sin(t * Math.PI) * b.power;
+          const timeS = b.age;
           dummy.rotation.set(0, 0, 0);
-          dummy.scale.set(rScale, 1, rScale);
-          dummy.updateMatrix();
-          splashRingInst.setMatrixAt(i, dummy.matrix);
+
+          for (let k = 0; k < DROPS_PER_BURST; k++) {
+            const ang = b.phase + k * ((Math.PI * 2) / DROPS_PER_BURST);
+            const horizSpd = (0.75 + (k % 2) * 0.42) * b.power;
+            const upSpd = (1.65 + (k % 3) * 0.38) * b.power;
+            const dx = Math.cos(ang) * horizSpd * timeS;
+            const dz = Math.sin(ang) * horizSpd * timeS;
+            const dy = Math.max(0.0, upSpd * timeS - 6.8 * timeS * timeS);
+
+            dummy.position.set(b.x + dx, b.y + dy, b.z + dz);
+            const sc = Math.max(0.001, fadeScale * (0.72 + (k % 2) * 0.35));
+            dummy.scale.set(sc, sc * 1.4, sc);
+            dummy.updateMatrix();
+            microDropInst.setMatrixAt(i * DROPS_PER_BURST + k, dummy.matrix);
+          }
         }
-        splashCrownInst.instanceMatrix.needsUpdate = true;
-        splashRingInst.instanceMatrix.needsUpdate = true;
+        microDropInst.instanceMatrix.needsUpdate = true;
       } else {
         rainLines.visible = false;
         rainSplashGroup.visible = false;
