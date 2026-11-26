@@ -1767,6 +1767,26 @@
   let puddleLevel = 0.0;
   let moistureTrend = "DRY";
 
+  // Smoothly interpolated live weather state (clouds, drizzle, waves & fog roll in over several seconds!)
+  const liveWeather = {
+    name: WEATHER_PRESETS[0].name,
+    rainCount: 0,
+    splashCount: 0,
+    rainSpeed: 42,
+    rainTiltX: 0,
+    rainIntensity: 0,
+    cloudCover: WEATHER_PRESETS[0].cloudCover,
+    waveStrength: WEATHER_PRESETS[0].waveStrength,
+    fogMult: WEATHER_PRESETS[0].fogMult,
+    skyDarken: WEATHER_PRESETS[0].skyDarken,
+    sunMult: WEATHER_PRESETS[0].sunMult,
+    rainAudio: 0,
+    forceHeadlights: false,
+    lightning: false,
+  };
+  let liveRainCountF = 0;
+  let liveSplashCountF = 0;
+
   const flashOverlay = document.getElementById("flash-overlay");
   const tunnelOverlay = document.getElementById("tunnel-overlay");
   const eventBanner = document.getElementById("event-banner");
@@ -1779,36 +1799,66 @@
     bannerTimer = 1.5;
   }
 
+  function updateLiveWeather(dt) {
+    const target = WEATHER_PRESETS[weatherIndex];
+    const tSky = 1 - Math.exp(-0.55 * dt);   // Clouds & sky darken gradually (~4-5s)
+    const tRain = 1 - Math.exp(-0.42 * dt);  // Drizzle builds smoothly into steady rain (~5-6s)
+    const tWave = 1 - Math.exp(-0.35 * dt);  // Ocean swells rise & calm naturally (~6-7s)
+
+    liveWeather.name = target.name;
+    liveWeather.cloudCover = THREE.MathUtils.lerp(liveWeather.cloudCover, target.cloudCover, tSky);
+    liveWeather.skyDarken = THREE.MathUtils.lerp(liveWeather.skyDarken, target.skyDarken, tSky);
+    liveWeather.sunMult = THREE.MathUtils.lerp(liveWeather.sunMult, target.sunMult, tSky);
+    liveWeather.fogMult = THREE.MathUtils.lerp(liveWeather.fogMult, target.fogMult, tSky);
+    liveWeather.waveStrength = THREE.MathUtils.lerp(liveWeather.waveStrength, target.waveStrength, tWave);
+
+    // Rain starts as light drizzle once clouds gather, and tapers off gently when clearing
+    const cloudsReady = target.rainCount > 0 ? THREE.MathUtils.smoothstep(liveWeather.cloudCover, 0.42, 0.72) : 1.0;
+    const goalRain = target.rainCount * cloudsReady;
+    const goalSplash = target.splashCount * cloudsReady;
+
+    liveRainCountF = THREE.MathUtils.lerp(liveRainCountF, goalRain, tRain);
+    liveSplashCountF = THREE.MathUtils.lerp(liveSplashCountF, goalSplash, tRain);
+    liveWeather.rainCount = liveRainCountF < 8 ? 0 : Math.round(liveRainCountF);
+    liveWeather.splashCount = liveSplashCountF < 2 ? 0 : Math.round(liveSplashCountF);
+    liveWeather.rainIntensity = THREE.MathUtils.lerp(liveWeather.rainIntensity, target.rainIntensity * cloudsReady, tRain);
+    liveWeather.rainAudio = THREE.MathUtils.lerp(liveWeather.rainAudio, target.rainAudio * cloudsReady, tRain);
+    liveWeather.rainSpeed = THREE.MathUtils.lerp(liveWeather.rainSpeed, target.rainSpeed || 42, tSky);
+    liveWeather.rainTiltX = THREE.MathUtils.lerp(liveWeather.rainTiltX, target.rainTiltX, tSky);
+    liveWeather.forceHeadlights = liveWeather.skyDarken < 0.85 || liveWeather.fogMult > 1.4;
+    liveWeather.lightning = target.lightning && liveWeather.rainIntensity > 0.62;
+  }
+
   function updateRoadMoisture(dt) {
     const w = WEATHER_PRESETS[weatherIndex];
     const t = TIME_PRESETS[timeIndex];
 
-    // Stage 1: General asphalt surface moisture
+    // Wetting scales with actual live falling rain (so road stays dry during the first seconds while clouds roll in!)
+    const rainFactor = w.rainIntensity > 0 ? THREE.MathUtils.clamp(liveWeather.rainIntensity / w.rainIntensity, 0, 1) : 1;
+
     if (w.wetRate > 0 && roadMoisture < w.targetMoisture) {
-      roadMoisture = Math.min(w.targetMoisture, roadMoisture + w.wetRate * dt);
+      roadMoisture = Math.min(w.targetMoisture, roadMoisture + w.wetRate * 0.65 * rainFactor * dt);
     } else if (roadMoisture > w.targetMoisture) {
       roadMoisture = Math.max(w.targetMoisture, roadMoisture - t.dryRate * dt);
     }
 
-    // Stage 2: Standing puddles fill AFTER asphalt gets damp, and evaporate 4x slower after rain stops!
+    // Puddles only start forming AFTER open asphalt is noticeably damp (> 34%) and linger slowly after rain stops
     const pFill = w.puddleFillRate || 0;
     const pTarget = w.targetPuddle || 0;
     const pDry = t.puddleDryRate || 0.012;
 
     if (pFill > 0 && puddleLevel < pTarget) {
-      if (roadMoisture > 0.24) {
-        const fillScale = THREE.MathUtils.smoothstep(roadMoisture, 0.24, 0.6);
-        puddleLevel = Math.min(pTarget, puddleLevel + pFill * (0.35 + 0.65 * fillScale) * dt);
+      if (roadMoisture > 0.34 && rainFactor > 0.35) {
+        const fillScale = THREE.MathUtils.smoothstep(roadMoisture, 0.34, 0.7);
+        puddleLevel = Math.min(pTarget, puddleLevel + pFill * 0.68 * fillScale * rainFactor * dt);
       }
     } else if (puddleLevel > pTarget) {
-      // Puddles linger while open asphalt dries, then gradually shrink inward
       const dryAccel = roadMoisture < 0.15 ? 1.15 : 0.45;
       puddleLevel = Math.max(pTarget, puddleLevel - pDry * dryAccel * dt);
     }
 
-    // Clear descriptive status tag for the HUD
     if (w.wetRate > 0 && (roadMoisture < w.targetMoisture - 0.01 || puddleLevel < pTarget - 0.01)) {
-      moistureTrend = puddleLevel > 0.15 ? "POOLING" : "WETTING";
+      moistureTrend = puddleLevel > 0.12 ? "POOLING" : "WETTING";
     } else if (roadMoisture > w.targetMoisture + 0.01) {
       moistureTrend = "DRYING";
     } else if (puddleLevel > 0.04 && roadMoisture <= 0.16) {
@@ -1825,67 +1875,91 @@
     world.setRoadUniform("uPuddleLevel", puddleLevel);
   }
 
-  function applyEnvironment() {
-    const t = TIME_PRESETS[timeIndex];
-    const w = WEATHER_PRESETS[weatherIndex];
+  // Reusable colors so per-frame smooth weather blending creates zero GC overhead
+  const _envSkyTop = new THREE.Color();
+  const _envSkyHor = new THREE.Color();
+  const _envSkyBot = new THREE.Color();
+  const _envFogCol = new THREE.Color();
+  const _envSunCol = new THREE.Color();
+  const _envAmbRoad = new THREE.Color();
+  const _envWaterDeep = new THREE.Color();
+  const _envWaterShallow = new THREE.Color();
+  const _envSunDir = new THREE.Vector3();
 
-    const skyTop = new THREE.Color(t.skyTop).multiplyScalar(w.skyDarken);
-    const skyHorizon = new THREE.Color(t.skyHorizon).multiplyScalar(w.skyDarken);
-    const skyBottom = new THREE.Color(t.skyBottom).multiplyScalar(w.skyDarken);
-    const fogCol = new THREE.Color(t.fog).multiplyScalar(w.skyDarken);
+  function syncDynamicEnvironment() {
+    const t = TIME_PRESETS[timeIndex];
+    const w = liveWeather;
+
+    _envSkyTop.setHex(t.skyTop).multiplyScalar(w.skyDarken);
+    _envSkyHor.setHex(t.skyHorizon).multiplyScalar(w.skyDarken);
+    _envSkyBot.setHex(t.skyBottom).multiplyScalar(w.skyDarken);
+    _envFogCol.setHex(t.fog).multiplyScalar(w.skyDarken);
     const fogDensity = t.fogDensity * w.fogMult;
     const headlightsOn = t.headlights || w.forceHeadlights;
-    const sunDir = new THREE.Vector3(...t.sunPos).normalize();
-    const sunColor = new THREE.Color(t.sunColor).multiplyScalar(w.sunMult);
+    _envSunDir.set(t.sunPos[0], t.sunPos[1], t.sunPos[2]).normalize();
+    _envSunCol.setHex(t.sunColor).multiplyScalar(w.sunMult);
 
-    scene.background = fogCol.clone();
-    scene.fog = new THREE.FogExp2(fogCol.getHex(), fogDensity);
-    renderer.toneMappingExposure = t.exposure;
+    if (!scene.background) scene.background = _envFogCol.clone();
+    else scene.background.copy(_envFogCol);
 
-    world.skyUniforms.uTopColor.value.copy(skyTop);
-    world.skyUniforms.uHorizonColor.value.copy(skyHorizon);
-    world.skyUniforms.uBottomColor.value.copy(skyBottom);
-    world.skyUniforms.uSunDir.value.copy(sunDir);
-    world.skyUniforms.uSunColor.value.copy(sunColor);
+    if (!scene.fog) scene.fog = new THREE.FogExp2(_envFogCol.getHex(), fogDensity);
+    else {
+      scene.fog.color.copy(_envFogCol);
+      scene.fog.density = fogDensity;
+    }
+
+    world.skyUniforms.uTopColor.value.copy(_envSkyTop);
+    world.skyUniforms.uHorizonColor.value.copy(_envSkyHor);
+    world.skyUniforms.uBottomColor.value.copy(_envSkyBot);
+    world.skyUniforms.uSunDir.value.copy(_envSunDir);
+    world.skyUniforms.uSunColor.value.copy(_envSunCol);
     world.skyUniforms.uNightMix.value = t.nightMix || 0.0;
-    world.skyUniforms.uCloudCover.value = w.cloudCover !== undefined ? w.cloudCover : 0.35;
+    world.skyUniforms.uCloudCover.value = w.cloudCover;
 
     sunLight.color.setHex(t.sunColor);
     sunLight.intensity = t.sunIntensity * w.sunMult;
     sunDisc.material.color.setHex(t.sunColor);
-    sunDisc.visible = w.name !== "STORM" && w.name !== "FOG";
+    sunDisc.visible = w.cloudCover < 0.85 && w.fogMult < 2.2;
 
     hemiLight.color.setHex(t.hemiSky);
     hemiLight.groundColor.setHex(t.hemiGround);
     hemiLight.intensity = t.hemiIntensity * (0.65 + 0.35 * w.skyDarken);
 
-    world.buildingMaterials.forEach((m) => (m.emissiveIntensity = t.windowGlow));
-    world.neonMaterials.forEach((m) => (m.emissiveIntensity = t.neonGlow));
     world.bulbMat.emissiveIntensity = headlightsOn ? 2.8 : 0.15;
     headlightMat.emissiveIntensity = headlightsOn ? 3.4 : 0.45;
     world.setTrafficLighting(headlightsOn, rtEnabled);
 
-    const ambRoad = new THREE.Color(t.ambientRoad).multiplyScalar(0.75 + 0.25 * w.skyDarken);
-
-    world.setRoadUniform("uSunDir", sunDir);
-    world.setRoadUniform("uSunColor", sunColor);
-    world.setRoadUniform("uAmbientColor", ambRoad);
-    world.setRoadUniform("uFogColor", fogCol);
+    _envAmbRoad.setHex(t.ambientRoad).multiplyScalar(0.75 + 0.25 * w.skyDarken);
+    world.setRoadUniform("uSunDir", _envSunDir);
+    world.setRoadUniform("uSunColor", _envSunCol);
+    world.setRoadUniform("uAmbientColor", _envAmbRoad);
+    world.setRoadUniform("uFogColor", _envFogCol);
     world.setRoadUniform("uFogDensity", fogDensity);
     world.setRoadUniform("uHeadlightsOn", headlightsOn ? 1.0 : 0.0);
     world.setRoadUniform("uRainIntensity", w.rainIntensity);
     world.setRoadUniform("uRTEnabled", rtEnabled ? 1.0 : 0.0);
 
-    world.setWaterUniform("uSunDir", sunDir);
-    world.setWaterUniform("uSunColor", sunColor);
-    world.setWaterUniform("uDeepColor", new THREE.Color(t.waterDeep).multiplyScalar(0.75 + 0.25 * w.skyDarken));
-    world.setWaterUniform("uShallowColor", new THREE.Color(t.waterShallow).multiplyScalar(0.75 + 0.25 * w.skyDarken));
-    world.setWaterUniform("uFogColor", fogCol);
+    _envWaterDeep.setHex(t.waterDeep).multiplyScalar(0.75 + 0.25 * w.skyDarken);
+    _envWaterShallow.setHex(t.waterShallow).multiplyScalar(0.75 + 0.25 * w.skyDarken);
+    world.setWaterUniform("uSunDir", _envSunDir);
+    world.setWaterUniform("uSunColor", _envSunCol);
+    world.setWaterUniform("uDeepColor", _envWaterDeep);
+    world.setWaterUniform("uShallowColor", _envWaterShallow);
+    world.setWaterUniform("uFogColor", _envFogCol);
     world.setWaterUniform("uFogDensity", fogDensity);
     world.setWaterUniform("uHeadlightsOn", headlightsOn ? 1.0 : 0.0);
     world.setWaterUniform("uWaveStrength", w.waveStrength);
     world.setWaterUniform("uRainIntensity", w.rainIntensity);
     world.setWaterUniform("uRTEnabled", rtEnabled ? 1.0 : 0.0);
+  }
+
+  function applyEnvironment() {
+    const t = TIME_PRESETS[timeIndex];
+    const targetW = WEATHER_PRESETS[weatherIndex];
+
+    renderer.toneMappingExposure = t.exposure;
+    world.buildingMaterials.forEach((m) => (m.emissiveIntensity = t.windowGlow));
+    world.neonMaterials.forEach((m) => (m.emissiveIntensity = t.neonGlow));
 
     bodyMat.envMap = rtEnabled ? cubeRenderTarget.texture : null;
     bodyMat.envMapIntensity = rtEnabled ? 2.0 : 0.0;
@@ -1908,12 +1982,15 @@
 
     sunLight.castShadow = rtEnabled;
     world.roadShadowGroup.visible = rtEnabled;
+    syncDynamicEnvironment();
+
+    const headlightsOn = t.headlights || liveWeather.forceHeadlights;
     volumetricBeams.forEach((b) => (b.visible = rtEnabled && headlightsOn));
     if (headSpot) headSpot.intensity = rtEnabled && headlightsOn ? 3.4 : headlightsOn ? 1.4 : 0;
 
     document.getElementById("time-label").textContent = t.name;
-    document.getElementById("weather-label").textContent = w.name;
-    document.getElementById("btn-weather").classList.toggle("active", w.name !== "CLEAR");
+    document.getElementById("weather-label").textContent = targetW.name;
+    document.getElementById("btn-weather").classList.toggle("active", targetW.name !== "CLEAR");
 
     document.getElementById("rt-label").textContent = rtEnabled ? "ON" : "OFF";
     document.getElementById("btn-rt").classList.toggle("active", rtEnabled);
@@ -2941,7 +3018,7 @@
     scrapeIntensity *= Math.exp(-16 * dt);
     cameraTrauma = Math.max(0, cameraTrauma - 1.75 * dt);
 
-    const weather = WEATHER_PRESETS[weatherIndex];
+    const weather = liveWeather;
     const sp = activeSpec;
     const hp = HANDLING_PROFILES[sp.id] || HANDLING_PROFILES.gt;
 
@@ -4159,7 +4236,10 @@
 
     if (controls) controls.poll(dt);
 
-    const weather = WEATHER_PRESETS[weatherIndex];
+    updateLiveWeather(dt);
+    syncDynamicEnvironment();
+
+    const weather = liveWeather;
     const timePreset = TIME_PRESETS[timeIndex];
 
     world.skyUniforms.uTime.value = elapsed;

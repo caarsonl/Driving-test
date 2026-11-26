@@ -1188,6 +1188,9 @@ window.HorizonWorld = (() => {
   // =========================================================================
   // 5B. TRUE 3D GERSTNER WAVE OCEAN SHADER (3D GEOMETRY + 5-TAP PLANAR RT)
   // =========================================================================
+  // =========================================================================
+  // 5B. TRUE 3D GERSTNER WAVE OCEAN SHADER (ISLAND-CLIPPED + 5-TAP PLANAR RT)
+  // =========================================================================
   function createWaterMaterial(reflTexture, resolution) {
     return new THREE.ShaderMaterial({
       uniforms: {
@@ -1225,7 +1228,17 @@ window.HorizonWorld = (() => {
           return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
         }
 
-        // True 3D Gerstner Wave displacement + tangent accumulation
+        // Signed distance to nearest dry land: < 0 inside islands/tunnel, > 0 in open water & lagoon
+        float signedWaterDist(vec2 p) {
+          float dMetro = boxDist2D(p, vec2(-420.0, -340.0), vec2(320.0, 380.0));
+          float dPalmOuter = boxDist2D(p, vec2(960.0, -380.0), vec2(1660.0, 360.0));
+          float dLagoon = boxDist2D(p, vec2(1340.0, 60.0), vec2(1600.0, 290.0));
+          float dPalm = max(dPalmOuter, -dLagoon);
+          float dPine = boxDist2D(p, vec2(-420.0, -1440.0), vec2(460.0, -880.0));
+          float dTunnelRidge = boxDist2D(p, vec2(-145.0, -885.0), vec2(145.0, -335.0));
+          return min(min(dMetro, dPalm), min(dPine, dTunnelRidge));
+        }
+
         void addGerstner(vec2 p, vec2 dir, float freq, float amp, float speed, float steep,
                          inout vec3 disp, inout vec3 tangentX, inout vec3 tangentZ) {
           vec2 d = normalize(dir);
@@ -1246,17 +1259,17 @@ window.HorizonWorld = (() => {
         void main() {
           vec4 wp = modelMatrix * vec4(position, 1.0);
 
-          // Fade 3D Gerstner vertex displacement smoothly at the outer rim of the 420m high-detail patch
           vec2 relPatch = abs(wp.xz - uPatchCenter);
           float patchFade = smoothstep(206.0, 152.0, max(relPatch.x, relPatch.y));
 
-          // Calm waves gently right against island concrete seawalls while rolling tall in open water
-          float dMetro = abs(boxDist2D(wp.xz, vec2(-420.0, -340.0), vec2(320.0, 380.0)));
-          float dPalm = abs(boxDist2D(wp.xz, vec2(960.0, -380.0), vec2(1660.0, 360.0)));
-          float dLagoon = abs(boxDist2D(wp.xz, vec2(1340.0, 60.0), vec2(1600.0, 290.0)));
-          float dPine = abs(boxDist2D(wp.xz, vec2(-420.0, -1440.0), vec2(460.0, -880.0)));
-          float edgeDist = min(min(dMetro, dPalm), min(dLagoon, dPine));
-          float shoreCalm = 0.22 + 0.78 * smoothstep(2.0, 24.0, edgeDist);
+          float landDist = signedWaterDist(wp.xz);
+          // Zero waves underneath land & depress ocean safely below island slabs so it NEVER pokes through!
+          float openWaterMask = smoothstep(0.0, 4.5, landDist);
+          float shoreCalm = (0.18 + 0.82 * smoothstep(2.0, 26.0, max(0.0, landDist))) * openWaterMask;
+
+          if (landDist < 0.0) {
+            wp.y -= 1.45 * smoothstep(0.0, -3.0, landDist);
+          }
 
           float ampScale = uWaveStrength * patchFade * shoreCalm;
           vec3 disp = vec3(0.0);
@@ -1317,7 +1330,6 @@ window.HorizonWorld = (() => {
           return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
         }
 
-        // High-frequency capillary & wind-chop normals layered onto the 3D Gerstner geometry
         vec2 fineWaveGradient(vec2 p, float t) {
           vec2 g = vec2(0.0);
           g += vec2(0.42, 0.28) * cos(p.x * 0.42 + p.y * 0.28 + t * 2.45) * 0.16;
@@ -1328,7 +1340,6 @@ window.HorizonWorld = (() => {
           return g;
         }
 
-        // True 3D normal-mapped raindrop ripples on ocean water
         vec2 waterRainSlope(vec2 pos, float t) {
           vec2 cell = floor(pos);
           vec2 local = fract(pos) - 0.5;
@@ -1358,6 +1369,15 @@ window.HorizonWorld = (() => {
           return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
         }
 
+        float signedWaterDist(vec2 p) {
+          float dMetro = boxDist2D(p, vec2(-420.0, -340.0), vec2(320.0, 380.0));
+          float dPalmOuter = boxDist2D(p, vec2(960.0, -380.0), vec2(1660.0, 360.0));
+          float dLagoon = boxDist2D(p, vec2(1340.0, 60.0), vec2(1600.0, 290.0));
+          float dPalm = max(dPalmOuter, -dLagoon);
+          float dPine = boxDist2D(p, vec2(-420.0, -1440.0), vec2(460.0, -880.0));
+          return min(min(dMetro, dPalm), dPine);
+        }
+
         void main() {
           vec3 toCam = cameraPosition - vWorldPos;
           float camDist = length(toCam);
@@ -1367,7 +1387,6 @@ window.HorizonWorld = (() => {
           float distAtten = smoothstep(850.0, 35.0, camDist);
           vec2 fineG = fineWaveGradient(vWorldPos.xz, uTime) * (0.45 + uWaveStrength * 0.55) * (0.28 + 0.72 * distAtten);
 
-          // 3D concentric wake ripples around the car when driving in water
           vec3 toFrag = vWorldPos - uCarPos;
           float carDist = length(toFrag.xz);
           if (uCarPos.y < 1.2 && carDist < 24.0) {
@@ -1379,25 +1398,18 @@ window.HorizonWorld = (() => {
             ? waterRainSlope(vWorldPos.xz * 0.55, uTime) * uRainIntensity * distAtten * 0.34
             : vec2(0.0);
 
-          // Combine real 3D Gerstner geometric normal + fine capillary/chop + rain/wake normals
           vec3 N = normalize(normalize(vGeoNormal) + vec3(fineG.x + rainG.x, 0.0, fineG.y + rainG.y));
 
-          float dMetro = abs(boxDist2D(vWorldPos.xz, vec2(-420.0, -340.0), vec2(320.0, 380.0)));
-          float dPalm = abs(boxDist2D(vWorldPos.xz, vec2(960.0, -380.0), vec2(1660.0, 360.0)));
-          float dLagoon = abs(boxDist2D(vWorldPos.xz, vec2(1340.0, 60.0), vec2(1600.0, 290.0)));
-          float dPine = abs(boxDist2D(vWorldPos.xz, vec2(-420.0, -1440.0), vec2(460.0, -880.0)));
-          float edgeDist = min(min(dMetro, dPalm), min(dLagoon, dPine));
+          float edgeDist = max(0.0, signedWaterDist(vWorldPos.xz));
 
           float foamNoise = noise2D(vWorldPos.xz * 0.42 + vec2(uTime * 0.28, -uTime * 0.22));
           float shoreWave = 0.5 + 0.5 * sin(edgeDist * 1.4 - uTime * 2.2);
           float shoreFoam = smoothstep(4.2, 0.15, edgeDist) * smoothstep(0.26, 0.72, foamNoise + shoreWave * 0.3);
 
-          // Wind-blown 3D wave-crest whitecap foam (stronger in RAIN & STORM!)
           float crestFoamNoise = noise2D(vWorldPos.xz * 0.35 + vec2(uTime * 0.4, -uTime * 0.3));
           float whitecap = smoothstep(0.32, 0.85, vWaveCrest * (0.65 + uWaveStrength * 0.35) + crestFoamNoise * 0.35)
                          * smoothstep(0.45, 1.3, uWaveStrength) * distAtten * 0.52;
 
-          // Parallax-refracted shallow seabed caustics near coasts & marina lagoon
           float shallowMix = smoothstep(46.0, 2.0, edgeDist);
           vec2 caustXZ = vWorldPos.xz - (V.xz / max(V.y, 0.35)) * (1.2 - shallowMix * 0.7) + N.xz * 1.4;
           float caustics = noise2D(caustXZ * 0.55 + vec2(uTime * 0.65, uTime * 0.42))
@@ -1405,7 +1417,6 @@ window.HorizonWorld = (() => {
           vec3 waterBase = mix(uDeepColor, uShallowColor, shallowMix);
           waterBase += uShallowColor * pow(caustics, 1.8) * shallowMix * 0.68;
 
-          // 3D Wave-Slope Shading + Backlit Crest Subsurface Translucency (emerald/turquoise glow!)
           float NdotL = max(dot(N, L), 0.0);
           float troughShade = clamp(0.76 + vWaveCrest * 0.28 + NdotL * 0.35, 0.58, 1.28);
           waterBase *= troughShade;
@@ -1416,7 +1427,6 @@ window.HorizonWorld = (() => {
           if (uRTEnabled > 0.5) {
             vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
             vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
-            // Physically curved 3D wave planar reflection distortion
             vec2 uvShift = vec2(N.x * 0.042, N.z * 0.072) * (0.5 + uWaveStrength * 0.4) * (0.3 + 0.7 * distAtten);
             reflUv = clamp(reflUv + uvShift, vec2(0.002), vec2(0.998));
 
