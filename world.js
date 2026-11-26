@@ -7,7 +7,7 @@ window.HorizonWorld = (() => {
   const CONFIG = {
     WORLD_BOUNDS: { minX: -620, maxX: 1860, minZ: -1620, maxZ: 580 },
     ROAD_WIDTH: 16,
-    HIGHWAY_WIDTH: 22, // Wider 4-lane expressway, bridge & viaduct decks
+    HIGHWAY_WIDTH: 22,
 
     ISLANDS: [
       { id: "metro", name: "METRO BAY CITY", minX: -420, maxX: 320, minZ: -340, maxZ: 380 },
@@ -50,69 +50,72 @@ window.HorizonWorld = (() => {
   const TIME_PRESETS = [
     {
       name: "SUNSET",
-      skyTop: 0x1b264f,
-      skyHorizon: 0xf07848,
+      skyTop: 0x16224a,
+      skyHorizon: 0xf47b47,
       skyBottom: 0x3b1d2e,
-      fog: 0xb85247,
-      fogDensity: 0.00072,
-      sunColor: 0xffa45b,
-      sunIntensity: 1.45,
-      sunPos: [-360, 105, -280],
+      fog: 0xb65549,
+      fogDensity: 0.00068,
+      sunColor: 0xffa85c,
+      sunIntensity: 1.55,
+      sunPos: [-360, 102, -280],
       hemiSky: 0xfdba74,
       hemiGround: 0x1e293b,
-      hemiIntensity: 0.65,
-      ambientRoad: 0x523c46,
-      waterDeep: 0x0a2540,
-      waterShallow: 0x1c5266,
-      windowGlow: 0.85,
-      neonGlow: 2.1,
+      hemiIntensity: 0.7,
+      ambientRoad: 0x543e49,
+      waterDeep: 0x09223c,
+      waterShallow: 0x1b5469,
+      windowGlow: 0.92,
+      neonGlow: 2.35,
       headlights: true,
+      nightMix: 0.18,
       dryRate: 0.042,
-      exposure: 1.12,
+      exposure: 1.14,
     },
     {
       name: "NIGHT",
-      skyTop: 0x030612,
-      skyHorizon: 0x0f1c38,
+      skyTop: 0x020510,
+      skyHorizon: 0x0d1b38,
       skyBottom: 0x040710,
-      fog: 0x081024,
-      fogDensity: 0.00115,
-      sunColor: 0x60a5fa,
-      sunIntensity: 0.42,
+      fog: 0x071024,
+      fogDensity: 0.00105,
+      sunColor: 0x7cb8ff,
+      sunIntensity: 0.46,
       sunPos: [160, 310, -240],
-      hemiSky: 0x1e3a5f,
+      hemiSky: 0x22416b,
       hemiGround: 0x050811,
-      hemiIntensity: 0.48,
-      ambientRoad: 0x1d2b48,
+      hemiIntensity: 0.52,
+      ambientRoad: 0x1e2e4d,
       waterDeep: 0x030c1c,
-      waterShallow: 0x0b223d,
-      windowGlow: 1.45,
-      neonGlow: 2.7,
+      waterShallow: 0x0b2542,
+      windowGlow: 1.55,
+      neonGlow: 3.1,
       headlights: true,
+      nightMix: 1.0,
       dryRate: 0.022,
-      exposure: 1.18,
+      exposure: 1.2,
     },
     {
       name: "DAY",
-      skyTop: 0x2563eb,
-      skyHorizon: 0x93d5fa,
+      skyTop: 0x1e56d9,
+      skyHorizon: 0x99dafc,
       skyBottom: 0x60a5fa,
-      fog: 0x9bd2f5,
-      fogDensity: 0.00056,
-      sunColor: 0xfff6e5,
-      sunIntensity: 1.5,
+      fog: 0x9cd4f7,
+      fogDensity: 0.00052,
+      sunColor: 0xfff7e8,
+      sunIntensity: 1.62,
       sunPos: [280, 380, 220],
       hemiSky: 0xdbeafe,
       hemiGround: 0x3f6212,
-      hemiIntensity: 0.78,
-      ambientRoad: 0x67707e,
-      waterDeep: 0x074166,
-      waterShallow: 0x1282a2,
+      hemiIntensity: 0.82,
+      ambientRoad: 0x6b7482,
+      waterDeep: 0x063f66,
+      waterShallow: 0x1288ab,
       windowGlow: 0.08,
-      neonGlow: 0.4,
+      neonGlow: 0.45,
       headlights: false,
+      nightMix: 0.0,
       dryRate: 0.068,
-      exposure: 1.05,
+      exposure: 1.08,
     },
   ];
 
@@ -124,6 +127,7 @@ window.HorizonWorld = (() => {
       rainSpeed: 0,
       rainTiltX: 0,
       rainIntensity: 0.0,
+      cloudCover: 0.3,
       wetRate: 0.0,
       targetMoisture: 0.0,
       waveStrength: 0.42,
@@ -141,6 +145,7 @@ window.HorizonWorld = (() => {
       rainSpeed: 46,
       rainTiltX: 3.8,
       rainIntensity: 0.75,
+      cloudCover: 0.82,
       wetRate: 0.08,
       targetMoisture: 0.82,
       waveStrength: 0.78,
@@ -158,6 +163,7 @@ window.HorizonWorld = (() => {
       rainSpeed: 66,
       rainTiltX: 12.0,
       rainIntensity: 1.0,
+      cloudCover: 0.96,
       wetRate: 0.14,
       targetMoisture: 1.0,
       waveStrength: 1.4,
@@ -175,6 +181,7 @@ window.HorizonWorld = (() => {
       rainSpeed: 0,
       rainTiltX: 0,
       rainIntensity: 0.0,
+      cloudCover: 0.7,
       wetRate: 0.014,
       targetMoisture: 0.22,
       waveStrength: 0.25,
@@ -309,7 +316,7 @@ window.HorizonWorld = (() => {
         varying vec3 vNormalV;
         varying vec3 vViewDir;
         void main() {
-          float edgeSoft = pow(clamp(abs(dot(normalize(vNormalV), normalize(vViewDir))), 0.0, 1.0), 2.4);
+          float edgeSoft = pow(clamp(abs(dot(normalize(vNormalV), normalize(vViewDir))), 0.0, 1.0), 2.5);
           float lengthFade = smoothstep(0.0, 0.72, vUv.y) * smoothstep(1.0, 0.84, vUv.y);
           float alpha = edgeSoft * lengthFade * uOpacity;
           gl_FragColor = vec4(uColor * alpha, alpha);
@@ -319,7 +326,7 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 4. PROCEDURAL TEXTURES (CITY ROAD, 4-LANE HIGHWAY/BRIDGE, SIGNS & FACADES)
+  // 4. PROCEDURAL TEXTURES (TERRAIN, CITY ROAD, 4-LANE HIGHWAY/BRIDGE, FACADES)
   // =========================================================================
   function createGrassTexture(tintHex, grainDelta) {
     const c = document.createElement("canvas");
@@ -329,8 +336,8 @@ window.HorizonWorld = (() => {
     ctx.fillStyle = tintHex;
     ctx.fillRect(0, 0, 256, 256);
 
-    for (let i = 0; i < 4200; i++) {
-      const s = 30 + Math.floor(Math.random() * 40);
+    for (let i = 0; i < 4800; i++) {
+      const s = 30 + Math.floor(Math.random() * 44);
       ctx.fillStyle = `rgb(${s + grainDelta[0]}, ${s + grainDelta[1]}, ${s + grainDelta[2]})`;
       ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
     }
@@ -340,7 +347,6 @@ window.HorizonWorld = (() => {
     return tex;
   }
 
-  // 2-Lane Urban Avenue Asphalt
   function createRoadTexture() {
     const c = document.createElement("canvas");
     c.width = 256;
@@ -350,13 +356,13 @@ window.HorizonWorld = (() => {
     ctx.fillStyle = "#353b45";
     ctx.fillRect(0, 0, 256, 256);
 
-    for (let i = 0; i < 4200; i++) {
-      const v = 38 + Math.floor(Math.random() * 44);
+    for (let i = 0; i < 4600; i++) {
+      const v = 36 + Math.floor(Math.random() * 46);
       ctx.fillStyle = `rgb(${v},${v + 2},${v + 6})`;
       ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
     }
 
-    ctx.fillStyle = "rgba(18, 22, 28, 0.24)";
+    ctx.fillStyle = "rgba(18, 22, 28, 0.26)";
     ctx.fillRect(42, 0, 34, 256);
     ctx.fillRect(180, 0, 34, 256);
 
@@ -374,41 +380,34 @@ window.HorizonWorld = (() => {
     return tex;
   }
 
-  // Dedicated 4-Lane Expressway & Bridge Deck Texture (double yellow median, 4 lanes, shoulders & expansion joints)
   function createHighwayTexture(isBridge = false) {
     const c = document.createElement("canvas");
     c.width = 512;
     c.height = 512;
     const ctx = c.getContext("2d");
 
-    // Rich high-grip expressway asphalt
     ctx.fillStyle = isBridge ? "#2e3540" : "#2b313b";
     ctx.fillRect(0, 0, 512, 512);
 
-    // Fine aggregate & subtle longitudinal paving grooves
-    for (let i = 0; i < 7500; i++) {
-      const v = 32 + Math.floor(Math.random() * 38);
+    for (let i = 0; i < 8200; i++) {
+      const v = 30 + Math.floor(Math.random() * 40);
       ctx.fillStyle = `rgb(${v},${v + 3},${v + 7})`;
       ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 3);
     }
 
-    // Emergency asphalt shoulders (slightly lighter weathered apron)
     ctx.fillStyle = "rgba(148, 163, 184, 0.08)";
     ctx.fillRect(0, 0, 36, 512);
     ctx.fillRect(476, 0, 36, 512);
 
-    // Subtle dark wheel-wear ruts in all 4 lanes
-    ctx.fillStyle = "rgba(10, 14, 20, 0.22)";
+    ctx.fillStyle = "rgba(10, 14, 20, 0.24)";
     [76, 178, 304, 406].forEach((lx) => ctx.fillRect(lx, 0, 30, 512));
 
-    // Steel/concrete bridge expansion joint seams + rumble edges on bridge decks
     if (isBridge) {
-      ctx.fillStyle = "rgba(15, 23, 42, 0.65)";
+      ctx.fillStyle = "rgba(15, 23, 42, 0.68)";
       ctx.fillRect(0, 0, 512, 7);
-      ctx.fillStyle = "rgba(148, 163, 184, 0.22)";
+      ctx.fillStyle = "rgba(148, 163, 184, 0.24)";
       ctx.fillRect(0, 7, 512, 3);
 
-      // Subtle shoulder rumble notches
       ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
       for (let y = 16; y < 512; y += 20) {
         ctx.fillRect(14, y, 16, 6);
@@ -416,17 +415,14 @@ window.HorizonWorld = (() => {
       }
     }
 
-    // Crisp solid white outer expressway shoulder lines
     ctx.fillStyle = "#f1f5f9";
     ctx.fillRect(36, 0, 7, 512);
     ctx.fillRect(469, 0, 7, 512);
 
-    // Double solid yellow center expressway median lines
     ctx.fillStyle = "#facc15";
     ctx.fillRect(246, 0, 7, 512);
     ctx.fillRect(259, 0, 7, 512);
 
-    // Dashed white lane dividers separating fast & slow lanes in each direction
     ctx.fillStyle = "#e2e8f0";
     for (let y = 26; y < 512; y += 128) {
       ctx.fillRect(141, y, 6, 68);
@@ -439,7 +435,6 @@ window.HorizonWorld = (() => {
     return tex;
   }
 
-  // Highway Overhead Gantry Direction Sign Texture
   function createGantrySignTexture(title, subtitle, arrow = "↑") {
     const c = document.createElement("canvas");
     c.width = 512;
@@ -581,7 +576,7 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 5. REALISTIC RAIN-IMPACT PAVEMENT SHADER & PLANAR REFLECTIVE WATER SHADER
+  // 5. UPGRADED RT GLOSSY-BLUR PAVEMENT SHADER + CONTACT AO + SPARK LIGHTS
   // =========================================================================
   function createRealisticRoadMaterial(roadTex, reflTexture, resolution, isIntersection) {
     return new THREE.ShaderMaterial({
@@ -598,12 +593,16 @@ window.HorizonWorld = (() => {
         uSunColor: { value: new THREE.Color(0xffa45b) },
         uAmbientColor: { value: new THREE.Color(0x523c46) },
         uFogColor: { value: new THREE.Color(0xb85247) },
-        uFogDensity: { value: 0.00072 },
+        uFogDensity: { value: 0.00068 },
         uCarPos: { value: new THREE.Vector3(0, 0, 45) },
         uCarForward: { value: new THREE.Vector3(0, 0, -1) },
+        uCarHalfW: { value: 1.15 },
+        uCarHalfL: { value: 2.35 },
         uHeadlightsOn: { value: 1.0 },
         uBrakeIntensity: { value: 0.45 },
         uNitroActive: { value: 0.0 },
+        uSparkPos: { value: new THREE.Vector3(0, -100, 0) },
+        uSparkIntensity: { value: 0.0 },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -637,9 +636,13 @@ window.HorizonWorld = (() => {
         uniform float uFogDensity;
         uniform vec3 uCarPos;
         uniform vec3 uCarForward;
+        uniform float uCarHalfW;
+        uniform float uCarHalfL;
         uniform float uHeadlightsOn;
         uniform float uBrakeIntensity;
         uniform float uNitroActive;
+        uniform vec3 uSparkPos;
+        uniform float uSparkIntensity;
 
         varying vec2 vUv;
         varying vec3 vWorldPos;
@@ -680,6 +683,20 @@ window.HorizonWorld = (() => {
           return vec3(dir * wave, clamp(ringEdge * 0.9 + splashDot * 1.15, 0.0, 1.4));
         }
 
+        // Roughness-aware 5-tap RT Glossy Reflection Sampler
+        vec3 sampleGlossyRT(vec2 uv, float blurRadius) {
+          vec3 c = texture2D(uReflMap, uv).rgb * 0.36;
+          vec2 o1 = vec2(blurRadius, blurRadius * 0.55);
+          vec2 o2 = vec2(-blurRadius, blurRadius * 0.55);
+          vec2 o3 = vec2(blurRadius * 0.55, -blurRadius);
+          vec2 o4 = vec2(-blurRadius * 0.55, -blurRadius);
+          c += texture2D(uReflMap, clamp(uv + o1, vec2(0.002), vec2(0.998))).rgb * 0.16;
+          c += texture2D(uReflMap, clamp(uv + o2, vec2(0.002), vec2(0.998))).rgb * 0.16;
+          c += texture2D(uReflMap, clamp(uv + o3, vec2(0.002), vec2(0.998))).rgb * 0.16;
+          c += texture2D(uReflMap, clamp(uv + o4, vec2(0.002), vec2(0.998))).rgb * 0.16;
+          return c;
+        }
+
         void main() {
           vec3 rawAlbedo = uIsIntersection > 0.5
             ? vec3(0.21, 0.23, 0.27)
@@ -690,9 +707,9 @@ window.HorizonWorld = (() => {
           float activeRain = uRainIntensity * (1.0 - inTunnel);
 
           float macroWear = noise2D(vWorldPos.xz * 0.09);
-          float fineGrain = noise2D(vWorldPos.xz * 3.8);
-          float microX = noise2D(vWorldPos.xz * 2.4) - 0.5;
-          float microZ = noise2D(vWorldPos.xz * 2.4 + 19.7) - 0.5;
+          float fineGrain = noise2D(vWorldPos.xz * 4.2);
+          float microX = noise2D(vWorldPos.xz * 2.6) - 0.5;
+          float microZ = noise2D(vWorldPos.xz * 2.6 + 19.7) - 0.5;
 
           float p1 = noise2D(vWorldPos.xz * 0.026);
           float p2 = noise2D(vWorldPos.xz * 0.085);
@@ -713,83 +730,112 @@ window.HorizonWorld = (() => {
             impactRing = (r1.z * 0.62 + r2.z * 0.55) * activeRain * distMask * (0.35 + localMoisture * 0.45 + puddle * 0.55);
           }
 
-          float roughAmt = mix(0.26, 0.14, localMoisture);
-          roughAmt = mix(roughAmt, 0.014, puddle);
+          float roughAmt = mix(0.28, 0.13, localMoisture);
+          roughAmt = mix(roughAmt, 0.012, puddle);
           vec3 N = normalize(normalize(vWorldNormal) + vec3(microX * roughAmt + ripGrad.x * 0.22, 0.0, microZ * roughAmt + ripGrad.y * 0.22));
 
           vec3 V = normalize(cameraPosition - vWorldPos);
           vec3 L = normalize(uSunDir);
 
           float isMarking = smoothstep(0.48, 0.65, max(rawAlbedo.r, rawAlbedo.g));
-          vec3 dryTex = rawAlbedo * (0.9 + fineGrain * 0.14 + (macroWear - 0.5) * 0.08);
-          float darkenAmt = mix(localMoisture * 0.42 + puddle * 0.22, localMoisture * 0.14, isMarking);
-          vec3 albedo = dryTex * (1.0 - clamp(darkenAmt, 0.0, 0.54));
+          vec3 dryTex = rawAlbedo * (0.88 + fineGrain * 0.16 + (macroWear - 0.5) * 0.09);
+          float darkenAmt = mix(localMoisture * 0.44 + puddle * 0.24, localMoisture * 0.14, isMarking);
+          vec3 albedo = dryTex * (1.0 - clamp(darkenAmt, 0.0, 0.56));
 
           float NdotL = max(dot(N, L), 0.0) * (1.0 - inTunnel);
           vec3 H = normalize(L + V);
-          float specPow = mix(mix(12.0, 52.0, localMoisture), 240.0, puddle);
-          float specStr = mix(mix(0.04, 0.28, localMoisture), 1.15, puddle) * (1.0 - inTunnel);
+          float specPow = mix(mix(14.0, 62.0, localMoisture), 280.0, puddle);
+          float specStr = mix(mix(0.06, 0.34, localMoisture), 1.35, puddle) * (1.0 - inTunnel);
           float spec = pow(max(dot(N, H), 0.0), specPow) * specStr;
 
-          // Warm overhead lighting glow inside Alpine Tunnel & under Highway/Bridge Lamp Posts at night
+          // Subtle micro-aggregate asphalt sparkle under grazing sun/headlights
+          float sparkleHash = hash21(floor(vWorldPos.xz * 7.5));
+          float asphaltGlint = smoothstep(0.955, 0.995, sparkleHash) * pow(max(dot(N, H), 0.0), 18.0) * (1.0 - puddle) * 0.45;
+
           vec3 lampGlow = vec3(0.0);
           if (inTunnel > 0.5) {
             float lampCycle = 0.5 + 0.5 * cos((vWorldPos.z + 340.0) * (6.28318 / 28.0));
-            lampGlow = vec3(0.46, 0.37, 0.26) * (0.58 + 0.42 * pow(lampCycle, 2.0));
+            lampGlow = vec3(0.48, 0.38, 0.26) * (0.58 + 0.42 * pow(lampCycle, 2.0));
           } else if (uHeadlightsOn > 0.5 && vWorldPos.y > 1.0) {
-            // Subtle warm bridge & coastal viaduct overhead streetlamp pools
             float spanCoord = abs(vWorldPos.z) < 25.0 ? vWorldPos.x : (abs(vWorldPos.z + 1140.0) < 25.0 ? vWorldPos.x : vWorldPos.z);
             float pool = 0.5 + 0.5 * cos(spanCoord * (6.28318 / 48.0));
-            lampGlow = vec3(0.36, 0.29, 0.19) * pow(pool, 3.0) * (0.55 + localMoisture * 0.65);
+            lampGlow = vec3(0.38, 0.3, 0.2) * pow(pool, 3.0) * (0.55 + localMoisture * 0.7);
           }
 
-          vec3 color = albedo * (uAmbientColor * (1.0 - inTunnel * 0.65) + lampGlow + uSunColor * NdotL * 0.9)
-                     + uSunColor * spec * 0.62;
+          vec3 color = albedo * (uAmbientColor * (1.0 - inTunnel * 0.65) + lampGlow + uSunColor * NdotL * 0.92)
+                     + uSunColor * (spec * 0.72 + asphaltGlint);
 
+          // Analytic Under-Car Contact AO (grounds car on road; lifts cleanly during ramp jumps!)
           vec3 toFrag = vWorldPos - uCarPos;
           float carDist = length(toFrag.xz);
+          float contactAO = 1.0;
+          if (carDist < 5.5 && toFrag.y < 0.8 && toFrag.y > -4.5) {
+            vec2 carF = normalize(uCarForward.xz + vec2(0.0001));
+            vec2 carR = vec2(-carF.y, carF.x);
+            float lx = abs(dot(toFrag.xz, carR)) / max(0.8, uCarHalfW * 1.12);
+            float lz = abs(dot(toFrag.xz, carF)) / max(1.6, uCarHalfL * 1.08);
+            float footprint = smoothstep(1.18, 0.62, max(lx, lz)) * smoothstep(1.38, 0.7, length(vec2(lx, lz)));
+            float heightFade = smoothstep(3.2, 0.0, max(0.0, uCarPos.y - vWorldPos.y));
+            contactAO = 1.0 - footprint * heightFade * 0.68;
+          }
+          color *= contactAO;
+
+          // Headlight pool + rain impact illumination
           float headlightFactor = 0.0;
-          if ((uHeadlightsOn > 0.5 || inTunnel > 0.5) && carDist < 72.0 && abs(toFrag.y) < 6.0) {
+          if ((uHeadlightsOn > 0.5 || inTunnel > 0.5) && carDist < 76.0 && abs(toFrag.y) < 6.0) {
             vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
             float cone = dot(dir2, normalize(uCarForward.xz));
-            headlightFactor = smoothstep(0.64, 0.96, cone) * smoothstep(72.0, 2.5, carDist);
-            color += vec3(1.0, 0.94, 0.82) * headlightFactor * mix(0.32, 0.72, max(localMoisture * 0.5, puddle));
+            headlightFactor = smoothstep(0.62, 0.96, cone) * smoothstep(76.0, 2.5, carDist);
+            color += vec3(1.0, 0.94, 0.82) * headlightFactor * mix(0.36, 0.78, max(localMoisture * 0.5, puddle));
           }
 
           if (impactRing > 0.005) {
-            vec3 ringTint = mix(vec3(0.75, 0.85, 0.96), vec3(1.0, 0.97, 0.9), headlightFactor);
-            color += ringTint * impactRing * (0.28 + headlightFactor * 0.55);
+            vec3 ringTint = mix(vec3(0.76, 0.86, 0.98), vec3(1.0, 0.97, 0.9), headlightFactor);
+            color += ringTint * impactRing * (0.3 + headlightFactor * 0.6);
           }
 
-          vec3 rearPos = uCarPos - uCarForward * 2.3;
+          vec3 rearPos = uCarPos - uCarForward * (uCarHalfL + 0.1);
           float rearDist = length(vWorldPos.xz - rearPos.xz);
-          if (rearDist < 15.0 && abs(toFrag.y) < 4.0) {
-            float tailFalloff = smoothstep(15.0, 0.5, rearDist);
-            color += vec3(1.0, 0.1, 0.08) * tailFalloff * uBrakeIntensity * mix(0.14, 0.68, max(localMoisture * 0.45, puddle));
+          if (rearDist < 16.0 && abs(toFrag.y) < 4.0) {
+            float tailFalloff = smoothstep(16.0, 0.5, rearDist);
+            color += vec3(1.0, 0.1, 0.08) * tailFalloff * uBrakeIntensity * mix(0.16, 0.78, max(localMoisture * 0.48, puddle));
             if (uNitroActive > 0.5) {
-              color += vec3(0.15, 0.78, 1.0) * tailFalloff * mix(0.28, 0.95, max(localMoisture * 0.45, puddle));
+              color += vec3(0.15, 0.82, 1.0) * tailFalloff * mix(0.3, 1.05, max(localMoisture * 0.48, puddle));
             }
           }
 
-          if (uRTEnabled > 0.5 && localMoisture > 0.04) {
-            float NdotV = max(dot(N, V), 0.0);
-            float fresnel = 0.03 + 0.97 * pow(1.0 - NdotV, 4.2);
+          // Dynamic Flickering Collision Spark Road Illumination!
+          if (uSparkIntensity > 0.02) {
+            float sDist = length(vWorldPos - uSparkPos);
+            if (sDist < 14.0) {
+              float sFall = smoothstep(14.0, 0.4, sDist);
+              color += vec3(1.0, 0.58, 0.14) * sFall * sFall * uSparkIntensity * mix(0.65, 1.5, max(localMoisture * 0.5, puddle));
+            }
+          }
 
-            if (vWorldPos.y < 1.5) {
+          // Upgraded Roughness-Blurred RT Planar Reflections (even subtle dry-asphalt grazing sheen!)
+          if (uRTEnabled > 0.5) {
+            float NdotV = max(dot(N, V), 0.0);
+            float fresnel = 0.03 + 0.97 * pow(1.0 - NdotV, 4.0);
+            float drySheen = (1.0 - inTunnel) * 0.055 * fresnel;
+
+            if (vWorldPos.y < 1.5 && (localMoisture > 0.03 || drySheen > 0.01)) {
               vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
               vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
-              float distort = mix(0.022, 0.003, puddle);
-              reflUv += vec2(microX, microZ) * distort + ripGrad * 0.045;
+              float distort = mix(0.024, 0.0025, puddle);
+              reflUv += vec2(microX, microZ) * distort + ripGrad * 0.048;
               reflUv = clamp(reflUv, vec2(0.002), vec2(0.998));
 
-              vec3 reflSample = texture2D(uReflMap, reflUv).rgb;
-              float dampRefl = localMoisture * 0.24 * (0.15 + fresnel * 0.85);
-              float puddleRefl = puddle * (0.14 + fresnel * 0.62);
-              float reflFactor = clamp(max(dampRefl, puddleRefl), 0.0, 0.72) * (1.0 - isMarking * 0.35);
-              color = mix(color, reflSample * 1.04, reflFactor);
-            } else {
-              float deckSheen = clamp((localMoisture * 0.28 + puddle * 0.38) * fresnel, 0.0, 0.48);
-              color = mix(color, uFogColor * 1.15 + uSunColor * 0.28 + lampGlow * 0.8, deckSheen);
+              float blurRad = mix(0.011, 0.0012, puddle);
+              vec3 reflSample = sampleGlossyRT(reflUv, blurRad);
+              float dampRefl = localMoisture * 0.3 * (0.16 + fresnel * 0.84);
+              float puddleRefl = puddle * (0.18 + fresnel * 0.68);
+              float reflFactor = clamp(max(max(dampRefl, puddleRefl), drySheen), 0.0, 0.82) * (1.0 - isMarking * 0.35);
+              // Ground contact shadow dims reflections right underneath the car
+              color = mix(color, reflSample * 1.08 * mix(0.45, 1.0, contactAO), reflFactor);
+            } else if (vWorldPos.y >= 1.5 && localMoisture > 0.04) {
+              float deckSheen = clamp((localMoisture * 0.3 + puddle * 0.42) * fresnel, 0.0, 0.54);
+              color = mix(color, uFogColor * 1.15 + uSunColor * 0.32 + lampGlow * 0.9, deckSheen);
             }
           }
 
@@ -813,12 +859,12 @@ window.HorizonWorld = (() => {
         uRTEnabled: { value: 1.0 },
         uWaveStrength: { value: 0.45 },
         uRainIntensity: { value: 0.0 },
-        uDeepColor: { value: new THREE.Color(0x0a2540) },
-        uShallowColor: { value: new THREE.Color(0x1c5266) },
+        uDeepColor: { value: new THREE.Color(0x09223c) },
+        uShallowColor: { value: new THREE.Color(0x1b5469) },
         uSunDir: { value: new THREE.Vector3(-0.6, 0.3, -0.5).normalize() },
-        uSunColor: { value: new THREE.Color(0xffa45b) },
-        uFogColor: { value: new THREE.Color(0xb85247) },
-        uFogDensity: { value: 0.00072 },
+        uSunColor: { value: new THREE.Color(0xffa85c) },
+        uFogColor: { value: new THREE.Color(0xb65549) },
+        uFogDensity: { value: 0.00068 },
         uCarPos: { value: new THREE.Vector3(0, 0, 45) },
         uCarForward: { value: new THREE.Vector3(0, 0, -1) },
         uHeadlightsOn: { value: 1.0 },
@@ -828,10 +874,12 @@ window.HorizonWorld = (() => {
         uniform float uTime;
         uniform float uWaveStrength;
         varying vec3 vWorldPos;
+        varying float vWaveH;
         void main() {
           vec4 wp = modelMatrix * vec4(position, 1.0);
           float swell = sin(wp.x * 0.065 + uTime * 1.5) * cos(wp.z * 0.06 - uTime * 1.25);
-          wp.y += swell * 0.1 * uWaveStrength;
+          wp.y += swell * 0.12 * uWaveStrength;
+          vWaveH = swell * uWaveStrength;
           vWorldPos = wp.xyz;
           gl_Position = projectionMatrix * viewMatrix * wp;
         }
@@ -855,6 +903,7 @@ window.HorizonWorld = (() => {
         uniform float uNitroActive;
 
         varying vec3 vWorldPos;
+        varying float vWaveH;
 
         float hash21(vec2 p) {
           p = fract(p * vec2(127.1, 311.7));
@@ -930,22 +979,30 @@ window.HorizonWorld = (() => {
 
           float shallowMix = smoothstep(38.0, 2.0, edgeDist);
           vec3 waterBase = mix(uDeepColor, uShallowColor, shallowMix);
+          // Subtle subsurface turquoise glow on backlit wave crests
+          float sss = clamp(vWaveH * 0.8 + 0.3, 0.0, 1.0) * pow(max(dot(V, -L), 0.0), 3.0);
+          waterBase += uShallowColor * sss * 0.45;
 
           vec3 color;
           if (uRTEnabled > 0.5) {
             vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
             vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
-            reflUv += N.xz * (0.044 + uWaveStrength * 0.026);
+            reflUv += N.xz * (0.042 + uWaveStrength * 0.024);
             reflUv = clamp(reflUv, vec2(0.002), vec2(0.998));
 
-            vec3 reflColor = texture2D(uReflMap, reflUv).rgb * 1.15;
+            // 3-tap soft ocean reflection
+            vec3 reflColor = texture2D(uReflMap, reflUv).rgb * 0.52
+                           + texture2D(uReflMap, clamp(reflUv + vec2(0.003, 0.002), vec2(0.002), vec2(0.998))).rgb * 0.24
+                           + texture2D(uReflMap, clamp(reflUv - vec2(0.003, 0.002), vec2(0.002), vec2(0.998))).rgb * 0.24;
+            reflColor *= 1.18;
+
             float NdotV = max(dot(N, V), 0.0);
-            float fresnel = 0.06 + 0.94 * pow(1.0 - NdotV, 3.6);
-            color = mix(waterBase, reflColor, clamp(fresnel * 1.05, 0.16, 0.94));
+            float fresnel = 0.06 + 0.94 * pow(1.0 - NdotV, 3.4);
+            color = mix(waterBase, reflColor, clamp(fresnel * 1.08, 0.18, 0.95));
 
             vec3 H = normalize(L + V);
-            float glitter = pow(max(dot(N, H), 0.0), 260.0) * 2.1;
-            float broadSpec = pow(max(dot(N, H), 0.0), 36.0) * 0.26;
+            float glitter = pow(max(dot(N, H), 0.0), 280.0) * 2.4;
+            float broadSpec = pow(max(dot(N, H), 0.0), 36.0) * 0.3;
             color += uSunColor * (glitter + broadSpec);
 
             vec3 toFrag = vWorldPos - uCarPos;
@@ -954,10 +1011,10 @@ window.HorizonWorld = (() => {
               vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
               float cone = dot(dir2, normalize(uCarForward.xz));
               float beam = smoothstep(0.62, 0.95, cone) * smoothstep(70.0, 2.0, carDist);
-              color += vec3(1.0, 0.94, 0.82) * beam * 0.6;
+              color += vec3(1.0, 0.94, 0.82) * beam * 0.65;
             }
             if (uNitroActive > 0.5 && carDist < 18.0 && abs(toFrag.y) < 8.0) {
-              color += vec3(0.15, 0.8, 1.0) * smoothstep(18.0, 1.0, carDist) * 0.65;
+              color += vec3(0.15, 0.8, 1.0) * smoothstep(18.0, 1.0, carDist) * 0.7;
             }
           } else {
             float NdotL = max(dot(N, L), 0.0);
@@ -979,19 +1036,25 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 6. WORLD BUILDER INITIALIZATION (SKY, COLLIDERS, ISLANDS & 4-LANE HIGHWAYS)
+  // 6. WORLD BUILDER (ATMOSPHERIC SKY + CLOUDS + STARS, ISLANDS & HIGHWAYS)
   // =========================================================================
   function buildWorld(scene, reflTarget, drawingBufferSize) {
     const { ISLANDS, BRIDGE, TUNNEL, VIADUCT, ROAD_WIDTH, HIGHWAY_WIDTH } = CONFIG;
 
     const skyUniforms = {
-      uTopColor: { value: new THREE.Color(0x1b264f) },
-      uHorizonColor: { value: new THREE.Color(0xf07848) },
+      uTopColor: { value: new THREE.Color(0x16224a) },
+      uHorizonColor: { value: new THREE.Color(0xf47b47) },
       uBottomColor: { value: new THREE.Color(0x3b1d2e) },
+      uSunDir: { value: new THREE.Vector3(-0.6, 0.22, -0.5).normalize() },
+      uSunColor: { value: new THREE.Color(0xffa85c) },
+      uTime: { value: 0.0 },
+      uNightMix: { value: 0.18 },
+      uCloudCover: { value: 0.3 },
       uFlash: { value: 0.0 },
     };
+
     const skyDome = new THREE.Mesh(
-      new THREE.SphereGeometry(2800, 24, 16),
+      new THREE.SphereGeometry(2800, 32, 20),
       new THREE.ShaderMaterial({
         uniforms: skyUniforms,
         side: THREE.BackSide,
@@ -1008,14 +1071,82 @@ window.HorizonWorld = (() => {
           uniform vec3 uTopColor;
           uniform vec3 uHorizonColor;
           uniform vec3 uBottomColor;
+          uniform vec3 uSunDir;
+          uniform vec3 uSunColor;
+          uniform float uTime;
+          uniform float uNightMix;
+          uniform float uCloudCover;
           uniform float uFlash;
           varying vec3 vDir;
+
+          float hash21(vec2 p) {
+            p = fract(p * vec2(127.1, 311.7));
+            p += dot(p, p + 34.5);
+            return fract(p.x * p.y);
+          }
+
+          float noise2D(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            return mix(
+              mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+              mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x),
+              f.y
+            );
+          }
+
+          float fbm(vec2 p) {
+            float v = 0.0;
+            float a = 0.5;
+            for (int i = 0; i < 4; i++) {
+              v += a * noise2D(p);
+              p = p * 2.04 + vec2(17.1, 9.2);
+              a *= 0.5;
+            }
+            return v;
+          }
+
           void main() {
-            float h = vDir.y;
+            vec3 d = normalize(vDir);
+            float h = d.y;
             vec3 col = h >= 0.0
-              ? mix(uHorizonColor, uTopColor, pow(clamp(h, 0.0, 1.0), 0.55))
+              ? mix(uHorizonColor, uTopColor, pow(clamp(h, 0.0, 1.0), 0.52))
               : mix(uHorizonColor, uBottomColor, pow(clamp(-h, 0.0, 1.0), 0.6));
-            col += vec3(0.75, 0.88, 1.0) * uFlash;
+
+            // Atmospheric Rayleigh / Mie Sun Glow & Horizon Band
+            vec3 sDir = normalize(uSunDir);
+            float sunDot = max(dot(d, sDir), 0.0);
+            float sunHalo = pow(sunDot, 12.0) * 0.42 + pow(sunDot, 180.0) * 1.15;
+            col += uSunColor * sunHalo * (1.0 - uCloudCover * 0.55) * (1.0 - uNightMix * 0.72);
+
+            // Procedural Twinkling Starfield at Night / Twilight
+            if (uNightMix > 0.05 && h > 0.04) {
+              vec2 starUv = floor(d.xz / (h + 0.35) * 165.0);
+              float sVal = hash21(starUv);
+              if (sVal > 0.992) {
+                float twinkle = 0.55 + 0.45 * sin(uTime * 3.5 + sVal * 90.0);
+                float starVis = smoothstep(0.04, 0.25, h) * uNightMix * (1.0 - uCloudCover * 0.85);
+                col += vec3(0.85, 0.92, 1.0) * twinkle * starVis * 1.1;
+              }
+            }
+
+            // Drifting Multi-Layer Procedural Sky Clouds lit by Sun & Lightning
+            if (h > 0.025) {
+              vec2 cloudUv = d.xz / (h + 0.16) * 0.95 + vec2(uTime * 0.0085, uTime * 0.0035);
+              float cNoise = fbm(cloudUv);
+              float threshold = mix(0.62, 0.26, uCloudCover);
+              float cloudMask = smoothstep(threshold, threshold + 0.34, cNoise) * smoothstep(0.025, 0.18, h);
+
+              vec3 cloudBase = mix(uHorizonColor * 1.05, vec3(0.85, 0.89, 0.95), 0.35 * (1.0 - uNightMix));
+              cloudBase = mix(cloudBase, uTopColor * 0.85, uCloudCover * 0.65);
+              vec3 cloudLit = cloudBase + uSunColor * (0.28 + pow(sunDot, 5.0) * 0.55) * (1.0 - uNightMix * 0.8);
+              cloudLit += vec3(0.7, 0.85, 1.0) * uFlash * 0.9;
+
+              col = mix(col, cloudLit, clamp(cloudMask * 0.82, 0.0, 0.88));
+            }
+
+            col += vec3(0.75, 0.88, 1.0) * uFlash * 0.75;
             gl_FragColor = vec4(col, 1.0);
           }
         `,
@@ -1176,7 +1307,7 @@ window.HorizonWorld = (() => {
     const roadMatHighway = createRealisticRoadMaterial(roadTexHighway, reflTarget.texture, drawingBufferSize, false);
     const roadMatBridge = createRealisticRoadMaterial(roadTexBridge, reflTarget.texture, drawingBufferSize, false);
     const roadMatInter = createRealisticRoadMaterial(roadTexCity, reflTarget.texture, drawingBufferSize, true);
-    const roadShadowMat = new THREE.ShadowMaterial({ opacity: 0.34 });
+    const roadShadowMat = new THREE.ShadowMaterial({ opacity: 0.36 });
 
     const roadGroup = new THREE.Group();
     const roadShadowGroup = new THREE.Group();
@@ -1229,7 +1360,7 @@ window.HorizonWorld = (() => {
       roadGroup.add(mesh);
     }
 
-    // 1) Metro Bay City Streets (4-lane Expressways on X=0 & Z=0 + 2-lane city avenues)
+    // 1) Metro Bay City Streets
     addFlatRoad("z", 0, -340, 260, HIGHWAY_WIDTH, 0.038, true);
     addFlatRoad("x", 0, -260, 320, HIGHWAY_WIDTH, 0.038, true);
     addFlatRoad("z", -260, -240, 260, ROAD_WIDTH, 0.032, false);
@@ -1277,7 +1408,6 @@ window.HorizonWorld = (() => {
     // 4) Sheltered 4-Lane Alpine Tunnel Expressway Floor
     addFlatRoad("z", 0, TUNNEL.endZ, TUNNEL.startZ, HIGHWAY_WIDTH, 0.042, true);
 
-    // Elevated Sloped/Curved Highway Ribbon Builder (24m tile scale for 4-lane bridge texture)
     function buildElevatedRibbon(samples, halfW, mat) {
       const positions = [];
       const normals = [];
@@ -1319,12 +1449,12 @@ window.HorizonWorld = (() => {
     // =========================================================================
     // 7. UPGRADED GOLDEN BAY SUSPENSION BRIDGE (4-LANE DECK, LAMPS & GANTRIES)
     // =========================================================================
-    const bridgeSteelRed = new THREE.MeshStandardMaterial({ color: 0xb91c1c, metalness: 0.45, roughness: 0.42 });
-    const bridgeDeckUndersideMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.55, roughness: 0.5 });
-    const cableMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.78, roughness: 0.25 });
-    const jerseyBarrierMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.78, metalness: 0.15 });
-    const steelRailMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.75, roughness: 0.28 });
-    const gantrySteelMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.7, roughness: 0.35 });
+    const bridgeSteelRed = new THREE.MeshStandardMaterial({ color: 0xb91c1c, metalness: 0.48, roughness: 0.38 });
+    const bridgeDeckUndersideMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.55, roughness: 0.48 });
+    const cableMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.82, roughness: 0.22 });
+    const jerseyBarrierMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.76, metalness: 0.16 });
+    const steelRailMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.78, roughness: 0.25 });
+    const gantrySteelMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.72, roughness: 0.34 });
 
     const neonMaterials = [];
     [0x38bdf8, 0xf43f5e, 0xa855f7, 0x22d3ee, 0xfbbf24].forEach((hex) => {
@@ -1332,18 +1462,17 @@ window.HorizonWorld = (() => {
         new THREE.MeshStandardMaterial({
           color: hex,
           emissive: hex,
-          emissiveIntensity: 2.1,
-          roughness: 0.2,
+          emissiveIntensity: 2.35,
+          roughness: 0.18,
         })
       );
     });
 
-    // Collectors for highway cat's-eye studs & cobra-head streetlamps (instanced for 60 FPS)
     const catsEyeAmberBatch = [];
     const catsEyeWhiteBatch = [];
     const highwayLampBatch = [];
+    const gantrySignMaterials = [];
 
-    // Helper: Overhead Expressway Direction Gantry Sign (strictly outside ±12.8m shoulders)
     function addHighwayGantry(x, z, rotY, title, subtitle, arrow = "↑") {
       const g = new THREE.Group();
       const spanHalf = 13.0;
@@ -1363,9 +1492,11 @@ window.HorizonWorld = (() => {
         map: signTex,
         emissiveMap: signTex,
         emissive: new THREE.Color(0xd1fae5),
-        emissiveIntensity: 0.55,
-        roughness: 0.35,
+        emissiveIntensity: 0.72,
+        roughness: 0.34,
       });
+      gantrySignMaterials.push(signMat);
+
       const signBoard = new THREE.Mesh(new THREE.BoxGeometry(15.2, 4.0, 0.35), [
         gantrySteelMat, gantrySteelMat, gantrySteelMat, gantrySteelMat, signMat, signMat,
       ]);
@@ -1376,7 +1507,6 @@ window.HorizonWorld = (() => {
       g.rotation.y = rotY;
       scene.add(g);
 
-      // Accurate leg colliders outside road shoulders
       const cosR = Math.cos(rotY);
       const sinR = Math.sin(rotY);
       [-spanHalf, spanHalf].forEach((lx) => {
@@ -1386,7 +1516,6 @@ window.HorizonWorld = (() => {
       });
     }
 
-    // Place 6 Iconic Expressway Overhead Gantries
     addHighwayGantry(292, 0, Math.PI / 2, "GOLDEN BAY BRIDGE", "PALM ISLAND MARINA");
     addHighwayGantry(988, 0, -Math.PI / 2, "GOLDEN BAY BRIDGE", "METRO BAY CITY");
     addHighwayGantry(0, -315, 0, "ALPINE RIDGE TUNNEL", "PINECREST VALLEY");
@@ -1413,7 +1542,6 @@ window.HorizonWorld = (() => {
       const segLen = Math.hypot(b.x - a.x, b.y - a.y);
       const pitch = Math.atan2(b.y - a.y, b.x - a.x);
 
-      // Deep bridge structural box girder
       const girder = new THREE.Mesh(
         new THREE.BoxGeometry(segLen + 0.4, 2.3, HIGHWAY_WIDTH + 2.2),
         bridgeDeckUndersideMat
@@ -1422,18 +1550,15 @@ window.HorizonWorld = (() => {
       girder.rotation.z = pitch;
       scene.add(girder);
 
-      // Center median glowing amber cat's-eye studs + shoulder white reflectors
       catsEyeAmberBatch.push({ x: mx, y: my + 0.08, z: 0 });
       catsEyeWhiteBatch.push({ x: mx, y: my + 0.08, z: -(BRIDGE.halfW - 0.8) });
       catsEyeWhiteBatch.push({ x: mx, y: my + 0.08, z: BRIDGE.halfW - 0.8 });
 
-      // Cobra-head highway lamp poles every 3 segments
       if (i % 3 === 1) {
         highwayLampBatch.push({ x: mx, y: my, z: -(BRIDGE.halfW + 0.85), rotY: 0 });
         highwayLampBatch.push({ x: mx, y: my, z: BRIDGE.halfW + 0.85, rotY: Math.PI });
       }
 
-      // Jersey concrete barriers + top steel safety rail + flush height-bounded hitboxes
       [-1, 1].forEach((side) => {
         const rz = side * (BRIDGE.halfW + 0.55);
         const barrier = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.25, 1.05, 0.85), jerseyBarrierMat);
@@ -1458,7 +1583,6 @@ window.HorizonWorld = (() => {
       });
     }
 
-    // Twin Suspension Bridge Towers (x = 500 & x = 780) — strictly outside ±11m road
     const towerXs = [500, 780];
     const towerTopY = 92;
     towerXs.forEach((tx) => {
@@ -1469,7 +1593,7 @@ window.HorizonWorld = (() => {
         leg.castShadow = true;
         scene.add(leg);
 
-        const beacon = new THREE.Mesh(new THREE.SphereGeometry(1.15, 8, 8), neonMaterials[1]);
+        const beacon = new THREE.Mesh(new THREE.SphereGeometry(1.25, 8, 8), neonMaterials[1]);
         beacon.position.set(tx, towerTopY + 1.2, tz);
         scene.add(beacon);
 
@@ -1526,9 +1650,9 @@ window.HorizonWorld = (() => {
     });
     const tunnelRibMat = new THREE.MeshStandardMaterial({ color: 0x333942, roughness: 0.82, metalness: 0.15 });
     const tunnelPortalMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.78 });
-    const tunnelStripMat = new THREE.MeshStandardMaterial({ color: 0xffedd5, emissive: 0xfdba74, emissiveIntensity: 2.8 });
-    const tunnelSignMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 2.3 });
-    const reflectorMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfacc15, emissiveIntensity: 2.1 });
+    const tunnelStripMat = new THREE.MeshStandardMaterial({ color: 0xffedd5, emissive: 0xfdba74, emissiveIntensity: 3.2 });
+    const tunnelSignMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 2.6 });
+    const reflectorMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfacc15, emissiveIntensity: 2.4 });
 
     const tunnelLen = TUNNEL.startZ - TUNNEL.endZ;
     const tunnelMidZ = (TUNNEL.startZ + TUNNEL.endZ) * 0.5;
@@ -1856,8 +1980,8 @@ window.HorizonWorld = (() => {
     }
 
     // Build Instanced Highway Cat's-Eye Studs & Cobra-Head Streetlamps
-    const studAmberMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xf59e0b, emissiveIntensity: 2.0 });
-    const studWhiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xe2e8f0, emissiveIntensity: 1.6 });
+    const studAmberMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xf59e0b, emissiveIntensity: 2.5 });
+    const studWhiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xe2e8f0, emissiveIntensity: 2.0 });
     const studGeo = new THREE.BoxGeometry(0.24, 0.07, 0.24);
 
     if (catsEyeAmberBatch.length) {
@@ -1887,7 +2011,7 @@ window.HorizonWorld = (() => {
     }
 
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.72, roughness: 0.35 });
-    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfde047, emissiveIntensity: 2.4 });
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfde047, emissiveIntensity: 2.8 });
 
     if (highwayLampBatch.length) {
       const hPoleInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.2, 8.2, 5), poleMat, highwayLampBatch.length);
@@ -1921,35 +2045,33 @@ window.HorizonWorld = (() => {
     }
 
     // =========================================================================
-    // 10. WORKING 3D TRAFFIC LIGHTS (12 SIGNALIZED INTERSECTIONS)
+    // 10. WORKING 3D TRAFFIC LIGHTS (12 SIGNALIZED INTERSECTIONS, BLOOM-READY)
     // =========================================================================
     const trafficLightsGroup = new THREE.Group();
     scene.add(trafficLightsGroup);
     const trafficLights = [];
 
-    // 3 staggered phase groups so city lights cascade naturally
     const signalPhases = [0, 7.5, 15.0].map((offset) => ({
       offset,
       nsState: "GREEN",
       ewState: "RED",
       nsRedMat: new THREE.MeshStandardMaterial({ color: 0x3b0808, emissive: 0xff1e1e, emissiveIntensity: 0.08 }),
       nsYelMat: new THREE.MeshStandardMaterial({ color: 0x3d2e05, emissive: 0xfacc15, emissiveIntensity: 0.08 }),
-      nsGrnMat: new THREE.MeshStandardMaterial({ color: 0x06381c, emissive: 0x22c55e, emissiveIntensity: 3.4 }),
-      ewRedMat: new THREE.MeshStandardMaterial({ color: 0x3b0808, emissive: 0xff1e1e, emissiveIntensity: 3.4 }),
+      nsGrnMat: new THREE.MeshStandardMaterial({ color: 0x06381c, emissive: 0x22c55e, emissiveIntensity: 4.0 }),
+      ewRedMat: new THREE.MeshStandardMaterial({ color: 0x3b0808, emissive: 0xff1e1e, emissiveIntensity: 4.0 }),
       ewYelMat: new THREE.MeshStandardMaterial({ color: 0x3d2e05, emissive: 0xfacc15, emissiveIntensity: 0.08 }),
       ewGrnMat: new THREE.MeshStandardMaterial({ color: 0x06381c, emissive: 0x22c55e, emissiveIntensity: 0.08 }),
     }));
 
     const tlHousingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.35 });
     const tlPoleMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.65, roughness: 0.35 });
-    const tlLensGeo = new THREE.SphereGeometry(0.24, 8, 8);
+    const tlLensGeo = new THREE.SphereGeometry(0.25, 8, 8);
     const tlBoxGeo = new THREE.BoxGeometry(0.75, 2.05, 0.55);
 
     function createSignalHead(redMat, yelMat, grnMat) {
       const h = new THREE.Group();
       h.add(new THREE.Mesh(tlBoxGeo, tlHousingMat));
 
-      // Double-sided lenses so traffic approaching from either direction sees clear Red/Yellow/Green!
       [-0.27, 0.27].forEach((zOff) => {
         const r = new THREE.Mesh(tlLensGeo, redMat);
         r.position.set(0, 0.6, zOff);
@@ -1967,18 +2089,15 @@ window.HorizonWorld = (() => {
     }
 
     const signalIntersections = [
-      // Metro Bay City
       { x: 0, z: 0, halfW: 12.2, phaseIdx: 0 },
       { x: 0, z: -240, halfW: 12.2, phaseIdx: 1 },
       { x: 0, z: 120, halfW: 12.2, phaseIdx: 2 },
       { x: 0, z: 260, halfW: 12.2, phaseIdx: 1 },
       { x: -260, z: 0, halfW: 11.8, phaseIdx: 2 },
       { x: 220, z: 0, halfW: 11.8, phaseIdx: 1 },
-      // Palm Island Marina
       { x: 1080, z: 0, halfW: 11.8, phaseIdx: 0 },
       { x: 1280, z: 0, halfW: 12.2, phaseIdx: 2 },
       { x: 1280, z: -280, halfW: 11.8, phaseIdx: 1 },
-      // Pinecrest Alpine
       { x: 0, z: -1020, halfW: 11.8, phaseIdx: 0 },
       { x: 0, z: -1140, halfW: 12.2, phaseIdx: 2 },
       { x: 340, z: -1140, halfW: 11.8, phaseIdx: 1 },
@@ -1992,7 +2111,6 @@ window.HorizonWorld = (() => {
       const d = cfg.halfW;
       const poleH = 8.4;
 
-      // Two diagonal corner cantilever mast-arms spanning overhead cleanly above traffic!
       [
         { px: d, pz: d, armDirX: -1, armDirZ: -1 },
         { px: -d, pz: -d, armDirX: 1, armDirZ: 1 },
@@ -2001,7 +2119,6 @@ window.HorizonWorld = (() => {
         pole.position.set(px, poleH * 0.5, pz);
         g.add(pole);
 
-        // Arm extending over N-S roadway (faces Z)
         const armNS = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.22, 0.22), tlPoleMat);
         armNS.position.set(px + armDirX * 3.6, poleH - 0.3, pz);
         g.add(armNS);
@@ -2010,7 +2127,6 @@ window.HorizonWorld = (() => {
         headNS.position.set(px + armDirX * 6.4, poleH - 1.35, pz);
         g.add(headNS);
 
-        // Arm extending over E-W roadway (faces X)
         const armEW = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 7.2), tlPoleMat);
         armEW.position.set(px, poleH - 0.3, pz + armDirZ * 3.6);
         g.add(armEW);
@@ -2020,7 +2136,6 @@ window.HorizonWorld = (() => {
         headEW.position.set(px, poleH - 1.35, pz + armDirZ * 6.4);
         g.add(headEW);
 
-        // Pole collider strictly outside road corner
         addCircleCollider(cfg.x + px, cfg.z + pz, 0.45, -2, poleH, false);
       });
 
@@ -2036,7 +2151,7 @@ window.HorizonWorld = (() => {
     });
 
     function updateTrafficLights(elapsed) {
-      const CYCLE = 22.0; // 8.5s Green -> 1.5s Yellow -> 1.0s All-Red -> switch
+      const CYCLE = 22.0;
       for (let i = 0; i < signalPhases.length; i++) {
         const ph = signalPhases[i];
         const t = (elapsed + ph.offset) % CYCLE;
@@ -2066,13 +2181,13 @@ window.HorizonWorld = (() => {
         ph.nsState = ns;
         ph.ewState = ew;
 
-        ph.nsRedMat.emissiveIntensity = ns === "RED" ? 3.5 : 0.06;
-        ph.nsYelMat.emissiveIntensity = ns === "YELLOW" ? 3.5 : 0.06;
-        ph.nsGrnMat.emissiveIntensity = ns === "GREEN" ? 3.5 : 0.06;
+        ph.nsRedMat.emissiveIntensity = ns === "RED" ? 4.0 : 0.06;
+        ph.nsYelMat.emissiveIntensity = ns === "YELLOW" ? 4.0 : 0.06;
+        ph.nsGrnMat.emissiveIntensity = ns === "GREEN" ? 4.0 : 0.06;
 
-        ph.ewRedMat.emissiveIntensity = ew === "RED" ? 3.5 : 0.06;
-        ph.ewYelMat.emissiveIntensity = ew === "YELLOW" ? 3.5 : 0.06;
-        ph.ewGrnMat.emissiveIntensity = ew === "GREEN" ? 3.5 : 0.06;
+        ph.ewRedMat.emissiveIntensity = ew === "RED" ? 4.0 : 0.06;
+        ph.ewYelMat.emissiveIntensity = ew === "YELLOW" ? 4.0 : 0.06;
+        ph.ewGrnMat.emissiveIntensity = ew === "GREEN" ? 4.0 : 0.06;
       }
 
       for (let i = 0; i < trafficLights.length; i++) {
@@ -2146,7 +2261,7 @@ window.HorizonWorld = (() => {
     addCircleCollider(110, -120, 7.2, -2, 180, true);
 
     // =========================================================================
-    // 12. THREE DISTINCT ARCHITECTURAL CITIES (STRICT ROAD-CLEARANCE CHECKED)
+    // 12. THREE DISTINCT ARCHITECTURAL CITIES
     // =========================================================================
     function isClearOfRoadsAndWater(cx, cz, hw, hd) {
       const pad = 6.2;
@@ -2177,9 +2292,9 @@ window.HorizonWorld = (() => {
         map: tex,
         emissiveMap: tex,
         emissive: new THREE.Color(isGlass ? 0xcceeff : 0xfff0c8),
-        emissiveIntensity: 0.85,
-        roughness: isGlass ? 0.18 : 0.62,
-        metalness: isGlass ? 0.65 : 0.16,
+        emissiveIntensity: 0.92,
+        roughness: isGlass ? 0.16 : 0.6,
+        metalness: isGlass ? 0.68 : 0.16,
       });
       facadeMats[st] = mat;
       buildingMaterials.push(mat);
@@ -2629,16 +2744,16 @@ window.HorizonWorld = (() => {
     }
 
     // =========================================================================
-    // 14. JAM-FREE AI TRAFFIC (FILLETED LANES, IDM GAPS, TRAFFIC LIGHTS & EXACT OBB)
+    // 14. JAM-FREE AI TRAFFIC (PER-CLASS MASSES + PHYSICAL SPIN-OUT REACTIONS)
     // =========================================================================
     const trafficGroup = new THREE.Group();
     scene.add(trafficGroup);
     const trafficCars = [];
 
-    const aiGlassMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.85, roughness: 0.14 });
+    const aiGlassMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.88, roughness: 0.12 });
     const aiTireMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.9 });
-    const aiHeadlightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff8d6, emissiveIntensity: 2.8 });
-    const aiHeadBeamMat = createSoftBeamMaterial(0xfff4d0, 0.11);
+    const aiHeadlightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff8d6, emissiveIntensity: 3.4 });
+    const aiHeadBeamMat = createSoftBeamMaterial(0xfff4d0, 0.12);
     const aiHeadBeams = [];
 
     const aiWheelGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.3, 10);
@@ -2651,14 +2766,25 @@ window.HorizonWorld = (() => {
       0xef4444, 0x8b5cf6, 0x334155, 0xf97316, 0x06b6d4,
     ];
 
+    const AI_CLASS_MASS = {
+      hatchback: 1180,
+      coupe: 1440,
+      sedan: 1560,
+      taxi: 1620,
+      suv: 2180,
+      van: 2520,
+      truck: 6200,
+      bus: 9800,
+    };
+
     function createAIVehicle(type, colorHex) {
       const g = new THREE.Group();
-      const paintMat = new THREE.MeshStandardMaterial({ color: colorHex, metalness: 0.55, roughness: 0.32 });
+      const paintMat = new THREE.MeshStandardMaterial({ color: colorHex, metalness: 0.62, roughness: 0.26 });
       let len = 4.3, w = 1.98;
 
       if (type === "bus") {
         len = 8.4; w = 2.4;
-        const body = new THREE.Mesh(new THREE.BoxGeometry(w, 2.3, len), new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.45 }));
+        const body = new THREE.Mesh(new THREE.BoxGeometry(w, 2.3, len), new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.42 }));
         body.position.y = 1.65;
         body.castShadow = true;
         g.add(body);
@@ -2676,14 +2802,14 @@ window.HorizonWorld = (() => {
         g.add(cab);
         const cargo = new THREE.Mesh(
           new THREE.BoxGeometry(2.26, 2.25, 4.15),
-          new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.65 })
+          new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.6 })
         );
         cargo.position.set(0, 1.65, 1.0);
         cargo.castShadow = true;
         g.add(cargo);
       } else if (type === "van") {
         len = 4.9; w = 2.05;
-        const body = new THREE.Mesh(new THREE.BoxGeometry(w, 1.55, len), new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.45 }));
+        const body = new THREE.Mesh(new THREE.BoxGeometry(w, 1.55, len), new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.42 }));
         body.position.y = 1.2;
         body.castShadow = true;
         g.add(body);
@@ -2724,7 +2850,7 @@ window.HorizonWorld = (() => {
       } else {
         const isTaxi = type === "taxi";
         const bodyMat = isTaxi
-          ? new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.4, roughness: 0.35 })
+          ? new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.45, roughness: 0.32 })
           : paintMat;
         const body = new THREE.Mesh(new THREE.BoxGeometry(w, 0.58, len), bodyMat);
         body.position.y = 0.62;
@@ -2737,7 +2863,7 @@ window.HorizonWorld = (() => {
         if (isTaxi) {
           const sign = new THREE.Mesh(
             new THREE.BoxGeometry(0.68, 0.22, 0.26),
-            new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfacc15, emissiveIntensity: 1.8 })
+            new THREE.MeshStandardMaterial({ color: 0xfef08a, emissive: 0xfacc15, emissiveIntensity: 2.2 })
           );
           sign.position.set(0, 1.5, 0.08);
           g.add(sign);
@@ -2767,7 +2893,7 @@ window.HorizonWorld = (() => {
       g.add(beam);
       aiHeadBeams.push(beam);
 
-      const tailMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff1e1e, emissiveIntensity: 0.7 });
+      const tailMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff1e1e, emissiveIntensity: 0.85 });
       [-0.65, 0.65].forEach((lx) => {
         const tl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.16, 0.08), tailMat);
         tl.position.set(lx, 0.7, halfL + 0.02);
@@ -2775,10 +2901,17 @@ window.HorizonWorld = (() => {
       });
 
       trafficGroup.add(g);
-      return { group: g, wheels, tailMat, halfW, halfL, radius: Math.hypot(halfW, halfL) };
+      return {
+        group: g,
+        wheels,
+        tailMat,
+        halfW,
+        halfL,
+        mass: AI_CLASS_MASS[type] || 1600,
+        radius: Math.hypot(halfW, halfL),
+      };
     }
 
-    // Wet-Road Tire Mist Pool for AI Traffic Vehicles
     const AI_MIST_MAX = 60;
     const aiMistPool = [];
     const aiMistGeo = new THREE.SphereGeometry(0.42, 6, 6);
@@ -2816,26 +2949,20 @@ window.HorizonWorld = (() => {
     }
 
     const ROUTES = [
-      // Route 0: Grand 4-Lane Inter-City Loop (Metro -> Tunnel -> Pinecrest -> Coastal Viaduct -> Palm -> Bridge -> Metro)
       [
         [0, 0], [0, -340], [0, -880], [0, -1140], [580, -1140],
         ...curveWaypoints,
         [1280, -500], [1280, 0], [960, 0], [320, 0],
       ],
-      // Route 1: Metro Bay Loop
       [[-260, -240], [220, -240], [220, 260], [-260, 260]],
-      // Route 2: Palm Island Marina Loop
       [[1080, -280], [1540, -280], [1540, 0], [1280, 0], [1280, 260], [1080, 260]],
-      // Route 3: Pinecrest Alpine Loop
       [[-300, -1340], [340, -1340], [340, -1020], [-300, -1020]],
     ];
 
-    // Builds C1-continuous, lane-offset, corner-filleted traffic loops (zero corner snapping or lane overlap!)
     function buildSmoothLaneLoop(rawPts, reverse, laneOffset) {
       const pts = reverse ? [...rawPts].reverse() : [...rawPts];
       const n = pts.length;
 
-      // Step 1: Offset each edge along its right-hand normal and intersect consecutive offset edges
       const offsetPts = [];
       for (let i = 0; i < n; i++) {
         const pPrev = pts[(i - 1 + n) % n];
@@ -2850,7 +2977,6 @@ window.HorizonWorld = (() => {
         const l2 = Math.hypot(d2x, d2z) || 1;
         const n2x = -d2z / l2, n2z = d2x / l2;
 
-        // Line 1: (pCur + n1*lane) + t * d1 ; Line 2: (pCur + n2*lane) + u * d2
         const det = d1x * d2z - d1z * d2x;
         if (Math.abs(det) < 0.001 * l1 * l2) {
           offsetPts.push([pCur[0] + (n1x + n2x) * 0.5 * laneOffset, pCur[1] + (n1z + n2z) * 0.5 * laneOffset]);
@@ -2863,7 +2989,6 @@ window.HorizonWorld = (() => {
         }
       }
 
-      // Step 2: Fillet sharp corners with smooth 5-segment quadratic Bezier arcs
       const smoothPts = [];
       for (let i = 0; i < n; i++) {
         const prev = offsetPts[(i - 1 + n) % n];
@@ -2878,7 +3003,6 @@ window.HorizonWorld = (() => {
 
         const cosAng = (v1x * v2x + v1z * v2z) / (l1 * l2);
         if (cosAng > -0.92) {
-          // Corner bend -> insert smooth rounded curve
           const trim = Math.min(11.0, l1 * 0.32, l2 * 0.32);
           const pA = [cur[0] + (v1x / l1) * trim, cur[1] + (v1z / l1) * trim];
           const pB = [cur[0] + (v2x / l2) * trim, cur[1] + (v2z / l2) * trim];
@@ -2895,7 +3019,6 @@ window.HorizonWorld = (() => {
         }
       }
 
-      // Step 3: Build arc-length parameterized segment list
       const segs = [];
       let totalLen = 0;
       for (let i = 0; i < smoothPts.length; i++) {
@@ -2923,15 +3046,14 @@ window.HorizonWorld = (() => {
       return { x: 0, z: 0, heading: 0 };
     }
 
-    // Dual-lane 4-lane expressway traffic + well-spaced city loops (52 total smart AI vehicles)
     const compiledLoops = [
-      { loop: buildSmoothLaneLoop(ROUTES[0], false, 3.2), count: 10 }, // Inner fast lane CW
-      { loop: buildSmoothLaneLoop(ROUTES[0], false, 7.2), count: 8 },  // Outer slow lane CW
-      { loop: buildSmoothLaneLoop(ROUTES[0], true, 3.2), count: 10 },  // Inner fast lane CCW
-      { loop: buildSmoothLaneLoop(ROUTES[0], true, 7.2), count: 8 },   // Outer slow lane CCW
-      { loop: buildSmoothLaneLoop(ROUTES[1], false, 3.8), count: 6 },  // Metro Loop CW
-      { loop: buildSmoothLaneLoop(ROUTES[2], false, 3.8), count: 5 },  // Palm Loop CW
-      { loop: buildSmoothLaneLoop(ROUTES[3], false, 3.8), count: 5 },  // Pinecrest Loop CW
+      { loop: buildSmoothLaneLoop(ROUTES[0], false, 3.2), count: 10 },
+      { loop: buildSmoothLaneLoop(ROUTES[0], false, 7.2), count: 8 },
+      { loop: buildSmoothLaneLoop(ROUTES[0], true, 3.2), count: 10 },
+      { loop: buildSmoothLaneLoop(ROUTES[0], true, 7.2), count: 8 },
+      { loop: buildSmoothLaneLoop(ROUTES[1], false, 3.8), count: 6 },
+      { loop: buildSmoothLaneLoop(ROUTES[2], false, 3.8), count: 5 },
+      { loop: buildSmoothLaneLoop(ROUTES[3], false, 3.8), count: 5 },
     ];
 
     compiledLoops.forEach(({ loop, count }, loopIdx) => {
@@ -2951,7 +3073,6 @@ window.HorizonWorld = (() => {
         const colorHex = aiPalette[Math.floor(rand() * aiPalette.length)];
         const built = createAIVehicle(type, colorHex);
 
-        // Even spacing with tiny jitter guarantees zero spawn overlaps!
         const dist = ((i + 0.15) / count) * loop.totalLen;
         const p = sampleLoopPos(loop, dist);
         const surf = sampleSurface(p.x, p.z, 30, p.heading);
@@ -2973,6 +3094,7 @@ window.HorizonWorld = (() => {
           tailMat: built.tailMat,
           halfW: built.halfW,
           halfL: built.halfL,
+          mass: built.mass,
           radius: built.radius,
           loop,
           loopIdx,
@@ -2982,10 +3104,14 @@ window.HorizonWorld = (() => {
           z: p.z,
           heading: p.heading,
           pitch: surf.slopePitch,
+          roll: 0,
           speed: baseSpd,
           cruiseSpeed: baseSpd,
           knockVx: 0,
           knockVz: 0,
+          knockYaw: 0,
+          hitRoll: 0,
+          hitPitch: 0,
           stunTimer: 0,
           stuckTimer: 0,
           deadlockGrace: 0,
@@ -2994,28 +3120,28 @@ window.HorizonWorld = (() => {
     });
 
     // =========================================================================
-    // 15. HARBOR YACHTS & OCEAN SHIPS (WITH EXACT OBB DIMENSIONS)
+    // 15. HARBOR YACHTS & OCEAN SHIPS (EXACT OBB + MASSES)
     // =========================================================================
     const boatsGroup = new THREE.Group();
     scene.add(boatsGroup);
     const boats = [];
 
-    const boatCabinGlowMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, emissive: 0xfde68a, emissiveIntensity: 1.9, roughness: 0.2 });
-    const navPortMat = new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff2222, emissiveIntensity: 2.8 });
-    const navStbdMat = new THREE.MeshStandardMaterial({ color: 0x22ff55, emissive: 0x22ff55, emissiveIntensity: 2.8 });
-    const navSternMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2.6 });
+    const boatCabinGlowMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, emissive: 0xfde68a, emissiveIntensity: 2.3, roughness: 0.2 });
+    const navPortMat = new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff2222, emissiveIntensity: 3.4 });
+    const navStbdMat = new THREE.MeshStandardMaterial({ color: 0x22ff55, emissive: 0x22ff55, emissiveIntensity: 3.4 });
+    const navSternMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 3.2 });
     const wakeMatBase = new THREE.MeshBasicMaterial({ color: 0xdbeafe, transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide });
 
     function createBoat(kind, accentHex) {
       const g = new THREE.Group();
-      const hullWhite = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.26, metalness: 0.22 });
-      const accentMat = new THREE.MeshStandardMaterial({ color: accentHex, roughness: 0.3, metalness: 0.35 });
+      const hullWhite = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.24, metalness: 0.24 });
+      const accentMat = new THREE.MeshStandardMaterial({ color: accentHex, roughness: 0.28, metalness: 0.36 });
       const darkTrim = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
 
-      let halfW = 2.0, halfL = 5.5, sternZ = 6.0;
+      let halfW = 2.0, halfL = 5.5, sternZ = 6.0, mass = 8500;
 
       if (kind === "ship") {
-        halfW = 5.4; halfL = 23.0; sternZ = 24.0;
+        halfW = 5.4; halfL = 23.0; sternZ = 24.0; mass = 45000;
         const hull = new THREE.Mesh(new THREE.BoxGeometry(10.5, 4.4, 42.0), accentMat);
         hull.position.set(0, 1.8, 0);
         g.add(hull);
@@ -3041,7 +3167,7 @@ window.HorizonWorld = (() => {
           g.add(stack);
         }
       } else if (kind === "yacht") {
-        halfW = 2.0; halfL = 6.8; sternZ = 7.2;
+        halfW = 2.0; halfL = 6.8; sternZ = 7.2; mass = 9500;
         const hull = new THREE.Mesh(new THREE.BoxGeometry(3.8, 1.45, 11.2), hullWhite);
         hull.position.set(0, 0.55, 0.5);
         g.add(hull);
@@ -3064,7 +3190,7 @@ window.HorizonWorld = (() => {
         topL.position.set(0, 4.8, 0.8);
         g.add(topL);
       } else {
-        halfW = 1.3; halfL = 4.2; sternZ = 4.6;
+        halfW = 1.3; halfL = 4.2; sternZ = 4.6; mass = 2800;
         const hull = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.85, 6.8), accentMat);
         hull.position.set(0, 0.35, 0.4);
         g.add(hull);
@@ -3096,7 +3222,7 @@ window.HorizonWorld = (() => {
       g.add(wake);
 
       boatsGroup.add(g);
-      return { group: g, wake, halfW, halfL, radius: Math.hypot(halfW, halfL) };
+      return { group: g, wake, halfW, halfL, mass, radius: Math.hypot(halfW, halfL) };
     }
 
     const boatSpecs = [
@@ -3118,6 +3244,7 @@ window.HorizonWorld = (() => {
         wake: built.wake,
         halfW: built.halfW,
         halfL: built.halfL,
+        mass: built.mass,
         radius: built.radius,
         angle: idx * 1.1,
         angSpeed: (s.speed || 0.2) * (s.dir || 1),
@@ -3129,7 +3256,6 @@ window.HorizonWorld = (() => {
     });
 
     function updateTrafficAndBoats(dt, elapsed, playerCar, waveStrength, roadMoisture, enabled) {
-      // Traffic lights always cycle cleanly even if AI traffic is toggled off
       updateTrafficLights(elapsed);
 
       trafficGroup.visible = enabled;
@@ -3151,16 +3277,41 @@ window.HorizonWorld = (() => {
 
       if (!enabled) return;
 
-      // --- Smart Jam-Free AI Traffic Update ---
+      // --- Smart Jam-Free AI Traffic + Physical Spin-Out & Recovery ---
       for (let i = 0; i < trafficCars.length; i++) {
         const ai = trafficCars[i];
+
+        // Decay visual body jolt from impacts
+        ai.hitRoll *= Math.exp(-7.5 * dt);
+        ai.hitPitch *= Math.exp(-7.5 * dt);
+
         if (ai.stunTimer > 0) {
           ai.stunTimer -= dt;
           ai.x += ai.knockVx * dt;
           ai.z += ai.knockVz * dt;
-          ai.knockVx *= Math.exp(-3.8 * dt);
-          ai.knockVz *= Math.exp(-3.8 * dt);
+          ai.heading += ai.knockYaw * dt;
+
+          // Tire-scrub friction slows sideways skid and spin naturally
+          ai.knockVx *= Math.exp(-2.8 * dt);
+          ai.knockVz *= Math.exp(-2.8 * dt);
+          ai.knockYaw *= Math.exp(-3.4 * dt);
+          ai.speed = Math.hypot(ai.knockVx, ai.knockVz);
+
+          // Keep knocked AI cars inside tunnel/bridge corridors
+          if (isPointInTunnel(ai.x, ai.z)) {
+            ai.x = THREE.MathUtils.clamp(ai.x, -9.2, 9.2);
+          } else if (ai.x >= BRIDGE.startX && ai.x <= BRIDGE.endX && Math.abs(ai.z) < 16) {
+            ai.z = THREE.MathUtils.clamp(ai.z, -9.2, 9.2);
+          }
+
+          const surfStun = sampleSurface(ai.x, ai.z, ai.y + 3.0, ai.heading);
+          ai.y = THREE.MathUtils.lerp(ai.y, surfStun.height, Math.min(1, 14 * dt));
+          ai.pitch = THREE.MathUtils.lerp(ai.pitch, surfStun.slopePitch, Math.min(1, 8 * dt));
+
+          // Flash brake/hazard lights while spinning out!
+          ai.tailMat.emissiveIntensity = Math.sin(elapsed * 18) > 0 ? 4.2 : 0.9;
           ai.mesh.position.set(ai.x, ai.y, ai.z);
+          ai.mesh.rotation.set(ai.pitch + ai.hitPitch, ai.heading, ai.hitRoll, "YXZ");
           continue;
         }
 
@@ -3175,7 +3326,7 @@ window.HorizonWorld = (() => {
         let atRedLight = false;
         let blockedByPlayer = false;
 
-        // 1) Obey Working Traffic Lights cleanly at stop lines (never stop inside the box!)
+        // 1) Obey Working Traffic Lights at stop lines
         const isNS = Math.abs(fz) > Math.abs(fx);
         for (let tIdx = 0; tIdx < trafficLights.length; tIdx++) {
           const tl = trafficLights[tIdx];
@@ -3185,17 +3336,13 @@ window.HorizonWorld = (() => {
 
           const fwd = dx * fx + dz * fz;
           const lat = Math.abs(dx * rx + dz * rz);
-          // Only stop if approaching the intersection & still BEFORE the stop line!
           if (lat < 9.5 && fwd > tl.stopDist && fwd < tl.stopDist + 24) {
             const sig = isNS ? tl.nsState : tl.ewState;
             if (sig === "RED" || (sig === "YELLOW" && fwd > tl.stopDist + 4.5)) {
               const gapToLine = fwd - tl.stopDist - ai.halfL;
               atRedLight = true;
-              if (gapToLine <= 0.8) {
-                targetSpeed = 0;
-              } else {
-                targetSpeed = Math.min(targetSpeed, ai.cruiseSpeed * THREE.MathUtils.clamp(gapToLine / 18, 0, 1));
-              }
+              if (gapToLine <= 0.8) targetSpeed = 0;
+              else targetSpeed = Math.min(targetSpeed, ai.cruiseSpeed * THREE.MathUtils.clamp(gapToLine / 18, 0, 1));
               break;
             }
           }
@@ -3215,7 +3362,7 @@ window.HorizonWorld = (() => {
           }
         }
 
-        // 3) Direction-Aware IDM Following & Cross-Traffic Yielding (ignores oncoming traffic!)
+        // 3) Direction-Aware IDM Following & Cross-Traffic Yielding
         for (let j = 0; j < trafficCars.length; j++) {
           if (i === j) continue;
           const o = trafficCars[j];
@@ -3229,7 +3376,6 @@ window.HorizonWorld = (() => {
           const ofz = -Math.cos(o.heading);
           const align = fx * ofx + fz * ofz;
 
-          // Ignore oncoming traffic in opposing lanes completely
           if (align < -0.55) continue;
 
           const oFwd = odx * fx + odz * fz;
@@ -3237,7 +3383,6 @@ window.HorizonWorld = (() => {
           const oLat = Math.abs(odx * rx + odz * rz);
 
           if (align > 0.55) {
-            // Same-direction lane following (IDM smooth speed matching)
             if (oLat < ai.halfW + o.halfW + 0.55 && oFwd < 26) {
               const gap = oFwd - ai.halfL - o.halfL;
               if (gap <= 2.6) {
@@ -3248,7 +3393,6 @@ window.HorizonWorld = (() => {
               }
             }
           } else if (ai.deadlockGrace <= 0) {
-            // Cross-traffic inside an intersection: yield only if the other car is already crossing ahead
             if (oFwd < ai.halfL + o.halfW + 10.5 && oLat < o.halfL + ai.halfW + 1.2) {
               const crossGap = oFwd - ai.halfL - o.halfW;
               if (crossGap <= 3.0) targetSpeed = 0;
@@ -3257,7 +3401,7 @@ window.HorizonWorld = (() => {
           }
         }
 
-        // 4) Anti-Deadlock Breaker: if stuck > 4.5s NOT at a red light or player, release cross-yield to clear
+        // 4) Anti-Deadlock Breaker
         if (ai.speed < 0.6 && !atRedLight && !blockedByPlayer) {
           ai.stuckTimer += dt;
           if (ai.stuckTimer > 4.5) {
@@ -3271,7 +3415,7 @@ window.HorizonWorld = (() => {
         const isBraking = targetSpeed < ai.speed - 0.8 || targetSpeed < 0.5;
         const accelRate = isBraking ? 8.5 : 3.2;
         ai.speed = THREE.MathUtils.lerp(ai.speed, targetSpeed, 1 - Math.exp(-accelRate * dt));
-        ai.tailMat.emissiveIntensity = isBraking ? 3.2 : 0.65;
+        ai.tailMat.emissiveIntensity = isBraking ? 3.8 : 0.85;
 
         ai.dist += ai.speed * dt;
         const p = sampleLoopPos(ai.loop, ai.dist);
@@ -3279,14 +3423,16 @@ window.HorizonWorld = (() => {
         const smoothHeading = Math.atan2(-(look.x - p.x), -(look.z - p.z));
         const surf = sampleSurface(p.x, p.z, ai.y + 3.0, smoothHeading);
 
-        ai.x = THREE.MathUtils.lerp(ai.x, p.x, Math.min(1, 14 * dt));
-        ai.z = THREE.MathUtils.lerp(ai.z, p.z, Math.min(1, 14 * dt));
+        // Smooth lane re-entry after being knocked sideways
+        const recoverRate = Math.hypot(ai.x - p.x, ai.z - p.z) > 2.5 ? 4.2 : 14.0;
+        ai.x = THREE.MathUtils.lerp(ai.x, p.x, Math.min(1, recoverRate * dt));
+        ai.z = THREE.MathUtils.lerp(ai.z, p.z, Math.min(1, recoverRate * dt));
         ai.y = THREE.MathUtils.lerp(ai.y, surf.height, Math.min(1, 14 * dt));
-        ai.heading = lerpAngle(ai.heading, smoothHeading, Math.min(1, 9 * dt));
+        ai.heading = lerpAngle(ai.heading, smoothHeading, Math.min(1, (recoverRate < 6 ? 4.5 : 9) * dt));
         ai.pitch = THREE.MathUtils.lerp(ai.pitch, surf.slopePitch, Math.min(1, 8 * dt));
 
         ai.mesh.position.set(ai.x, ai.y, ai.z);
-        ai.mesh.rotation.set(ai.pitch, ai.heading, 0, "YXZ");
+        ai.mesh.rotation.set(ai.pitch + ai.hitPitch, ai.heading, ai.hitRoll, "YXZ");
 
         const spin = (ai.speed * dt) / 0.38;
         for (let w = 0; w < ai.wheels.length; w++) ai.wheels[w].rotation.x -= spin;
@@ -3335,11 +3481,12 @@ window.HorizonWorld = (() => {
     }
 
     function setTrafficLighting(headlightsOn, rtOn) {
-      aiHeadlightMat.emissiveIntensity = headlightsOn ? 3.2 : 0.45;
+      aiHeadlightMat.emissiveIntensity = headlightsOn ? 3.8 : 0.45;
       aiHeadBeams.forEach((b) => (b.visible = headlightsOn && rtOn));
-      boatCabinGlowMat.emissiveIntensity = headlightsOn ? 2.4 : 0.35;
-      studAmberMat.emissiveIntensity = headlightsOn ? 2.8 : 0.5;
-      studWhiteMat.emissiveIntensity = headlightsOn ? 2.2 : 0.4;
+      boatCabinGlowMat.emissiveIntensity = headlightsOn ? 2.8 : 0.35;
+      studAmberMat.emissiveIntensity = headlightsOn ? 3.2 : 0.5;
+      studWhiteMat.emissiveIntensity = headlightsOn ? 2.6 : 0.4;
+      gantrySignMaterials.forEach((m) => (m.emissiveIntensity = headlightsOn ? 0.95 : 0.22));
     }
 
     // =========================================================================
@@ -3578,6 +3725,7 @@ window.HorizonWorld = (() => {
     const allRoadMats = [roadMatCity, roadMatHighway, roadMatBridge, roadMatInter];
     function setRoadUniform(name, val) {
       allRoadMats.forEach((m) => {
+        if (!m.uniforms[name]) return;
         if (m.uniforms[name].value && typeof m.uniforms[name].value.copy === "function") {
           m.uniforms[name].value.copy(val);
         } else {
