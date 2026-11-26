@@ -82,30 +82,24 @@
   const world = buildWorld(scene, reflTarget, drawingBufferSize);
 
   // =========================================================================
-  // 2. 5 DRIVABLE GARAGE VEHICLES (SPECS, PHYSICS TUNING & 3D MODEL BUILDER)
+  // 2. 9 ORIGINAL COPYRIGHT-FREE VEHICLES (DISTINCT AERO, AUDIO & MODELS)
   // =========================================================================
   const VEHICLE_SPECS = {
     gt: {
       id: "gt",
-      name: "Apex GT Coupe",
+      name: "Veridian GT",
       defaultColor: "#e11d48",
-      stats: { speed: 82, accel: 80, grip: 86, drift: 72 },
-      // Physics tuning
-      topSpeed: 74,        // ~266 km/h (330+ w/ nitro)
+      aeroNote: "Active DRS + Airbrake · Balanced Aero (CdA 0.68)",
+      stats: { speed: 82, accel: 80, grip: 84, aero: 74, drift: 72 },
+      topSpeed: 76,
       nitroTopSpeed: 96,
-      drivePower: 1.0,
-      gripMult: 1.02,
-      rearGripBias: 1.0,
-      offroadGrip: 0.68,
-      wetGripPenalty: 1.0,
-      aeroDownforce: 0.000055,
       suspStiffness: 56,
       suspDamping: 10.0,
       suspTravel: 0.22,
       rollMult: 1.0,
+      soundType: "v8",
       enginePitch: 1.0,
       engineHarmonic: 0.24,
-      // Dimensions
       wheelRadius: 0.42,
       wheelWidth: 0.36,
       wheelX: 1.08,
@@ -113,82 +107,154 @@
       bodyLen: 4.55,
       bodyW: 2.14,
       hoodEyeY: 1.54,
+      hasActiveAero: true,
       isPolice: false,
+      isSixWheel: false,
     },
     muscle: {
       id: "muscle",
-      name: "Viper Drift Muscle",
+      name: "Brawler V8",
       defaultColor: "#f97316",
-      stats: { speed: 79, accel: 88, grip: 70, drift: 96 },
-      topSpeed: 72,
-      nitroTopSpeed: 93,
-      drivePower: 1.14,
-      gripMult: 0.92,
-      rearGripBias: 0.78, // Tail-happy rear bias for effortless drifts
-      offroadGrip: 0.65,
-      wetGripPenalty: 1.12,
-      aeroDownforce: 0.000038,
+      aeroNote: "Low-Downforce Ducktail · High-Drag Muscle (CdA 0.92)",
+      stats: { speed: 78, accel: 88, grip: 68, aero: 42, drift: 97 },
+      topSpeed: 73,
+      nitroTopSpeed: 92,
       suspStiffness: 46,
-      suspDamping: 8.6,
+      suspDamping: 8.5,
       suspTravel: 0.25,
-      rollMult: 1.25,
-      enginePitch: 0.76,  // Deep classic V8 rumble
-      engineHarmonic: 0.36,
+      rollMult: 1.28,
+      soundType: "v8",
+      enginePitch: 0.74,
+      engineHarmonic: 0.38,
       wheelRadius: 0.44,
-      wheelWidth: 0.4,
+      wheelWidth: 0.42,
       wheelX: 1.12,
       wheelZ: 1.44,
       bodyLen: 4.78,
       bodyW: 2.2,
       hoodEyeY: 1.58,
+      hasActiveAero: false,
       isPolice: false,
+      isSixWheel: false,
     },
     supercar: {
       id: "supercar",
-      name: "Hyperion Supercar",
+      name: "Zenith Aero-X",
       defaultColor: "#2563eb",
-      stats: { speed: 99, accel: 97, grip: 96, drift: 68 },
-      topSpeed: 90,        // ~324 km/h (390+ w/ nitro!)
+      aeroNote: "Active DRS + Airbrake · High Splitter Downforce (CdA 0.62)",
+      stats: { speed: 97, accel: 95, grip: 94, aero: 92, drift: 68 },
+      topSpeed: 92,
       nitroTopSpeed: 112,
-      drivePower: 1.28,
-      gripMult: 1.16,
-      rearGripBias: 1.04,
-      offroadGrip: 0.54,
-      wetGripPenalty: 1.05,
-      aeroDownforce: 0.000088, // Massive highway cornering glue
       suspStiffness: 72,
-      suspDamping: 12.0,
+      suspDamping: 12.2,
       suspTravel: 0.16,
-      rollMult: 0.65,
-      enginePitch: 1.38,  // High-revving V10 howl
+      rollMult: 0.62,
+      soundType: "v10",
+      enginePitch: 1.38,
       engineHarmonic: 0.2,
       wheelRadius: 0.4,
-      wheelWidth: 0.4,
+      wheelWidth: 0.42,
       wheelX: 1.16,
       wheelZ: 1.42,
       bodyLen: 4.68,
       bodyW: 2.3,
       hoodEyeY: 1.36,
+      hasActiveAero: true,
       isPolice: false,
+      isSixWheel: false,
+    },
+    formula: {
+      id: "formula",
+      name: "AeroFormula R1",
+      defaultColor: "#f59e0b",
+      aeroNote: "Ground-Effect + Twin Wings + DRS · Extreme Downforce (CdA 0.86)",
+      stats: { speed: 99, accel: 99, grip: 100, aero: 100, drift: 52 },
+      topSpeed: 98,
+      nitroTopSpeed: 118,
+      suspStiffness: 92,
+      suspDamping: 14.5,
+      suspTravel: 0.11,
+      rollMult: 0.34,
+      soundType: "f1",
+      enginePitch: 1.72,
+      engineHarmonic: 0.18,
+      wheelRadius: 0.38,
+      wheelWidth: 0.46,
+      wheelX: 1.14,
+      wheelZ: 1.66,
+      bodyLen: 5.15,
+      bodyW: 2.18,
+      hoodEyeY: 1.16,
+      hasActiveAero: true,
+      isPolice: false,
+      isSixWheel: false,
+    },
+    rally: {
+      id: "rally",
+      name: "Boreal Rally R4",
+      defaultColor: "#f8fafc",
+      aeroNote: "High-Angle Rally Wing · Medium Drag & Rain/Grass Grip (CdA 0.88)",
+      stats: { speed: 78, accel: 90, grip: 90, aero: 76, drift: 95 },
+      topSpeed: 73,
+      nitroTopSpeed: 91,
+      suspStiffness: 44,
+      suspDamping: 8.2,
+      suspTravel: 0.32,
+      rollMult: 1.15,
+      soundType: "turbo",
+      enginePitch: 1.16,
+      engineHarmonic: 0.3,
+      wheelRadius: 0.42,
+      wheelWidth: 0.36,
+      wheelX: 1.05,
+      wheelZ: 1.32,
+      bodyLen: 4.18,
+      bodyW: 2.04,
+      hoodEyeY: 1.64,
+      hasActiveAero: false,
+      isPolice: false,
+      isSixWheel: false,
+    },
+    ev: {
+      id: "ev",
+      name: "ArcDrive EV",
+      defaultColor: "#7c3aed",
+      aeroNote: "Ultra-Low Drag Teardrop + Active Lip · Slippery Aero (CdA 0.44)",
+      stats: { speed: 94, accel: 98, grip: 90, aero: 86, drift: 66 },
+      topSpeed: 88,
+      nitroTopSpeed: 108,
+      suspStiffness: 64,
+      suspDamping: 11.2,
+      suspTravel: 0.18,
+      rollMult: 0.72,
+      soundType: "ev",
+      enginePitch: 1.0,
+      engineHarmonic: 0.1,
+      wheelRadius: 0.42,
+      wheelWidth: 0.38,
+      wheelX: 1.1,
+      wheelZ: 1.46,
+      bodyLen: 4.74,
+      bodyW: 2.16,
+      hoodEyeY: 1.48,
+      hasActiveAero: true,
+      isPolice: false,
+      isSixWheel: false,
     },
     suv: {
       id: "suv",
-      name: "Trailblazer SUV",
+      name: "Ridgeback 4x4",
       defaultColor: "#10b981",
-      stats: { speed: 68, accel: 74, grip: 82, drift: 94 },
-      topSpeed: 64,
-      nitroTopSpeed: 82,
-      drivePower: 0.96,
-      gripMult: 0.98,
-      rearGripBias: 1.05,
-      offroadGrip: 0.98,  // Nearly full asphalt grip on grass!
-      wetGripPenalty: 0.62,
-      aeroDownforce: 0.000028,
+      aeroNote: "Boxy High-Drag Profile · Crosswind Sensitive (CdA 1.38)",
+      stats: { speed: 66, accel: 72, grip: 82, aero: 28, drift: 92 },
+      topSpeed: 62,
+      nitroTopSpeed: 79,
       suspStiffness: 36,
       suspDamping: 7.4,
-      suspTravel: 0.34,   // Plush off-road suspension travel
+      suspTravel: 0.35,
       rollMult: 1.45,
-      enginePitch: 0.84,
+      soundType: "v8",
+      enginePitch: 0.82,
       engineHarmonic: 0.28,
       wheelRadius: 0.54,
       wheelWidth: 0.42,
@@ -197,26 +263,24 @@
       bodyLen: 4.82,
       bodyW: 2.24,
       hoodEyeY: 2.02,
+      hasActiveAero: false,
       isPolice: false,
+      isSixWheel: false,
     },
     police: {
       id: "police",
-      name: "Interceptor Police",
+      name: "Aegis Patrol",
       defaultColor: "#1e293b",
-      stats: { speed: 88, accel: 86, grip: 88, drift: 78 },
-      topSpeed: 80,
+      aeroNote: "Pursuit AWD Sedan · Lightbar Drag Penalty (CdA 0.84)",
+      stats: { speed: 88, accel: 86, grip: 88, aero: 62, drift: 78 },
+      topSpeed: 81,
       nitroTopSpeed: 102,
-      drivePower: 1.12,
-      gripMult: 1.08,
-      rearGripBias: 0.96,
-      offroadGrip: 0.76,
-      wetGripPenalty: 0.88,
-      aeroDownforce: 0.000058,
       suspStiffness: 58,
       suspDamping: 10.4,
       suspTravel: 0.22,
       rollMult: 0.92,
-      enginePitch: 0.94,
+      soundType: "v8",
+      enginePitch: 0.95,
       engineHarmonic: 0.28,
       wheelRadius: 0.43,
       wheelWidth: 0.36,
@@ -225,7 +289,35 @@
       bodyLen: 4.76,
       bodyW: 2.12,
       hoodEyeY: 1.62,
+      hasActiveAero: false,
       isPolice: true,
+      isSixWheel: false,
+    },
+    truck: {
+      id: "truck",
+      name: "Mammoth 6x4",
+      defaultColor: "#e11d48",
+      aeroNote: "Heavy 6-Wheel Semi Cab · Massive Wind Wall (CdA 3.10)",
+      stats: { speed: 54, accel: 58, grip: 68, aero: 14, drift: 50 },
+      topSpeed: 50,
+      nitroTopSpeed: 64,
+      suspStiffness: 32,
+      suspDamping: 6.8,
+      suspTravel: 0.3,
+      rollMult: 1.55,
+      soundType: "diesel",
+      enginePitch: 0.52,
+      engineHarmonic: 0.45,
+      wheelRadius: 0.58,
+      wheelWidth: 0.44,
+      wheelX: 1.24,
+      wheelZ: 2.05,
+      bodyLen: 6.5,
+      bodyW: 2.48,
+      hoodEyeY: 2.75,
+      hasActiveAero: false,
+      isPolice: false,
+      isSixWheel: true,
     },
   };
 
@@ -239,7 +331,6 @@
   carGroup.add(carBodyGroup);
   scene.add(carGroup);
 
-  // Shared PBR Materials for Player Vehicle (soft clearcoat prevents harsh specular pinhole dots)
   const bodyMat = new THREE.MeshPhysicalMaterial({
     color: activePaintHex,
     metalness: 0.82,
@@ -280,6 +371,7 @@
   });
   const tireMat = new THREE.MeshStandardMaterial({ color: 0x0f1218, roughness: 0.9 });
   const headlightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfffbeb, emissiveIntensity: 2.5 });
+  const evCyanGlowMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 2.6 });
   const brakeLightMat = new THREE.MeshStandardMaterial({ color: 0x7f1d1d, emissive: 0xff1e1e, emissiveIntensity: 0.6 });
   const softBeamMat = createSoftBeamMaterial(0xfff5d6, 0.15);
   const flameMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.9 });
@@ -287,39 +379,101 @@
   // Dynamic arrays rebuilt whenever the player swaps vehicles in the garage
   let wheelMeshes = [];
   let wheelPivots = [];
+  let wheelIsRear = [];
   let frontWheelPivots = [];
   let volumetricBeams = [];
   let flames = [];
   let headSpot = null;
   let rearGlowLight = null;
-  let policeLightbar = null; // { redMat, blueMat, redLight, blueLight }
+  let policeLightbar = null;
+  let activeWingPivot = null; // Animated DRS / Airbrake wing pivot
 
   function clearGroup(grp) {
-    while (grp.children.length > 0) {
-      grp.remove(grp.children[0]);
-    }
+    while (grp.children.length > 0) grp.remove(grp.children[0]);
   }
 
   function rebuildPlayerCarModel(carId) {
     activeCarId = carId;
     activeSpec = VEHICLE_SPECS[carId];
 
-    // Clear previous body & wheel pivots (keep carBodyGroup inside carGroup)
     clearGroup(carBodyGroup);
     wheelPivots.forEach((p) => carGroup.remove(p));
     wheelPivots = [];
     wheelMeshes = [];
+    wheelIsRear = [];
     frontWheelPivots = [];
     volumetricBeams = [];
     flames = [];
     policeLightbar = null;
+    activeWingPivot = null;
 
     const sp = activeSpec;
     const halfL = sp.bodyLen * 0.5;
     const baseY = sp.wheelRadius;
 
-    if (carId === "supercar") {
-      // HYPERION SUPERCAR — ultra-low wide wedge, side intakes & twin-strut aero wing
+    if (carId === "formula") {
+      // AEROFORMULA R1 — Open-wheel race chassis, front wing, sidepods, halo & DRS rear wing
+      const tub = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.42, 3.6), bodyMat);
+      tub.position.set(0, baseY + 0.08, 0.15);
+      tub.castShadow = true;
+      carBodyGroup.add(tub);
+
+      const nose = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.24, 1.55), bodyMat);
+      nose.position.set(0, baseY - 0.02, -1.78);
+      nose.rotation.x = 0.08;
+      carBodyGroup.add(nose);
+
+      // Wide multi-element Front Wing + Endplates
+      const frontWing = new THREE.Mesh(new THREE.BoxGeometry(2.14, 0.09, 0.55), trimMat);
+      frontWing.position.set(0, baseY - 0.16, -halfL + 0.26);
+      carBodyGroup.add(frontWing);
+      [-1.06, 1.06].forEach((ex) => {
+        const ep = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.62), bodyMat);
+        ep.position.set(ex, baseY - 0.08, -halfL + 0.26);
+        carBodyGroup.add(ep);
+      });
+
+      // Sculpted Aero Sidepods + Venturi Floor Plank
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.07, 3.0), trimMat);
+      floor.position.set(0, baseY - 0.14, 0.25);
+      carBodyGroup.add(floor);
+      [-0.68, 0.68].forEach((sx) => {
+        const pod = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.4, 2.05), bodyMat);
+        pod.position.set(sx, baseY + 0.06, 0.35);
+        pod.castShadow = true;
+        carBodyGroup.add(pod);
+      });
+
+      // Airbox intake, Driver Helmet & Safety Halo
+      const airbox = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.55, 1.25), bodyMat);
+      airbox.position.set(0, baseY + 0.52, 0.68);
+      carBodyGroup.add(airbox);
+      const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 12), secondaryWhiteMat);
+      helmet.position.set(0, baseY + 0.45, 0.02);
+      carBodyGroup.add(helmet);
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.045, 6, 14, Math.PI), trimMat);
+      halo.rotation.x = Math.PI / 2;
+      halo.position.set(0, baseY + 0.54, -0.05);
+      carBodyGroup.add(halo);
+
+      // Tall Rear Wing Endplates + Animated DRS Upper Flap
+      [-0.78, 0.78].forEach((ex) => {
+        const ep = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.78, 0.65), trimMat);
+        ep.position.set(ex, baseY + 0.52, halfL - 0.34);
+        carBodyGroup.add(ep);
+      });
+      const mainPlane = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.07, 0.34), bodyMat);
+      mainPlane.position.set(0, baseY + 0.68, halfL - 0.32);
+      carBodyGroup.add(mainPlane);
+
+      activeWingPivot = new THREE.Group();
+      activeWingPivot.position.set(0, baseY + 0.84, halfL - 0.24);
+      const drsFlap = new THREE.Mesh(new THREE.BoxGeometry(1.54, 0.07, 0.28), trimMat);
+      drsFlap.position.set(0, 0, -0.08);
+      activeWingPivot.add(drsFlap);
+      carBodyGroup.add(activeWingPivot);
+    } else if (carId === "supercar") {
+      // ZENITH AERO-X — Widebody Hypercar with Active DRS/Airbrake Wing
       const lower = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.44, sp.bodyLen), bodyMat);
       lower.position.y = baseY + 0.16;
       lower.castShadow = true;
@@ -343,24 +497,25 @@
       engineCover.position.set(0, baseY + 0.48, 1.45);
       carBodyGroup.add(engineCover);
 
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.08, 0.48), trimMat);
-      wing.position.set(0, baseY + 0.78, halfL - 0.26);
-      wing.castShadow = true;
-      carBodyGroup.add(wing);
-
-      [-0.65, 0.65].forEach((sx) => {
+      [-0.68, 0.68].forEach((sx) => {
         const strut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.28), trimMat);
-        strut.position.set(sx, baseY + 0.56, halfL - 0.26);
+        strut.position.set(sx, baseY + 0.56, halfL - 0.28);
         carBodyGroup.add(strut);
       });
+
+      activeWingPivot = new THREE.Group();
+      activeWingPivot.position.set(0, baseY + 0.78, halfL - 0.28);
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.08, 0.5), trimMat);
+      wing.castShadow = true;
+      activeWingPivot.add(wing);
+      carBodyGroup.add(activeWingPivot);
     } else if (carId === "muscle") {
-      // VIPER DRIFT MUSCLE — wide aggressive hood, supercharger blower & ducktail spoiler
+      // BRAWLER V8 — Wide Drift Muscle with Supercharger Blower & Ducktail
       const body = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.64, sp.bodyLen), bodyMat);
       body.position.y = baseY + 0.24;
       body.castShadow = true;
       carBodyGroup.add(body);
 
-      // Chrome supercharger blower sticking out of the hood
       const blower = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.34, 0.85), chromeMat);
       blower.position.set(0, baseY + 0.66, -1.08);
       carBodyGroup.add(blower);
@@ -381,8 +536,72 @@
       const chin = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.04, 0.14, 0.38), trimMat);
       chin.position.set(0, baseY - 0.04, -halfL + 0.08);
       carBodyGroup.add(chin);
+    } else if (carId === "rally") {
+      // BOREAL RALLY R4 — Wide-fender AWD Rally Hatch, Hood Scoop, 4-Lamp Pod & Tall Rally Wing
+      const body = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.64, sp.bodyLen), bodyMat);
+      body.position.y = baseY + 0.26;
+      body.castShadow = true;
+      carBodyGroup.add(body);
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.62, 2.2), cabinMat);
+      cabin.position.set(0, baseY + 0.86, 0.32);
+      cabin.castShadow = true;
+      carBodyGroup.add(cabin);
+
+      const roofScoop = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.18, 0.62), trimMat);
+      roofScoop.position.set(0, baseY + 1.22, -0.05);
+      carBodyGroup.add(roofScoop);
+
+      const hoodScoop = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.14, 0.52), trimMat);
+      hoodScoop.position.set(0, baseY + 0.62, -1.02);
+      carBodyGroup.add(hoodScoop);
+
+      // 4-Lamp Rally Night Pod on Front Bumper
+      [-0.45, -0.15, 0.15, 0.45].forEach((lx) => {
+        const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.14, 8), headlightMat);
+        pod.rotation.x = Math.PI / 2;
+        pod.position.set(lx, baseY + 0.42, -halfL - 0.07);
+        carBodyGroup.add(pod);
+      });
+
+      // Massive Dual-Plane Rally Roof Wing
+      [-0.86, 0.86].forEach((ex) => {
+        const ep = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.55, 0.56), bodyMat);
+        ep.position.set(ex, baseY + 1.18, halfL - 0.28);
+        carBodyGroup.add(ep);
+      });
+      const topWing = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.08, 0.46), trimMat);
+      topWing.position.set(0, baseY + 1.4, halfL - 0.28);
+      topWing.rotation.x = -0.18;
+      carBodyGroup.add(topWing);
+    } else if (carId === "ev") {
+      // ARCDRIVE EV — Sleek Teardrop Aero Body, Full-Width Cyan Lightbars & Active Pop-Up Aero Lip
+      const body = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.54, sp.bodyLen), bodyMat);
+      body.position.y = baseY + 0.2;
+      body.castShadow = true;
+      carBodyGroup.add(body);
+
+      const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.82, 0.5, 2.55), cabinMat);
+      canopy.position.set(0, baseY + 0.68, 0.08);
+      canopy.castShadow = true;
+      carBodyGroup.add(canopy);
+
+      // Signature EV Full-Width Cyan Front Accent Strip
+      const frontStrip = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW - 0.16, 0.09, 0.08), evCyanGlowMat);
+      frontStrip.position.set(0, baseY + 0.3, -halfL - 0.03);
+      carBodyGroup.add(frontStrip);
+
+      const rearStrip = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW - 0.16, 0.1, 0.08), brakeLightMat);
+      rearStrip.position.set(0, baseY + 0.34, halfL + 0.03);
+      carBodyGroup.add(rearStrip);
+
+      activeWingPivot = new THREE.Group();
+      activeWingPivot.position.set(0, baseY + 0.52, halfL - 0.26);
+      const aeroLip = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW - 0.14, 0.07, 0.36), trimMat);
+      activeWingPivot.add(aeroLip);
+      carBodyGroup.add(activeWingPivot);
     } else if (carId === "suv") {
-      // TRAILBLAZER OFF-ROAD SUV — lifted chassis, tall greenhouse, bullbar, roof rack & spare wheel
+      // RIDGEBACK 4X4 — Lifted Off-Road SUV, Bullbar, Roof Rack & Rear Spare Wheel
       const lower = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.78, sp.bodyLen), bodyMat);
       lower.position.y = baseY + 0.36;
       lower.castShadow = true;
@@ -397,7 +616,6 @@
       roofCap.position.set(0, baseY + 1.48, 0.35);
       carBodyGroup.add(roofCap);
 
-      // Roof rack rails + off-road LED bar
       [-0.86, 0.86].forEach((rx) => {
         const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 2.7), trimMat);
         rail.position.set(rx, baseY + 1.62, 0.35);
@@ -407,7 +625,6 @@
       ledBar.position.set(0, baseY + 1.62, -1.05);
       carBodyGroup.add(ledBar);
 
-      // Front steel bullbar & rear-mounted spare tire
       const bullbar = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.42, 0.24), trimMat);
       bullbar.position.set(0, baseY + 0.32, -halfL - 0.14);
       carBodyGroup.add(bullbar);
@@ -418,13 +635,12 @@
       spare.position.set(0, baseY + 0.65, halfL + 0.15);
       carBodyGroup.add(spare);
     } else if (carId === "police") {
-      // INTERCEPTOR POLICE CRUISER — two-tone pursuit sedan, push bumper & flashing red/blue lightbar
+      // AEGIS PATROL — Two-tone Pursuit Sedan, Push Bar & Flashing Red/Blue Lightbar
       const chassis = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.62, sp.bodyLen), bodyMat);
       chassis.position.y = baseY + 0.24;
       chassis.castShadow = true;
       carBodyGroup.add(chassis);
 
-      // Classic white pursuit doors & roof panel
       const whiteDoors = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.04, 0.56, 2.15), secondaryWhiteMat);
       whiteDoors.position.set(0, baseY + 0.24, 0.1);
       carBodyGroup.add(whiteDoors);
@@ -442,7 +658,6 @@
       pushBar.position.set(0, baseY + 0.26, -halfL - 0.12);
       carBodyGroup.add(pushBar);
 
-      // Flashing Red / Blue Roof Lightbar
       const barBase = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.1, 0.34), trimMat);
       barBase.position.set(0, baseY + 1.15, 0.05);
       carBodyGroup.add(barBase);
@@ -467,8 +682,52 @@
       carBodyGroup.add(blueLight);
 
       policeLightbar = { redMat, blueMat, redLight, blueLight };
+    } else if (carId === "truck") {
+      // MAMMOTH 6X4 — Heavy 6-Wheel Semi Tractor Rig with Sleeper, Chrome Stacks & Fifth Wheel
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.45, sp.bodyLen), trimMat);
+      frame.position.set(0, baseY + 0.18, 0);
+      carBodyGroup.add(frame);
+
+      const hood = new THREE.Mesh(new THREE.BoxGeometry(2.08, 1.15, 2.05), bodyMat);
+      hood.position.set(0, baseY + 0.92, -halfL + 1.18);
+      hood.castShadow = true;
+      carBodyGroup.add(hood);
+
+      const grille = new THREE.Mesh(new THREE.BoxGeometry(1.75, 1.0, 0.12), chromeMat);
+      grille.position.set(0, baseY + 0.88, -halfL + 0.12);
+      carBodyGroup.add(grille);
+
+      const bumper = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.42, 0.28), chromeMat);
+      bumper.position.set(0, baseY + 0.18, -halfL - 0.06);
+      carBodyGroup.add(bumper);
+
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.38, 2.15, 2.35), bodyMat);
+      cab.position.set(0, baseY + 1.68, -0.2);
+      cab.castShadow = true;
+      carBodyGroup.add(cab);
+
+      const windshield = new THREE.Mesh(new THREE.BoxGeometry(2.16, 0.72, 0.14), cabinMat);
+      windshield.position.set(0, baseY + 2.05, -1.36);
+      carBodyGroup.add(windshield);
+
+      const roofFairing = new THREE.Mesh(new THREE.BoxGeometry(2.26, 0.55, 1.35), bodyMat);
+      roofFairing.position.set(0, baseY + 2.95, 0.12);
+      roofFairing.rotation.x = 0.28;
+      carBodyGroup.add(roofFairing);
+
+      // Twin Vertical Chrome Exhaust Stacks
+      [-1.18, 1.18].forEach((sx) => {
+        const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 2.95, 8), chromeMat);
+        stack.position.set(sx, baseY + 1.95, 0.85);
+        carBodyGroup.add(stack);
+      });
+
+      // Fifth-wheel hitch plate on rear deck
+      const hitch = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.18, 12), trimMat);
+      hitch.position.set(0, baseY + 0.48, 2.0);
+      carBodyGroup.add(hitch);
     } else {
-      // APEX GT COUPE — balanced modern grand tourer
+      // VERIDIAN GT — Balanced Grand Tourer with Active Rear Wing
       const chassis = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.58, sp.bodyLen), bodyMat);
       chassis.position.y = baseY + 0.2;
       chassis.castShadow = true;
@@ -487,40 +746,42 @@
       cabin.castShadow = true;
       carBodyGroup.add(cabin);
 
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(2.12, 0.09, 0.44), trimMat);
-      wing.position.set(0, baseY + 0.82, halfL - 0.22);
-      wing.castShadow = true;
-      carBodyGroup.add(wing);
-
       [-0.72, 0.72].forEach((sx) => {
         const strut = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.34, 0.24), trimMat);
         strut.position.set(sx, baseY + 0.62, halfL - 0.22);
         carBodyGroup.add(strut);
       });
+
+      activeWingPivot = new THREE.Group();
+      activeWingPivot.position.set(0, baseY + 0.82, halfL - 0.22);
+      const wing = new THREE.Mesh(new THREE.BoxGeometry(2.12, 0.09, 0.44), trimMat);
+      wing.castShadow = true;
+      activeWingPivot.add(wing);
+      carBodyGroup.add(activeWingPivot);
     }
 
-    // Headlights, Taillights & FIXED Soft Downward-Angled Volumetric Beams (NO floating bubble circles!)
-    const lightY = carId === "suv" ? baseY + 0.48 : baseY + 0.26;
+    // Headlights, Taillights & Soft Downward-Angled Volumetric Beams
+    const lightY = carId === "truck" ? baseY + 0.62 : carId === "suv" ? baseY + 0.48 : carId === "formula" ? baseY + 0.1 : baseY + 0.26;
     const beamGeo = new THREE.ConeGeometry(1.45, 11.5, 22, 1, true);
     beamGeo.rotateX(Math.PI / 2);
+    const lightSpan = carId === "formula" ? 0.42 : sp.bodyW * 0.34;
 
-    [-sp.bodyW * 0.34, sp.bodyW * 0.34].forEach((lx) => {
-      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.15, 0.08), headlightMat);
+    [-lightSpan, lightSpan].forEach((lx) => {
+      const hl = new THREE.Mesh(new THREE.BoxGeometry(carId === "formula" ? 0.22 : 0.46, 0.15, 0.08), headlightMat);
       hl.position.set(lx, lightY, -halfL - 0.02);
       carBodyGroup.add(hl);
 
       const cone = new THREE.Mesh(beamGeo, softBeamMat);
       cone.position.set(lx, lightY - 0.24, -halfL - 5.75);
-      cone.rotation.x = -0.055; // Angled smoothly toward the road surface
+      cone.rotation.x = -0.055;
       carBodyGroup.add(cone);
       volumetricBeams.push(cone);
 
-      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.16, 0.08), brakeLightMat);
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(carId === "formula" ? 0.26 : 0.52, 0.16, 0.08), brakeLightMat);
       tl.position.set(lx, lightY + 0.02, halfL + 0.02);
       carBodyGroup.add(tl);
     });
 
-    // Real Forward Headlight Spotlight
     headSpot = new THREE.SpotLight(0xfff8e7, 3.0, 125, Math.PI / 4.5, 0.52, 1.15);
     headSpot.position.set(0, lightY + 0.28, -halfL + 0.1);
     const headTarget = new THREE.Object3D();
@@ -529,13 +790,13 @@
     carBodyGroup.add(headTarget);
     headSpot.target = headTarget;
 
-    // FIXED Rear Brake / Nitro Road Glow Light: mounted low behind diffuser so NO bright dot burns on the trunk/roof!
     rearGlowLight = new THREE.PointLight(0xff2222, 0.7, 10, 2);
     rearGlowLight.position.set(0, 0.24, halfL + 1.05);
     carBodyGroup.add(rearGlowLight);
 
-    // Dual Nitro Exhaust Flames
-    [-0.52, 0.52].forEach((fx) => {
+    // Exhaust Nitro Flames (EV uses a sleek blue ion-thruster glow!)
+    const flameOffsets = carId === "formula" ? [0] : [-0.52, 0.52];
+    flameOffsets.forEach((fx) => {
       const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.3, 8), flameMat);
       cone.rotation.x = Math.PI / 2;
       cone.position.set(fx, baseY - 0.02, halfL + 0.62);
@@ -544,16 +805,27 @@
       flames.push(cone);
     });
 
-    // Build 4 Custom-Sized Wheels matching this Vehicle's Wheelbase & Radius
+    // Build 4 Wheels (or 6 Tandem Wheels for Mammoth 6x4 Semi!)
     const wGeo = new THREE.CylinderGeometry(sp.wheelRadius, sp.wheelRadius, sp.wheelWidth, 18);
     wGeo.rotateZ(Math.PI / 2);
 
-    [
-      { x: -sp.wheelX, y: sp.wheelRadius, z: -sp.wheelZ, front: true },
-      { x: sp.wheelX, y: sp.wheelRadius, z: -sp.wheelZ, front: true },
-      { x: -sp.wheelX, y: sp.wheelRadius, z: sp.wheelZ, front: false },
-      { x: sp.wheelX, y: sp.wheelRadius, z: sp.wheelZ, front: false },
-    ].forEach((wp) => {
+    const wheelList = sp.isSixWheel
+      ? [
+          { x: -sp.wheelX, y: sp.wheelRadius, z: -2.25, front: true },
+          { x: sp.wheelX, y: sp.wheelRadius, z: -2.25, front: true },
+          { x: -sp.wheelX, y: sp.wheelRadius, z: 1.35, front: false },
+          { x: sp.wheelX, y: sp.wheelRadius, z: 1.35, front: false },
+          { x: -sp.wheelX, y: sp.wheelRadius, z: 2.65, front: false },
+          { x: sp.wheelX, y: sp.wheelRadius, z: 2.65, front: false },
+        ]
+      : [
+          { x: -sp.wheelX, y: sp.wheelRadius, z: -sp.wheelZ, front: true },
+          { x: sp.wheelX, y: sp.wheelRadius, z: -sp.wheelZ, front: true },
+          { x: -sp.wheelX, y: sp.wheelRadius, z: sp.wheelZ, front: false },
+          { x: sp.wheelX, y: sp.wheelRadius, z: sp.wheelZ, front: false },
+        ];
+
+    wheelList.forEach((wp) => {
       const pivot = new THREE.Group();
       pivot.position.set(wp.x, wp.y, wp.z);
 
@@ -570,10 +842,10 @@
 
       wheelPivots.push(pivot);
       wheelMeshes.push(tire);
+      wheelIsRear.push(!wp.front);
       if (wp.front) frontWheelPivots.push(pivot);
     });
 
-    // Update HUD Car Name & Police Siren Button visibility
     const carLabel = document.getElementById("active-car-label");
     if (carLabel) carLabel.textContent = sp.name.toUpperCase();
 
@@ -672,7 +944,7 @@
   }
 
   // =========================================================================
-  // 3. PROCEDURAL WEB AUDIO ENGINE (PER-CAR TONE, TUNNEL ECHO & POLICE SIREN)
+  // 3. PROCEDURAL WEB AUDIO ENGINE (V8 / V10 / F1 / TURBO / DIESEL / EV INVERTER)
   // =========================================================================
   const soundBtn = document.getElementById("btn-sound");
   const soundLabel = document.getElementById("sound-label");
@@ -688,6 +960,9 @@
     harmGain: null,
     engineFilter: null,
     engineGain: null,
+    evOsc1: null,
+    evOsc2: null,
+    evGain: null,
     tunnelDelay: null,
     tunnelFeedback: null,
     tunnelWetGain: null,
@@ -724,6 +999,20 @@
       for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
       this.noiseBuffer = buf;
 
+      // Tunnel Slapback Echo
+      this.tunnelDelay = ctx.createDelay(0.4);
+      this.tunnelDelay.delayTime.value = 0.085;
+      this.tunnelFeedback = ctx.createGain();
+      this.tunnelFeedback.gain.value = 0.38;
+      this.tunnelWetGain = ctx.createGain();
+      this.tunnelWetGain.gain.value = 0.0;
+
+      this.tunnelDelay.connect(this.tunnelFeedback);
+      this.tunnelFeedback.connect(this.tunnelDelay);
+      this.tunnelDelay.connect(this.tunnelWetGain);
+      this.tunnelWetGain.connect(this.masterGain);
+
+      // Combustion Engine Channel (V8 / V10 / F1 / Turbo / Diesel)
       const shaper = ctx.createWaveShaper();
       const curve = new Float32Array(256);
       for (let i = 0; i < 256; i++) {
@@ -739,19 +1028,6 @@
 
       this.engineGain = ctx.createGain();
       this.engineGain.gain.value = 0.0;
-
-      // Tunnel Slapback Echo
-      this.tunnelDelay = ctx.createDelay(0.4);
-      this.tunnelDelay.delayTime.value = 0.085;
-      this.tunnelFeedback = ctx.createGain();
-      this.tunnelFeedback.gain.value = 0.38;
-      this.tunnelWetGain = ctx.createGain();
-      this.tunnelWetGain.gain.value = 0.0;
-
-      this.tunnelDelay.connect(this.tunnelFeedback);
-      this.tunnelFeedback.connect(this.tunnelDelay);
-      this.tunnelDelay.connect(this.tunnelWetGain);
-      this.tunnelWetGain.connect(this.masterGain);
 
       this.oscSub = ctx.createOscillator();
       this.oscSub.type = "triangle";
@@ -781,6 +1057,31 @@
       this.oscSub.start();
       this.oscMain.start();
       this.oscHarm.start();
+
+      // Electric Motor Harmonic Inverter Channel (ArcDrive EV)
+      this.evOsc1 = ctx.createOscillator();
+      this.evOsc1.type = "sine";
+      this.evOsc1.frequency.value = 260;
+
+      this.evOsc2 = ctx.createOscillator();
+      this.evOsc2.type = "triangle";
+      this.evOsc2.frequency.value = 520;
+
+      const evFilter = ctx.createBiquadFilter();
+      evFilter.type = "bandpass";
+      evFilter.frequency.value = 1100;
+      evFilter.Q.value = 1.2;
+
+      this.evGain = ctx.createGain();
+      this.evGain.gain.value = 0;
+
+      this.evOsc1.connect(evFilter);
+      this.evOsc2.connect(evFilter);
+      evFilter.connect(this.evGain);
+      this.evGain.connect(this.masterGain);
+      this.evGain.connect(this.tunnelDelay);
+      this.evOsc1.start();
+      this.evOsc2.start();
 
       const makeNoiseChannel = (type, freq, q) => {
         const src = ctx.createBufferSource();
@@ -836,7 +1137,6 @@
       this.hornOsc1.start();
       this.hornOsc2.start();
 
-      // Police Cruiser Wailing Siren Channel
       this.sirenOsc = ctx.createOscillator();
       this.sirenOsc.type = "sawtooth";
       this.sirenOsc.frequency.value = 720;
@@ -874,7 +1174,7 @@
       if (!this.enabled) {
         const now = this.ctx.currentTime;
         [
-          this.engineGain, this.tunnelWetGain, this.screechGain, this.windGain,
+          this.engineGain, this.evGain, this.tunnelWetGain, this.screechGain, this.windGain,
           this.rainGain, this.wetTireGain, this.nitroNoiseGain, this.turboGain,
           this.hornGain, this.sirenGain,
         ].forEach((g) => g.gain.setTargetAtTime(0, now, 0.04));
@@ -884,19 +1184,33 @@
     update(rpm, absSpeed, slipAmt, throttle, drifting, usingNitro, hornPressed, rainAudio, wetUnderCar, inTunnel, elapsed) {
       if (!this.enabled || !this.ctx) return;
       const now = this.ctx.currentTime;
-
-      // Engine sound adapts dynamically to the selected garage vehicle!
       const normRpm = THREE.MathUtils.clamp((rpm - 800) / 7200, 0, 1);
-      const baseFreq = (34 + normRpm * 92 + (usingNitro ? 14 : 0)) * activeSpec.enginePitch;
 
-      this.oscSub.frequency.setTargetAtTime(baseFreq, now, 0.035);
-      this.oscMain.frequency.setTargetAtTime(baseFreq * 2.0, now, 0.035);
-      this.oscHarm.frequency.setTargetAtTime(baseFreq * 3.01, now, 0.035);
-      this.harmGain.gain.setTargetAtTime(activeSpec.engineHarmonic, now, 0.06);
+      if (activeSpec.soundType === "ev") {
+        // Futuristic Dual-Harmonic Electric Inverter Whine
+        this.engineGain.gain.setTargetAtTime(0, now, 0.05);
+        const evBase = 160 + absSpeed * 18 + (usingNitro ? 240 : 0);
+        this.evOsc1.frequency.setTargetAtTime(evBase, now, 0.04);
+        this.evOsc2.frequency.setTargetAtTime(evBase * 2.02, now, 0.04);
+        const evVol = absSpeed > 0.8 || throttle > 0.1 ? 0.06 + Math.min(0.11, absSpeed * 0.0014) + throttle * 0.04 : 0.015;
+        this.evGain.gain.setTargetAtTime(evVol, now, 0.06);
+      } else {
+        this.evGain.gain.setTargetAtTime(0, now, 0.05);
+        const baseFreq = (34 + normRpm * 92 + (usingNitro ? 14 : 0)) * activeSpec.enginePitch;
+        this.oscSub.frequency.setTargetAtTime(baseFreq, now, 0.035);
+        this.oscMain.frequency.setTargetAtTime(baseFreq * 2.0, now, 0.035);
+        this.oscHarm.frequency.setTargetAtTime(baseFreq * (activeSpec.soundType === "f1" ? 3.5 : 3.01), now, 0.035);
+        this.harmGain.gain.setTargetAtTime(activeSpec.engineHarmonic, now, 0.06);
 
-      const cutoff = 220 + normRpm * 1350 * activeSpec.enginePitch + (throttle > 0 ? 350 : 0) + (usingNitro ? 500 : 0);
-      this.engineFilter.frequency.setTargetAtTime(cutoff, now, 0.05);
-      this.engineGain.gain.setTargetAtTime(0.09 + normRpm * 0.11 + (throttle > 0 ? 0.045 : 0), now, 0.05);
+        const cutoff = 220 + normRpm * 1350 * activeSpec.enginePitch + (throttle > 0 ? 350 : 0) + (usingNitro ? 500 : 0);
+        this.engineFilter.frequency.setTargetAtTime(cutoff, now, 0.05);
+        this.engineGain.gain.setTargetAtTime(0.09 + normRpm * 0.11 + (throttle > 0 ? 0.045 : 0), now, 0.05);
+      }
+
+      // Deeper air-horn pitch for Mammoth 6x4 Semi!
+      const hornMult = activeSpec.isSixWheel ? 0.44 : 1.0;
+      this.hornOsc1.frequency.setTargetAtTime(392 * hornMult, now, 0.02);
+      this.hornOsc2.frequency.setTargetAtTime(493.88 * hornMult, now, 0.02);
 
       this.tunnelWetGain.gain.setTargetAtTime(inTunnel ? 0.42 : 0.0, now, 0.15);
 
@@ -907,15 +1221,19 @@
       const wetHiss = wetUnderCar > 0.18 && absSpeed > 4 ? Math.min(0.16, absSpeed * 0.0028 * wetUnderCar) : 0;
       this.wetTireGain.gain.setTargetAtTime(wetHiss, now, 0.06);
 
-      this.windGain.gain.setTargetAtTime(absSpeed > 22 ? Math.min(0.15, (absSpeed - 22) * 0.0024) : 0, now, 0.08);
+      this.windGain.gain.setTargetAtTime(absSpeed > 22 ? Math.min(0.17, (absSpeed - 22) * 0.0026) : 0, now, 0.08);
       this.rainGain.gain.setTargetAtTime(inTunnel ? rainAudio * 0.12 : rainAudio, now, 0.25);
 
       this.nitroNoiseGain.gain.setTargetAtTime(usingNitro ? 0.19 : 0, now, 0.06);
-      this.turboOsc.frequency.setTargetAtTime(2200 + normRpm * 2400, now, 0.06);
-      this.turboGain.gain.setTargetAtTime(usingNitro ? 0.045 : normRpm > 0.65 ? 0.012 : 0, now, 0.07);
-      this.hornGain.gain.setTargetAtTime(hornPressed ? 0.13 : 0, now, 0.018);
+      const isTurboCar = activeSpec.soundType === "turbo" || activeSpec.soundType === "f1";
+      this.turboOsc.frequency.setTargetAtTime(2200 + normRpm * 2600, now, 0.06);
+      this.turboGain.gain.setTargetAtTime(
+        usingNitro ? 0.045 : isTurboCar && normRpm > 0.35 ? 0.026 * normRpm : normRpm > 0.65 ? 0.012 : 0,
+        now,
+        0.07
+      );
+      this.hornGain.gain.setTargetAtTime(hornPressed ? 0.14 : 0, now, 0.018);
 
-      // Police Cruiser Wail Siren
       if (sirenActive && activeSpec.isPolice) {
         const wail = 660 + 480 * (0.5 + 0.5 * Math.sin(elapsed * 4.4));
         this.sirenOsc.frequency.setTargetAtTime(wail, now, 0.03);
@@ -926,13 +1244,13 @@
     },
 
     playGearShiftPop() {
-      if (!this.enabled || !this.ctx || !this.noiseBuffer) return;
+      if (!this.enabled || !this.ctx || !this.noiseBuffer || activeSpec.soundType === "ev") return;
       const now = this.ctx.currentTime;
       const src = this.ctx.createBufferSource();
       src.buffer = this.noiseBuffer;
       const filter = this.ctx.createBiquadFilter();
       filter.type = "bandpass";
-      filter.frequency.setValueAtTime(320, now);
+      filter.frequency.setValueAtTime(activeSpec.soundType === "turbo" ? 680 : 320, now);
       filter.frequency.exponentialRampToValueAtTime(110, now + 0.09);
       const gain = this.ctx.createGain();
       gain.gain.setValueAtTime(0.18, now);
@@ -1153,7 +1471,6 @@
     document.getElementById("btn-traffic").classList.toggle("active", trafficEnabled);
   }
 
-  // Garage Selection & Live Paint Preview
   function selectGarageCar(carId, autoApplyPaint = true) {
     const sp = VEHICLE_SPECS[carId];
     if (!sp) return;
@@ -1163,14 +1480,17 @@
     });
 
     document.getElementById("spec-car-name").textContent = sp.name;
+    const aeroNoteEl = document.getElementById("spec-aero-note");
+    if (aeroNoteEl) aeroNoteEl.textContent = sp.aeroNote;
+
     document.getElementById("spec-speed").style.width = `${sp.stats.speed}%`;
     document.getElementById("spec-accel").style.width = `${sp.stats.accel}%`;
     document.getElementById("spec-grip").style.width = `${sp.stats.grip}%`;
+    const aeroBar = document.getElementById("spec-aero");
+    if (aeroBar) aeroBar.style.width = `${sp.stats.aero}%`;
     document.getElementById("spec-drift").style.width = `${sp.stats.drift}%`;
 
-    if (autoApplyPaint) {
-      selectPaintColor(sp.defaultColor);
-    }
+    if (autoApplyPaint) selectPaintColor(sp.defaultColor);
 
     rebuildPlayerCarModel(carId);
     applyEnvironment();
@@ -1204,7 +1524,7 @@
     const lbl = document.getElementById("siren-label");
     if (btn) btn.classList.toggle("siren-on", sirenActive);
     if (lbl) lbl.textContent = sirenActive ? "ON" : "OFF";
-    showBanner(sirenActive ? "PURSUIT SIREN: ON" : "PURSUIT SIREN: OFF");
+    showBanner(sirenActive ? "PATROL SIREN: ON" : "PATROL SIREN: OFF");
   }
 
   function toggleRayTracing() {
@@ -1242,7 +1562,7 @@
     document.getElementById("cam-label").textContent = CAMERA_MODES[cameraModeIdx];
   }
 
-  // Wire Garage Modal Click Events
+  // Wire Garage Click Events
   document.querySelectorAll(".car-option").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.currentTarget.blur();
@@ -1261,7 +1581,6 @@
   document.getElementById("btn-garage-close").addEventListener("click", () => toggleGarage(false));
   document.getElementById("btn-garage-drive").addEventListener("click", () => toggleGarage(false));
 
-  // Keyboard & Pointer Input Listeners
   const keys = {};
   window.addEventListener("keydown", (e) => {
     const code = e.code;
@@ -1303,16 +1622,16 @@
     }
   });
 
-  // Build Initial Default Vehicle (Apex GT Coupe)
+  // Build Default Vehicle (Veridian GT)
   rebuildPlayerCarModel("gt");
 
   // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
+
   // =========================================================================
-  // 5. CONSOLE & MOBILE CONTROLS INTEGRATION + 240Hz VEHICLE PHYSICS
+  // 5. CONSOLE & MOBILE CONTROLS + 240Hz AERODYNAMICS & VEHICLE PHYSICS
   // =========================================================================
   const controls = window.HorizonControls;
 
-  // Optimize reflection target scale slightly on mobile GPUs for smooth 60 FPS
   if (controls && controls.isTouchDevice) {
     reflTarget.setSize(
       Math.max(256, Math.floor(window.innerWidth * 0.45)),
@@ -1356,9 +1675,12 @@
   }
 
   const GRAVITY_PHYS = 9.81;
+  const AIR_DENSITY = 1.225; // kg/m^3 at sea level
   const GEAR_RATIOS = [3.55, 2.38, 1.68, 1.25, 0.96, 0.76];
   const BASE_GEAR_THRESH = [52, 98, 148, 202, 260, 345];
 
+  // Distinct Physics & Aerodynamics Profile for Every Single Vehicle
+  // cdA: frontal drag area (m^2), clFrontA/clRearA: front/rear downforce area (m^2), sideArea: crosswind area (m^2)
   const HANDLING_PROFILES = {
     gt: {
       mass: 1480,
@@ -1369,13 +1691,19 @@
       rearMuMult: 1.08,
       offroadMu: 1.05,
       wetMuDrop: 0.3,
-      maxDriveForce: 16200,
+      maxDriveForce: 16400,
       nitroForce: 7200,
       maxBrakeForce: 25500,
       brakeBiasFront: 0.64,
       awdFrontSplit: 0.15,
-      aeroDownforce: 1.25,
-      aeroDrag: 0.4,
+      cdA: 0.68,
+      clFrontA: 0.34,
+      clRearA: 0.54,
+      sideArea: 2.6,
+      drsDragCut: 0.18,
+      drsRearDfCut: 0.22,
+      airbrakeDragAdd: 0.58,
+      airbrakeRearDfAdd: 0.48,
       pacejkaB: 13.5,
       pacejkaC: 1.15,
       tcsAllowSlip: 0.1,
@@ -1389,13 +1717,19 @@
       rearMuMult: 1.0,
       offroadMu: 0.98,
       wetMuDrop: 0.34,
-      maxDriveForce: 19400,
+      maxDriveForce: 19600,
       nitroForce: 7800,
       maxBrakeForce: 26800,
       brakeBiasFront: 0.66,
       awdFrontSplit: 0.0,
-      aeroDownforce: 0.72,
-      aeroDrag: 0.45,
+      cdA: 0.92,
+      clFrontA: 0.12,
+      clRearA: 0.22,
+      sideArea: 3.1,
+      drsDragCut: 0,
+      drsRearDfCut: 0,
+      airbrakeDragAdd: 0,
+      airbrakeRearDfAdd: 0,
       pacejkaB: 12.0,
       pacejkaC: 1.18,
       tcsAllowSlip: 0.42,
@@ -1404,21 +1738,105 @@
       mass: 1360,
       Iz: 2100,
       cgHeight: 0.38,
-      tireMu: 2.28,
+      tireMu: 2.26,
       brakeMu: 1.92,
       rearMuMult: 1.09,
       offroadMu: 0.9,
       wetMuDrop: 0.34,
-      maxDriveForce: 21200,
+      maxDriveForce: 21400,
       nitroForce: 8600,
-      maxBrakeForce: 29000,
+      maxBrakeForce: 29500,
       brakeBiasFront: 0.62,
       awdFrontSplit: 0.35,
-      aeroDownforce: 2.65,
-      aeroDrag: 0.36,
+      cdA: 0.62,
+      clFrontA: 0.78,
+      clRearA: 1.18,
+      sideArea: 2.2,
+      drsDragCut: 0.24,
+      drsRearDfCut: 0.28,
+      airbrakeDragAdd: 0.85,
+      airbrakeRearDfAdd: 0.72,
       pacejkaB: 15.2,
       pacejkaC: 1.15,
       tcsAllowSlip: 0.08,
+    },
+    formula: {
+      mass: 840,
+      Iz: 1280,
+      cgHeight: 0.28,
+      tireMu: 2.58,          // Wide open-wheel slicks + extreme ground-effect downforce
+      brakeMu: 2.35,         // Carbon-carbon F1 brakes
+      rearMuMult: 1.1,
+      offroadMu: 0.72,
+      wetMuDrop: 0.4,
+      maxDriveForce: 17600,  // Insane power-to-weight ratio
+      nitroForce: 7200,
+      maxBrakeForce: 27000,
+      brakeBiasFront: 0.59,
+      awdFrontSplit: 0.0,
+      cdA: 0.86,             // High base wing drag -> drops steeply when DRS opens!
+      clFrontA: 2.2,
+      clRearA: 2.95,         // ~1,500+ kg of aero downforce at 250 km/h!
+      sideArea: 1.6,
+      drsDragCut: 0.34,
+      drsRearDfCut: 0.36,
+      airbrakeDragAdd: 0.65,
+      airbrakeRearDfAdd: 0.55,
+      pacejkaB: 16.5,
+      pacejkaC: 1.14,
+      tcsAllowSlip: 0.06,
+    },
+    rally: {
+      mass: 1280,
+      Iz: 1950,
+      cgHeight: 0.52,
+      tireMu: 1.88,
+      brakeMu: 1.66,
+      rearMuMult: 1.04,
+      offroadMu: 1.76,       // Rally gravel/grass dominance
+      wetMuDrop: 0.18,       // Almost unfazed by rain & puddles
+      maxDriveForce: 17800,
+      nitroForce: 6800,
+      maxBrakeForce: 25000,
+      brakeBiasFront: 0.6,
+      awdFrontSplit: 0.45,
+      cdA: 0.88,
+      clFrontA: 0.4,
+      clRearA: 0.68,         // Tall dual-plane rally wing
+      sideArea: 3.1,
+      drsDragCut: 0,
+      drsRearDfCut: 0,
+      airbrakeDragAdd: 0,
+      airbrakeRearDfAdd: 0,
+      pacejkaB: 13.0,
+      pacejkaC: 1.16,
+      tcsAllowSlip: 0.18,
+    },
+    ev: {
+      mass: 1860,
+      Iz: 2850,
+      cgHeight: 0.35,        // Floor-mounted battery pack -> ultra-low CG!
+      tireMu: 2.04,
+      brakeMu: 1.74,
+      rearMuMult: 1.09,
+      offroadMu: 0.96,
+      wetMuDrop: 0.28,
+      maxDriveForce: 25800,  // Instant flat-curve dual-motor electric torque
+      nitroForce: 8400,
+      maxBrakeForce: 33000,
+      brakeBiasFront: 0.62,
+      awdFrontSplit: 0.48,
+      cdA: 0.44,             // Ultra-slippery teardrop silhouette
+      clFrontA: 0.44,
+      clRearA: 0.64,
+      sideArea: 2.5,
+      drsDragCut: 0.16,
+      drsRearDfCut: 0.22,
+      airbrakeDragAdd: 0.62,
+      airbrakeRearDfAdd: 0.5,
+      pacejkaB: 14.0,
+      pacejkaC: 1.14,
+      tcsAllowSlip: 0.06,
     },
     suv: {
       mass: 2220,
@@ -1427,15 +1845,21 @@
       tireMu: 1.66,
       brakeMu: 1.44,
       rearMuMult: 1.1,
-      offroadMu: 1.55,
+      offroadMu: 1.58,
       wetMuDrop: 0.2,
-      maxDriveForce: 20400,
+      maxDriveForce: 20600,
       nitroForce: 7400,
       maxBrakeForce: 33000,
       brakeBiasFront: 0.65,
       awdFrontSplit: 0.5,
-      aeroDownforce: 0.4,
-      aeroDrag: 0.64,
+      cdA: 1.38,             // High-drag boxy SUV
+      clFrontA: 0.08,
+      clRearA: 0.14,
+      sideArea: 6.4,         // Feels crosswinds on exposed bridges during storms
+      drsDragCut: 0,
+      drsRearDfCut: 0,
+      airbrakeDragAdd: 0,
+      airbrakeRearDfAdd: 0,
       pacejkaB: 11.4,
       pacejkaC: 1.12,
       tcsAllowSlip: 0.08,
@@ -1449,16 +1873,48 @@
       rearMuMult: 1.08,
       offroadMu: 1.2,
       wetMuDrop: 0.26,
-      maxDriveForce: 19800,
+      maxDriveForce: 20200,
       nitroForce: 8200,
       maxBrakeForce: 31000,
       brakeBiasFront: 0.63,
       awdFrontSplit: 0.4,
-      aeroDownforce: 1.15,
-      aeroDrag: 0.42,
+      cdA: 0.84,             // Roof lightbar adds realistic drag
+      clFrontA: 0.24,
+      clRearA: 0.36,
+      sideArea: 3.2,
+      drsDragCut: 0,
+      drsRearDfCut: 0,
+      airbrakeDragAdd: 0,
+      airbrakeRearDfAdd: 0,
       pacejkaB: 13.8,
       pacejkaC: 1.15,
       tcsAllowSlip: 0.1,
+    },
+    truck: {
+      mass: 6200,
+      Iz: 22500,
+      cgHeight: 1.12,        // Tall heavy semi cab
+      tireMu: 1.42,
+      brakeMu: 1.18,         // Heavy air-brake stopping distance
+      rearMuMult: 1.16,      // Dual tandem rear axles stay planted
+      offroadMu: 1.12,
+      wetMuDrop: 0.26,
+      maxDriveForce: 39500,  // Massive diesel low-end pull
+      nitroForce: 16000,
+      maxBrakeForce: 68000,
+      brakeBiasFront: 0.45,
+      awdFrontSplit: 0.0,    // 6x4 rear tandem drive
+      cdA: 3.1,              // Giant flat-face aerodynamic wall
+      clFrontA: 0.15,
+      clRearA: 0.25,
+      sideArea: 15.5,        // Strong bridge crosswind push in storms!
+      drsDragCut: 0,
+      drsRearDfCut: 0,
+      airbrakeDragAdd: 0,
+      airbrakeRearDfAdd: 0,
+      pacejkaB: 9.2,
+      pacejkaC: 1.1,
+      tcsAllowSlip: 0.08,
     },
   };
 
@@ -1496,6 +1952,11 @@
     drifting: false,
     absActive: false,
     tcsActive: false,
+    // Aerodynamics telemetry
+    aeroMode: "OFF",       // "OFF" | "DRS" | "AIRBRK"
+    drafting: false,
+    downforceKg: 0,
+    wingAngle: -0.14,
     slipAmount: 0,
     surfaceLabel: "DRY ASPHALT",
     surfaceClass: "dry",
@@ -1561,16 +2022,15 @@
     showBanner(`RESET: ${WARP_POINTS[bestIdx].name}`);
   }
 
-  // Exact Sphere-vs-Oriented-Box test for vehicles & boats (eliminates phantom side hits!)
-  // Entity local right = (cosH, -sinH), local forward = (-sinH, -cosH)
+  // Exact Sphere-vs-Oriented-Box test for vehicles & boats
   function testSphereVsVehicleOBB(sx, sz, sphereRad, cx, cz, halfW, halfL, heading) {
     const cosH = Math.cos(heading);
     const sinH = Math.sin(heading);
     const dx = sx - cx;
     const dz = sz - cz;
 
-    const lx = dx * cosH - dz * sinH;   // Right axis
-    const lz = -dx * sinH - dz * cosH;  // Forward axis
+    const lx = dx * cosH - dz * sinH;
+    const lz = -dx * sinH - dz * cosH;
 
     const clx = Math.max(-halfW, Math.min(lx, halfW));
     const clz = Math.max(-halfL, Math.min(lz, halfL));
@@ -1601,19 +2061,19 @@
       }
     }
 
-    // Rotate contact normal back to world space: nlx * R + nlz * F
     const nx = nlx * cosH - nlz * sinH;
     const nz = -nlx * sinH - nlz * cosH;
     return { nx, nz, overlap };
   }
 
-  // Exact Multi-Sphere vs Buildings, Guardrails, AI Vehicles & Boats
+  // Multi-Sphere Collision Solver (scales seamlessly from Formula R1 to Mammoth 6x4 Semi)
   function resolveCollisions() {
     const nearby = world.getNearbyColliders(car.x, car.z);
-    // Tight visual-match spheres along the player's body centerline
     const sphereRad = activeSpec.bodyW * 0.47;
     const bumperOff = Math.max(0.85, activeSpec.bodyLen * 0.5 - sphereRad);
-    const sphereOffsets = [-bumperOff, 0, bumperOff];
+    const sphereOffsets = activeSpec.isSixWheel
+      ? [-bumperOff, -bumperOff * 0.34, bumperOff * 0.34, bumperOff]
+      : [-bumperOff, 0, bumperOff];
     let maxImpact = 0;
 
     // 1) Static World Colliders (Buildings, Tunnel Walls, Bridge & Curved Viaduct Rails)
@@ -1628,7 +2088,7 @@
 
         for (let i = 0; i < nearby.length; i++) {
           const c = nearby[i];
-          if (car.y + 1.9 < c.minY || car.y > c.maxY) continue;
+          if (car.y + 2.2 < c.minY || car.y > c.maxY) continue;
 
           let hit = false;
           let nx = 0;
@@ -1732,11 +2192,12 @@
       }
     }
 
-    // 2) Exact OBB Collisions with AI Traffic Cars & Harbor/Ocean Boats (ZERO phantom lane hits!)
+    // 2) Exact OBB Collisions with AI Traffic & Boats
     if (trafficEnabled) {
       const fx = -Math.sin(car.heading);
       const fz = -Math.cos(car.heading);
       const playerBroadR = bumperOff + sphereRad;
+      const heavyRatio = activeSpec.isSixWheel ? 0.35 : 0.7;
 
       for (let i = 0; i < world.trafficCars.length; i++) {
         const ai = world.trafficCars[i];
@@ -1752,17 +2213,15 @@
           const sx = car.x + fx * sphereOffsets[s];
           const sz = car.z + fz * sphereOffsets[s];
           const res = testSphereVsVehicleOBB(sx, sz, sphereRad, ai.x, ai.z, ai.halfW, ai.halfL, ai.heading);
-          if (res && (!deepest || res.overlap > deepest.overlap)) {
-            deepest = res;
-          }
+          if (res && (!deepest || res.overlap > deepest.overlap)) deepest = res;
         }
 
         if (deepest) {
           const { nx, nz, overlap } = deepest;
-          car.x += nx * overlap * 0.7;
-          car.z += nz * overlap * 0.7;
-          ai.x -= nx * overlap * 0.3;
-          ai.z -= nz * overlap * 0.3;
+          car.x += nx * overlap * heavyRatio;
+          car.z += nz * overlap * heavyRatio;
+          ai.x -= nx * overlap * (1 - heavyRatio);
+          ai.z -= nz * overlap * (1 - heavyRatio);
 
           const aiVx = -Math.sin(ai.heading) * ai.speed;
           const aiVz = -Math.cos(ai.heading) * ai.speed;
@@ -1770,14 +2229,14 @@
 
           if (relVn < 0) {
             maxImpact = Math.max(maxImpact, -relVn);
-            car.vx -= 1.18 * relVn * nx;
-            car.vz -= 1.18 * relVn * nz;
-            car.vx *= 0.85;
-            car.vz *= 0.85;
+            car.vx -= (activeSpec.isSixWheel ? 0.65 : 1.18) * relVn * nx;
+            car.vz -= (activeSpec.isSixWheel ? 0.65 : 1.18) * relVn * nz;
+            car.vx *= activeSpec.isSixWheel ? 0.94 : 0.85;
+            car.vz *= activeSpec.isSixWheel ? 0.94 : 0.85;
 
-            ai.knockVx = -nx * Math.min(16, -relVn * 0.6);
-            ai.knockVz = -nz * Math.min(16, -relVn * 0.6);
-            ai.stunTimer = 0.75;
+            ai.knockVx = -nx * Math.min(20, -relVn * (activeSpec.isSixWheel ? 1.1 : 0.6));
+            ai.knockVz = -nz * Math.min(20, -relVn * (activeSpec.isSixWheel ? 1.1 : 0.6));
+            ai.stunTimer = 0.8;
           }
         }
       }
@@ -1796,9 +2255,7 @@
           const sx = car.x + fx * sphereOffsets[s];
           const sz = car.z + fz * sphereOffsets[s];
           const res = testSphereVsVehicleOBB(sx, sz, sphereRad, b.x, b.z, b.halfW, b.halfL, b.heading);
-          if (res && (!deepest || res.overlap > deepest.overlap)) {
-            deepest = res;
-          }
+          if (res && (!deepest || res.overlap > deepest.overlap)) deepest = res;
         }
 
         if (deepest) {
@@ -1816,7 +2273,7 @@
       }
     }
 
-    // 3) Outer Ocean World Bounds
+    // 3) Outer Ocean Bounds
     if (car.x > WORLD_BOUNDS.maxX) { maxImpact = Math.max(maxImpact, Math.abs(car.vx)); car.x = WORLD_BOUNDS.maxX; car.vx *= -0.35; }
     if (car.x < WORLD_BOUNDS.minX) { maxImpact = Math.max(maxImpact, Math.abs(car.vx)); car.x = WORLD_BOUNDS.minX; car.vx *= -0.35; }
     if (car.z > WORLD_BOUNDS.maxZ) { maxImpact = Math.max(maxImpact, Math.abs(car.vz)); car.z = WORLD_BOUNDS.maxZ; car.vz *= -0.35; }
@@ -1839,6 +2296,42 @@
     return -Math.sin(C * Math.atan(x - E * (x - Math.atan(x))));
   }
 
+  // Slipstream Drafting Detector: checks if driving closely in an AI vehicle's wake at highway speed
+  function computeDraftStrength(vLong) {
+    if (!trafficEnabled || vLong < 18.0) return 0.0;
+    const fx = -Math.sin(car.heading);
+    const fz = -Math.cos(car.heading);
+    const rx = Math.cos(car.heading);
+    const rz = -Math.sin(car.heading);
+
+    let bestDraft = 0.0;
+    for (let i = 0; i < world.trafficCars.length; i++) {
+      const ai = world.trafficCars[i];
+      if (Math.abs(car.y - ai.y) > 3.2) continue;
+
+      const dx = ai.x - car.x;
+      const dz = ai.z - car.z;
+      if (Math.abs(dx) > 40 || Math.abs(dz) > 40) continue;
+
+      const fwd = dx * fx + dz * fz;
+      if (fwd < 5.5 || fwd > 38.0) continue;
+
+      const lat = Math.abs(dx * rx + dz * rz);
+      if (lat > 2.65) continue;
+
+      const afx = -Math.sin(ai.heading);
+      const afz = -Math.cos(ai.heading);
+      if (fx * afx + fz * afz < 0.82) continue;
+
+      // Stronger slipstream directly behind larger vehicles (trucks/buses punch a huge air hole!)
+      const sizeBonus = ai.halfL > 3.0 ? 1.22 : 1.0;
+      const distFactor = 1.0 - (fwd - 5.5) / 32.5;
+      const latFactor = 1.0 - lat / 2.65;
+      bestDraft = Math.max(bestDraft, Math.min(0.36, distFactor * latFactor * 0.34 * sizeBonus));
+    }
+    return bestDraft;
+  }
+
   function updatePhysics(dt, elapsed) {
     impactCooldown = Math.max(0, impactCooldown - dt);
     splashCooldown = Math.max(0, splashCooldown - dt);
@@ -1847,7 +2340,6 @@
     const sp = activeSpec;
     const hp = HANDLING_PROFILES[sp.id] || HANDLING_PROFILES.gt;
 
-    // Combine Keyboard + Console Gamepad + Mobile Multi-Touch Inputs
     const ext = controls
       ? controls.getInput()
       : { accel: 0, brake: 0, steer: 0, isAnalogSteer: false, handbrake: false, nitro: false, horn: false };
@@ -1944,7 +2436,7 @@
       car.wetUnderCar = effWet;
 
       const wetFactor = 1.0 - (roadMoisture * 0.12 + puddleVal * 0.22) * (hp.wetMuDrop / 0.3);
-      surfaceMu = hp.tireMu * Math.max(0.65, wetFactor);
+      surfaceMu = hp.tireMu * Math.max(0.62, wetFactor);
       rollingCoeff = 0.015 + effWet * 0.016;
 
       if (surfStart.surfaceType === "BRIDGE") {
@@ -1963,20 +2455,73 @@
     } else {
       const grassWet = roadMoisture * 0.4;
       car.wetUnderCar = grassWet;
-      surfaceMu = Math.max(0.8, hp.offroadMu * (1.0 - grassWet * 0.15));
-      rollingCoeff = sp.id === "suv" ? 0.042 : 0.075;
+      surfaceMu = Math.max(0.7, hp.offroadMu * (1.0 - grassWet * 0.15));
+      rollingCoeff = sp.id === "suv" || sp.id === "rally" ? 0.036 : 0.075;
       car.surfaceLabel = "OFF-ROAD GRASS";
       car.surfaceClass = "offroad";
     }
     car.currentGrip = surfaceMu;
 
-    // SLIP-AWARE STEERING ANGLE
+    // =====================================================================
+    // ACTIVE AERODYNAMICS (DRS / AIRBRAKE), SLIPSTREAM DRAFT & CROSSWINDS
+    // =====================================================================
+    const draftStrength = computeDraftStrength(initVLong);
+    car.drafting = draftStrength > 0.06;
+
+    let aeroMode = "OFF";
+    let effCdA = hp.cdA * (1.0 - draftStrength);
+    let effClFrontA = hp.clFrontA * (1.0 - draftStrength * 0.26); // Dirty air slightly trims front bite!
+    let effClRearA = hp.clRearA;
+    let targetWingAngle = -0.14; // Normal cruise/corner downforce pitch
+
+    if (sp.hasActiveAero) {
+      if (car.brakePedal > 0.32 && initVLong > 22.0) {
+        // High-speed Airbrake pops rear wing steeply upward for extra drag + rear stability
+        aeroMode = "AIRBRK";
+        effCdA += hp.airbrakeDragAdd;
+        effClRearA += hp.airbrakeRearDfAdd;
+        targetWingAngle = -0.68;
+      } else if (
+        initVLong > 36.0 &&
+        car.throttlePedal > 0.6 &&
+        Math.abs(car.steerAngle) < 0.095 &&
+        !car.drifting &&
+        !handbrake
+      ) {
+        // Active DRS flattens wing on fast straights to boost acceleration & top speed!
+        aeroMode = "DRS";
+        effCdA *= 1.0 - hp.drsDragCut;
+        effClRearA *= 1.0 - hp.drsRearDfCut;
+        targetWingAngle = 0.04;
+      }
+    }
+    car.aeroMode = aeroMode;
+
+    // Animate 3D Active Wing Smoothly
+    car.wingAngle = THREE.MathUtils.lerp(car.wingAngle, targetWingAngle, 1 - Math.exp(-12 * dt));
+    if (activeWingPivot) {
+      activeWingPivot.rotation.x = car.wingAngle;
+    }
+
+    // Environmental Storm/Rain Crosswind (stronger on exposed Suspension Bridge & Coastal Viaduct; zero in Tunnel)
+    let windWorldX = 0;
+    let windWorldZ = 0;
+    if (!car.inTunnel && weather.rainIntensity > 0.2) {
+      const exposure = surfStart.surfaceType === "BRIDGE" ? 1.65 : 0.85;
+      const gust = 0.72 + 0.28 * Math.sin(elapsed * 0.75) * Math.cos(elapsed * 0.41);
+      const baseWind = (weather.name === "STORM" ? 15.5 : 6.2) * exposure * gust;
+      windWorldX = baseWind;
+      windWorldZ = baseWind * 0.3;
+    }
+
+    // Slip-Aware Steering Angle scaled with Live Aero Downforce!
     const halfA = sp.wheelZ;
     const halfB = sp.wheelZ;
     const wheelbase = halfA + halfB;
     const initSpeed = Math.hypot(car.vx, car.vz);
 
-    const maxLatAccel = hp.tireMu * GRAVITY_PHYS + (hp.aeroDownforce * initSpeed * initSpeed * hp.tireMu) / hp.mass;
+    const estDownforce = 0.5 * AIR_DENSITY * initSpeed * initSpeed * (effClFrontA + effClRearA);
+    const maxLatAccel = hp.tireMu * (GRAVITY_PHYS + estDownforce / hp.mass);
     const geoSteer = Math.atan((wheelbase * maxLatAccel) / Math.max(12, initSpeed * initSpeed));
     const speedBlend = THREE.MathUtils.clamp((initSpeed - 3.0) / 14.0, 0.0, 1.0);
     const slipAllowance = 0.125 * speedBlend;
@@ -2000,7 +2545,7 @@
     car.steerAngle = THREE.MathUtils.lerp(car.steerAngle, targetSteer, 1 - Math.exp(-activeSteerRate * dt));
 
     // =====================================================================
-    // 4x FIXED SUBSTEPS (~240 Hz WORLD-SPACE TIRE & KINEMATIC LOW-SPEED SOLVER)
+    // 4x FIXED SUBSTEPS (~240 Hz WORLD-SPACE AERO, TIRE & WEIGHT SOLVER)
     // =====================================================================
     const SUBSTEPS = 4;
     const subDt = dt / SUBSTEPS;
@@ -2011,6 +2556,7 @@
     let lastVLong = initVLong;
     let lastVLatR = 0;
     let lastRearSlip = 0;
+    let lastTotalDownforceN = 0;
     let latestSurf = surfStart;
     let accumLongAcc = 0;
     let accumLatAcc = 0;
@@ -2026,35 +2572,53 @@
       const speed = Math.hypot(vLong, vLat);
       lastVLong = vLong;
 
+      // Relative air velocity for real Aerodynamic Drag, Downforce & Storm Crosswinds
+      const relAirLong = vLong - (windWorldX * fx + windWorldZ * fz);
+      const relAirLat = vLat - (windWorldX * rx + windWorldZ * rz);
+      const qLong = 0.5 * AIR_DENSITY * relAirLong * relAirLong;
+
+      const dfFront = vLong > 0 ? qLong * effClFrontA : 0;
+      const dfRear = vLong > 0 ? qLong * effClRearA : 0;
+      lastTotalDownforceN = dfFront + dfRear;
+
+      const fAeroDrag = -0.5 * AIR_DENSITY * effCdA * relAirLong * Math.abs(relAirLong);
+      // Crosswind lateral pressure (only noticeable in wind/storms, proportional to vehicle sideArea!)
+      const fCrosswindLat = -0.5 * AIR_DENSITY * (hp.sideArea * 0.32) * (windWorldX === 0 ? 0 : relAirLat * Math.abs(relAirLat) - vLat * Math.abs(vLat));
+
       let totalFLong = 0;
       let totalFLat = 0;
       let yawTorque = 0;
 
       if (car.grounded) {
         const staticWeight = hp.mass * GRAVITY_PHYS;
-        const downforce = hp.aeroDownforce * speed * speed;
         const weightTransfer = THREE.MathUtils.clamp(
           (hp.mass * car.accelLong * hp.cgHeight) / wheelbase,
-          -staticWeight * 0.22,
-          staticWeight * 0.22
+          -staticWeight * 0.24,
+          staticWeight * 0.24
         );
 
-        const loadFront = Math.max(staticWeight * 0.26, staticWeight * 0.5 - weightTransfer + downforce * 0.45);
-        const loadRear = Math.max(staticWeight * 0.26, staticWeight * 0.5 + weightTransfer + downforce * 0.55);
+        // Front & Rear Tire Normal Loads directly boosted by Per-Axle Aerodynamic Downforce!
+        const loadFront = Math.max(staticWeight * 0.24, staticWeight * 0.5 - weightTransfer + dfFront);
+        const loadRear = Math.max(staticWeight * 0.24, staticWeight * 0.5 + weightTransfer + dfRear);
 
         const maxLatGripF = surfaceMu * loadFront;
         const maxLatGripR = surfaceMu * hp.rearMuMult * loadRear;
         const maxLongGripF = surfaceMu * brakeMuRatio * loadFront;
         const maxLongGripR = surfaceMu * brakeMuRatio * hp.rearMuMult * loadRear;
 
-        // 1) Engine Drive Force
+        // 1) Engine / Electric Motor Drive Force
         const normRpm = THREE.MathUtils.clamp((car.rpm - 850) / 7150, 0, 1);
-        const torqueShape = 0.74 + 0.32 * Math.sin(normRpm * Math.PI * 0.85);
+        const torqueShape =
+          sp.soundType === "ev"
+            ? 1.0 - 0.12 * Math.min(1, speed / sp.topSpeed) // Flat instant EV torque!
+            : 0.74 + 0.32 * Math.sin(normRpm * Math.PI * 0.85);
         const gearIdx = Math.max(0, Math.min(5, (car.gearNum > 0 ? car.gearNum : 1) - 1));
-        const gearScale = 0.54 + (GEAR_RATIOS[gearIdx] / GEAR_RATIOS[0]) * 0.58;
+        const gearScale = sp.soundType === "ev" ? 0.96 : 0.54 + (GEAR_RATIOS[gearIdx] / GEAR_RATIOS[0]) * 0.58;
 
         let driveForce = 0;
-        const topCap = car.inWater ? 24 : usingNitro ? sp.nitroTopSpeed : sp.topSpeed;
+        // DRS + Slipstream naturally unlock a little extra top-end ceiling!
+        const aeroTopBonus = (aeroMode === "DRS" ? 3.8 : 0) + (car.drafting ? 3.5 : 0);
+        const topCap = car.inWater ? 24 : (usingNitro ? sp.nitroTopSpeed : sp.topSpeed) + aeroTopBonus;
 
         if (car.throttlePedal > 0.01 && vLong < topCap) {
           const speedLimiter = smoothstepLimit(vLong, topCap - 5, topCap);
@@ -2062,12 +2626,14 @@
             (hp.maxDriveForce * gearScale * torqueShape * car.throttlePedal + (usingNitro ? hp.nitroForce : 0)) *
             speedLimiter;
         } else if (wantReverse > 0.02 && vLong > -22) {
-          driveForce = -hp.maxDriveForce * 0.54 * wantReverse;
+          driveForce = -hp.maxDriveForce * 0.52 * wantReverse;
         } else if (Math.abs(vLong) > 0.4) {
-          driveForce = -Math.sign(vLong) * (420 + Math.abs(vLong) * 26);
+          // Stronger regenerative braking feel on ArcDrive EV off-throttle
+          const coastDrag = sp.soundType === "ev" ? 950 : 420;
+          driveForce = -Math.sign(vLong) * (coastDrag + Math.abs(vLong) * 26);
         }
 
-        // 2) Progressive Foot Brakes (65/35 Bias + ABS) & Rear Handbrake
+        // 2) Progressive Foot Brakes (Bias + ABS) & Rear Handbrake
         let brakeForceF = 0;
         let brakeForceR = 0;
         if (car.brakePedal > 0.01) {
@@ -2163,20 +2729,20 @@
         const fLongFrontCar = fLongFrontTire * cosD + fLatFrontTire * sinD * 0.28;
         const fLatFrontCar = -fLongFrontTire * sinD + fLatFrontTire * cosD;
 
-        // 4) Aero Drag, Rolling Resistance & Bridge Slope Gravity
-        const fAero = -hp.aeroDrag * vLong * Math.abs(vLong);
-        const fRoll = -rollingCoeff * staticWeight * Math.tanh(vLong * 1.4);
+        // 4) Combine Tire Forces, Real Aerodynamic Drag, Crosswinds, Rolling Resistance & Slope
+        const fRoll = -rollingCoeff * (staticWeight + dfFront + dfRear) * Math.tanh(vLong * 1.4);
         const fSlope = -hp.mass * GRAVITY_PHYS * Math.sin(latestSurf.slopePitch);
         const fWaterLatDrag = car.inWater ? -vLat * hp.mass * 2.2 : 0;
 
-        totalFLong = fLongFrontCar + fLongRearTire + fAero + fRoll + fSlope;
-        totalFLat = fLatFrontCar + fLatRearCar + fWaterLatDrag;
+        totalFLong = fLongFrontCar + fLongRearTire + fAeroDrag + fRoll + fSlope;
+        totalFLat = fLatFrontCar + fLatRearCar + fCrosswindLat + fWaterLatDrag;
 
         const yawDamp = -car.yawRate * hp.Iz * (handbrake ? 0.15 : 0.32);
         yawTorque = -halfA * fLatFrontCar + halfB * fLatRearCar + yawDamp;
       } else {
-        totalFLong = -hp.aeroDrag * 0.45 * vLong * Math.abs(vLong);
-        totalFLat = -hp.aeroDrag * 0.45 * vLat * Math.abs(vLat);
+        // Airborne: real aero drag slows jump trajectory realistically
+        totalFLong = fAeroDrag * 0.7;
+        totalFLat = fCrosswindLat * 0.7;
         yawTorque = -car.yawRate * hp.Iz * 1.4;
       }
 
@@ -2284,6 +2850,7 @@
     car.accelLong = THREE.MathUtils.lerp(car.accelLong, accumLongAcc / SUBSTEPS, 1 - Math.exp(-12 * dt));
     car.accelLat = THREE.MathUtils.lerp(car.accelLat, accumLatAcc / SUBSTEPS, 1 - Math.exp(-12 * dt));
     car.slipAmount = lastRearSlip;
+    car.downforceKg = Math.round(lastTotalDownforceN / GRAVITY_PHYS);
 
     const absSpeed = Math.hypot(car.vx, car.vz);
     const nfx = -Math.sin(car.heading);
@@ -2291,28 +2858,25 @@
     const nrx = Math.cos(car.heading);
     const nrz = -Math.sin(car.heading);
 
-    // Subtle console controller rumble on drifts, off-road grass & nitro boost
+    // Subtle console controller rumble on drifts, off-road grass, high-speed aero & nitro
     if (controls && ext.gamepadConnected && car.grounded) {
-      if (car.drifting) {
-        controls.rumble(0.18, 0.35, 90);
-      } else if (usingNitro) {
-        controls.rumble(0.14, 0.28, 90);
-      } else if (!latestSurf.onRoad && absSpeed > 8) {
-        controls.rumble(0.12, 0.22, 90);
-      }
+      if (car.drifting) controls.rumble(0.18, 0.35, 90);
+      else if (usingNitro) controls.rumble(0.14, 0.28, 90);
+      else if (!latestSurf.onRoad && absSpeed > 8) controls.rumble(0.12, 0.22, 90);
     }
 
-    // Spring-Damper Suspension
-    let targetHeave = 0;
+    // Spring-Damper Suspension (high aero downforce visibly squats the chassis closer to the asphalt!)
+    const aeroSquat = -Math.min(sp.suspTravel * 0.45, (lastTotalDownforceN / (hp.mass * GRAVITY_PHYS)) * 0.08);
+    let targetHeave = car.grounded ? aeroSquat : 0;
     if (car.inWater) {
       targetHeave = Math.sin(elapsed * 4.2) * 0.065;
     } else if (car.grounded && !latestSurf.onRoad && absSpeed > 3) {
-      targetHeave = Math.sin(elapsed * absSpeed * 1.45) * (sp.id === "suv" ? 0.07 : 0.045);
+      targetHeave += Math.sin(elapsed * absSpeed * 1.45) * (sp.id === "suv" || sp.id === "rally" ? 0.07 : 0.045);
     }
     car.suspVel += ((targetHeave - car.suspOffset) * sp.suspStiffness - car.suspVel * sp.suspDamping) * dt;
     car.suspOffset = THREE.MathUtils.clamp(car.suspOffset + car.suspVel * dt, -sp.suspTravel, sp.suspTravel);
 
-    // Automatic 6-Speed Gearbox
+    // Automatic Gearbox (Direct-Drive "D" for ArcDrive EV, 6-Speed for Combustion/F1/Diesel)
     const speedScale = sp.topSpeed / 74;
     const kmh = Math.abs(lastVLong) * 3.6;
     let gearStr = "N";
@@ -2323,6 +2887,12 @@
       gearStr = "R";
       newGearNum = -1;
       gearRatio = Math.min(1, kmh / 72);
+    } else if (sp.soundType === "ev") {
+      if (kmh > 0.8 || car.throttlePedal > 0.08) {
+        gearStr = "D";
+        newGearNum = 1;
+        gearRatio = THREE.MathUtils.clamp(kmh / (sp.topSpeed * 3.6), 0.05, 1.0);
+      }
     } else if (kmh > 1.2 || car.throttlePedal > 0.1) {
       newGearNum = 1;
       for (let i = 0; i < BASE_GEAR_THRESH.length; i++) {
@@ -2341,7 +2911,10 @@
     car.gearNum = newGearNum;
     car.gear = gearStr;
 
-    const targetRpm = 850 + gearRatio * 7100 + (car.throttlePedal > 0.1 && newGearNum <= 1 ? 750 * car.throttlePedal : 0);
+    const targetRpm =
+      sp.soundType === "ev"
+        ? 900 + gearRatio * 14100
+        : 850 + gearRatio * 7100 + (car.throttlePedal > 0.1 && newGearNum <= 1 ? 750 * car.throttlePedal : 0);
     car.rpm = THREE.MathUtils.lerp(car.rpm, targetRpm, 12 * dt);
 
     car.drifting =
@@ -2375,11 +2948,10 @@
       }
     }
 
-    // Visual Wheel Rotation, Outward Body Roll & Brake Nose Dive
+    // Visual Wheel Rotation (supports both 4-wheel cars and 6-wheel Mammoth Semi!)
     frontWheelPivots.forEach((p) => (p.rotation.y = car.steerAngle));
     for (let i = 0; i < wheelMeshes.length; i++) {
-      const isRear = i >= 2;
-      const wheelSpin = isRear && handbrake ? 0 : (lastVLong * dt) / sp.wheelRadius;
+      const wheelSpin = wheelIsRear[i] && handbrake ? 0 : (lastVLong * dt) / sp.wheelRadius;
       wheelMeshes[i].rotation.x -= wheelSpin;
     }
 
@@ -2403,7 +2975,7 @@
       wheelPivots[i].position.y = THREE.MathUtils.lerp(wheelPivots[i].position.y, sp.wheelRadius + wheelDroop, 12 * dt);
     }
 
-    // Dynamic Car Lights, Police Lightbar & Touch Siren Sync
+    // Dynamic Car Lights, Patrol Strobe & Touch Siren Sync
     const brakingVisual = car.brakePedal > 0.08 || handbrake;
     const preset = TIME_PRESETS[timeIndex];
     const headlightsOn = preset.headlights || weather.forceHeadlights || car.inTunnel;
@@ -2500,13 +3072,15 @@
   }
 
   // =========================================================================
-  // 6. TUNNEL-SAFE CAMERA & LIVE RT REFLECTION PASSES
+  // 6. VEHICLE-SCALED TUNNEL-SAFE CAMERA & LIVE RT REFLECTION PASSES
   // =========================================================================
   function updateCamera(dt, speed, usingNitro, elapsed) {
     if (garageOpen) {
+      const orbitR = activeSpec.isSixWheel ? 10.6 : 7.8;
+      const orbitH = activeSpec.isSixWheel ? 3.8 : 2.6;
       const ang = car.heading + elapsed * 0.45;
-      const desiredPos = new THREE.Vector3(car.x + Math.sin(ang) * 7.8, car.y + 2.6, car.z + Math.cos(ang) * 7.8);
-      const desiredLook = new THREE.Vector3(car.x, car.y + 1.0, car.z);
+      const desiredPos = new THREE.Vector3(car.x + Math.sin(ang) * orbitR, car.y + orbitH, car.z + Math.cos(ang) * orbitR);
+      const desiredLook = new THREE.Vector3(car.x, car.y + (activeSpec.isSixWheel ? 1.6 : 1.0), car.z);
       camPosCurrent.lerp(desiredPos, 1 - Math.exp(-5 * dt));
       camLookCurrent.lerp(desiredLook, 1 - Math.exp(-6 * dt));
       camera.position.copy(camPosCurrent);
@@ -2521,7 +3095,7 @@
     const targetFov =
       mode === "HOOD"
         ? 75
-        : 64 + Math.min(20, Math.abs(speed) * 0.22) + (usingNitro ? 6 : 0);
+        : 64 + Math.min(22, Math.abs(speed) * 0.21) + (usingNitro ? 6 : 0) + (car.aeroMode === "DRS" ? 3 : 0);
     camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 6 * dt);
     camera.updateProjectionMatrix();
 
@@ -2539,12 +3113,22 @@
         camDirZ /= len;
       }
 
-      const dist = (car.inTunnel ? 8.8 : 10.2) + Math.min(3.4, Math.abs(speed) * 0.04);
-      const heightOff = car.inTunnel ? 3.2 : activeSpec.id === "suv" ? 4.45 : 4.05;
+      const baseDist = activeSpec.isSixWheel ? 13.6 : activeSpec.id === "formula" ? 9.4 : 10.2;
+      const dist = (car.inTunnel ? baseDist * 0.86 : baseDist) + Math.min(3.5, Math.abs(speed) * 0.04);
+      const heightOff = car.inTunnel
+        ? activeSpec.isSixWheel ? 4.4 : 3.2
+        : activeSpec.isSixWheel
+        ? 5.5
+        : activeSpec.id === "suv"
+        ? 4.45
+        : activeSpec.id === "formula"
+        ? 3.35
+        : 4.05;
+
       const desiredPos = new THREE.Vector3(car.x - camDirX * dist, car.y + heightOff, car.z - camDirZ * dist);
       const desiredLook = new THREE.Vector3(
         car.x + camDirX * 7.2,
-        car.y + 1.35 + Math.sin(car.slopePitch) * 3.2,
+        car.y + (activeSpec.isSixWheel ? 2.1 : 1.35) + Math.sin(car.slopePitch) * 3.2,
         car.z + camDirZ * 7.2
       );
 
@@ -2567,8 +3151,8 @@
       camera.position.copy(camPosCurrent);
       camera.lookAt(camLookCurrent);
     } else {
-      const orbitH = car.inTunnel ? 8.4 : 26;
-      const orbitD = car.inTunnel ? 11 : 21;
+      const orbitH = car.inTunnel ? 8.4 : activeSpec.isSixWheel ? 29 : 26;
+      const orbitD = car.inTunnel ? 11 : activeSpec.isSixWheel ? 25 : 21;
       const desiredPos = new THREE.Vector3(car.x - fx * orbitD, car.y + orbitH, car.z - fz * orbitD);
       if (world.isPointInTunnel(desiredPos.x, desiredPos.z)) {
         desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -9.5, 9.5);
@@ -2633,7 +3217,7 @@
   }
 
   // =========================================================================
-  // 7. HUD TELEMETRY, PHYSICS BADGES & MULTI-CITY MINIMAP WITH TRAFFIC LIGHTS
+  // 7. HUD TELEMETRY, AERODYNAMICS BADGES & MULTI-CITY MINIMAP
   // =========================================================================
   const speedEl = document.getElementById("speed-value");
   const gearEl = document.getElementById("gear-value");
@@ -2651,6 +3235,9 @@
   const badgeAbs = document.getElementById("badge-abs");
   const badgeDrift = document.getElementById("badge-drift");
   const badgeTcs = document.getElementById("badge-tcs");
+  const badgeAero = document.getElementById("badge-aero");
+  const badgeDraft = document.getElementById("badge-draft");
+  const aeroDfText = document.getElementById("aero-df-text");
 
   const minimapCanvas = document.getElementById("minimap");
   const mapCtx = minimapCanvas.getContext("2d");
@@ -2671,7 +3258,6 @@
     mapCtx.save();
     mapCtx.translate(w / 2, h / 2);
 
-    // 1) 3 Distinct City Islands + Lagoon Cutout
     for (let i = 0; i < ISLANDS.length; i++) {
       const isl = ISLANDS[i];
       mapCtx.fillStyle = isl.id === "palm" ? "#1e3a2f" : isl.id === "pinecrest" ? "#152a24" : "#0f172a";
@@ -2692,11 +3278,9 @@
       }
     }
 
-    // 2) Alpine Mountain Ridge
     mapCtx.fillStyle = "rgba(71, 85, 105, 0.55)";
     mapCtx.fillRect((-290 - car.x) * scale, (-870 - car.z) * scale, 580 * scale, 520 * scale);
 
-    // 3) Roads, 4-Lane Highways, Suspension Bridge & Coastal Viaduct
     mapCtx.lineCap = "round";
     for (let i = 0; i < world.roadSegments.length; i++) {
       const s = world.roadSegments[i];
@@ -2715,7 +3299,6 @@
       mapCtx.stroke();
     }
 
-    // 4) Buildings within view
     mapCtx.fillStyle = "#475569";
     const viewRange = w / scale;
     for (let i = 0; i < world.minimapBuildings.length; i++) {
@@ -2724,7 +3307,6 @@
       mapCtx.fillRect((b.minX - car.x) * scale, (b.minZ - car.z) * scale, b.w * scale, b.d * scale);
     }
 
-    // 5) Live Traffic Light Signal Indicators (N-S & E-W bars)
     if (world.trafficLights) {
       for (let i = 0; i < world.trafficLights.length; i++) {
         const tl = world.trafficLights[i];
@@ -2740,14 +3322,12 @@
       }
     }
 
-    // 6) Stunt Ramps
     mapCtx.fillStyle = "#fb923c";
     for (let i = 0; i < world.ramps.length; i++) {
       const r = world.ramps[i];
       mapCtx.fillRect((r.x - car.x) * scale - 3, (r.z - car.z) * scale - 3, 6, 6);
     }
 
-    // 7) Moving AI Traffic & Boats
     if (trafficEnabled) {
       mapCtx.fillStyle = "#facc15";
       for (let i = 0; i < world.trafficCars.length; i++) {
@@ -2770,7 +3350,6 @@
       }
     }
 
-    // 8) Player Arrow
     mapCtx.rotate(-car.heading);
     mapCtx.fillStyle = "#38bdf8";
     mapCtx.beginPath();
@@ -2789,8 +3368,9 @@
     gearEl.textContent = car.gear;
 
     const rpm = Math.round(car.rpm);
+    const rpmMax = activeSpec.soundType === "ev" ? 15000 : 8000;
     rpmText.textContent = rpm;
-    rpmFill.style.width = `${Math.min(100, (rpm / 8000) * 100)}%`;
+    rpmFill.style.width = `${Math.min(100, (rpm / rpmMax) * 100)}%`;
 
     nitroFill.style.width = `${car.nitro}%`;
     nitroText.textContent = `${Math.round(car.nitro)}%`;
@@ -2810,11 +3390,23 @@
     badgeDrift.classList.toggle("active-drift", car.drifting);
     badgeTcs.classList.toggle("active-tcs", car.tcsActive);
 
+    if (badgeAero) {
+      badgeAero.textContent = car.aeroMode === "AIRBRK" ? "AIRBRK" : "DRS";
+      badgeAero.classList.toggle("active-drs", car.aeroMode === "DRS");
+      badgeAero.classList.toggle("active-airbrk", car.aeroMode === "AIRBRK");
+    }
+    if (badgeDraft) {
+      badgeDraft.classList.toggle("active-draft", car.drafting);
+    }
+    if (aeroDfText) {
+      aeroDfText.textContent = `${car.downforceKg} kg`;
+    }
+
     coordsEl.textContent = `X: ${Math.round(car.x)} | Z: ${Math.round(car.z)} | ALT: ${Math.max(0, Math.round(car.y))}m`;
 
     surfacePill.textContent = car.surfaceLabel;
     surfacePill.className = `surface-pill ${car.surfaceClass}`;
-    gripReadout.textContent = `GRIP ${Math.round(Math.min(130, (car.currentGrip / 1.9) * 100))}%`;
+    gripReadout.textContent = `GRIP ${Math.round(Math.min(140, (car.currentGrip / 1.9) * 100))}%`;
 
     zoneEl.textContent = world.getZoneName(car.x, car.z);
 

@@ -2,6 +2,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -13,6 +14,11 @@ body {
   background: #060a12;
   font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   color: #f1f5f9;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
 }
 
 .hidden {
@@ -24,6 +30,9 @@ body {
   inset: 0;
   width: 100vw;
   height: 100vh;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Environmental Screen Overlays */
@@ -151,9 +160,25 @@ body {
   color: #4ade80;
 }
 
+.pad-badge {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.pad-badge.connected {
+  opacity: 1;
+  border-color: rgba(74, 222, 128, 0.7);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.28);
+}
+
+.pad-badge.connected span {
+  color: #4ade80;
+}
+
 .hud-btn.garage-btn {
   border-color: rgba(168, 85, 247, 0.6);
-  background: rgba(88, 28, 135, 0.32);
+  background: rgba(88, 28, 135, 0.34);
 }
 
 .hud-btn.garage-btn:hover {
@@ -196,21 +221,23 @@ body {
   border-color: #fb923c;
 }
 
-/* Center Event Banner */
+/* Center Event Banner (stays high above car) */
 .event-banner {
   align-self: center;
-  font-size: 19px;
+  margin-bottom: auto;
+  margin-top: 12px;
+  font-size: 16px;
   font-weight: 900;
-  letter-spacing: 2.4px;
+  letter-spacing: 2.2px;
   color: #fbbf24;
-  text-shadow: 0 2px 16px rgba(251, 191, 36, 0.6);
+  text-shadow: 0 2px 14px rgba(251, 191, 36, 0.55);
   background: rgba(10, 15, 28, 0.58);
   backdrop-filter: blur(6px);
   border: 1px solid rgba(251, 191, 36, 0.28);
   border-radius: 999px;
-  padding: 6px 20px;
+  padding: 5px 18px;
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(-6px);
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
@@ -281,7 +308,7 @@ kbd {
 
 /* Telemetry Panel */
 .telemetry-panel {
-  width: 274px;
+  width: 286px;
   background: rgba(10, 15, 28, 0.84);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(148, 163, 184, 0.26);
@@ -289,7 +316,7 @@ kbd {
   padding: 12px 15px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 8px;
 }
 
 .telemetry-top {
@@ -300,7 +327,6 @@ kbd {
   border-bottom: 1px solid rgba(148, 163, 184, 0.16);
 }
 
-/* Surface State Badges */
 .surface-pill {
   font-size: 10px;
   font-weight: 800;
@@ -308,7 +334,6 @@ kbd {
   padding: 3px 8px;
   border-radius: 999px;
   text-transform: uppercase;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 .surface-pill.dry {
@@ -396,17 +421,17 @@ kbd {
 }
 
 .physics-badges {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
   gap: 3px;
 }
 
 .phys-tag {
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 800;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.7px;
   text-align: center;
-  padding: 2px 6px;
+  padding: 2px 5px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -432,6 +457,24 @@ kbd {
   color: #7dd3fc;
 }
 
+.phys-tag.active-drs {
+  background: rgba(34, 197, 94, 0.28);
+  border-color: rgba(74, 222, 128, 0.8);
+  color: #86efac;
+}
+
+.phys-tag.active-airbrk {
+  background: rgba(249, 115, 22, 0.32);
+  border-color: rgba(251, 146, 60, 0.85);
+  color: #fed7aa;
+}
+
+.phys-tag.active-draft {
+  background: rgba(168, 85, 247, 0.32);
+  border-color: rgba(192, 132, 252, 0.85);
+  color: #e9d5ff;
+}
+
 .speed-box {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -439,7 +482,7 @@ kbd {
 }
 
 #speed-value {
-  font-size: 44px;
+  font-size: 42px;
   font-weight: 900;
   line-height: 0.95;
   color: #f8fafc;
@@ -453,6 +496,20 @@ kbd {
   letter-spacing: 1.5px;
   color: #94a3b8;
   margin-top: 2px;
+}
+
+.aero-readout-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.85px;
+  color: #7dd3fc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 6px;
+  padding: 3px 8px;
 }
 
 /* Bars: RPM, Nitro & Dynamic Road Moisture */
@@ -521,7 +578,7 @@ kbd {
 }
 
 /* =========================================================================
-   VEHICLE GARAGE MODAL
+   VEHICLE GARAGE MODAL (9 VEHICLES)
    ========================================================================= */
 .garage-modal {
   position: fixed;
@@ -530,7 +587,7 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 18px;
 }
 
 .garage-backdrop {
@@ -543,16 +600,18 @@ kbd {
 .garage-card {
   position: relative;
   width: 100%;
-  max-width: 820px;
+  max-width: 880px;
+  max-height: 92vh;
   background: rgba(12, 18, 34, 0.94);
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-top: 3px solid #38bdf8;
   border-radius: 16px;
-  padding: 20px 22px;
+  padding: 18px 20px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
+  overflow: hidden;
 }
 
 .garage-header {
@@ -563,9 +622,9 @@ kbd {
 }
 
 .garage-header h2 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 900;
-  letter-spacing: 1.6px;
+  letter-spacing: 1.4px;
   color: #f8fafc;
 }
 
@@ -585,7 +644,6 @@ kbd {
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .garage-close-btn:hover {
@@ -595,14 +653,17 @@ kbd {
 
 .garage-body {
   display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 16px;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 14px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .car-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
+  align-content: start;
 }
 
 .car-option {
@@ -610,12 +671,12 @@ kbd {
   background: rgba(15, 23, 42, 0.75);
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 10px;
-  padding: 10px 13px;
+  padding: 9px 11px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .car-option:hover {
@@ -624,35 +685,35 @@ kbd {
 }
 
 .car-option.selected {
-  background: rgba(14, 116, 144, 0.25);
+  background: rgba(14, 116, 144, 0.26);
   border-color: #38bdf8;
   box-shadow: 0 0 14px rgba(56, 189, 248, 0.22);
 }
 
 .car-class {
-  font-size: 9.5px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 1.1px;
+  letter-spacing: 1px;
   color: #38bdf8;
 }
 
 .car-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
   color: #f8fafc;
 }
 
 .car-desc {
-  font-size: 11px;
+  font-size: 10.5px;
   color: #94a3b8;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .garage-details {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 14px;
+  gap: 12px;
 }
 
 .spec-panel,
@@ -660,17 +721,22 @@ kbd {
   background: rgba(15, 23, 42, 0.72);
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 12px;
-  padding: 13px 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .spec-title {
   font-size: 14px;
   font-weight: 800;
   color: #f8fafc;
-  letter-spacing: 0.4px;
+}
+
+.spec-aero-note {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #7dd3fc;
   padding-bottom: 6px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
 }
@@ -678,11 +744,11 @@ kbd {
 .spec-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .spec-row span {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.9px;
   color: #94a3b8;
@@ -703,6 +769,10 @@ kbd {
   transition: width 0.25s ease;
 }
 
+.spec-fill.aero-bar {
+  background: linear-gradient(90deg, #22d3ee 0%, #10b981 100%);
+}
+
 .paint-header {
   display: flex;
   justify-content: space-between;
@@ -719,15 +789,15 @@ kbd {
 .swatch-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 9px;
+  gap: 8px;
 }
 
 .swatch {
-  height: 32px;
+  height: 30px;
   border-radius: 8px;
   border: 2px solid rgba(255, 255, 255, 0.18);
   cursor: pointer;
-  transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.12s ease, border-color 0.15s ease;
 }
 
 .swatch:hover {
@@ -749,7 +819,7 @@ kbd {
 }
 
 .garage-hint {
-  font-size: 11px;
+  font-size: 10.5px;
   color: #94a3b8;
 }
 
@@ -764,65 +834,11 @@ kbd {
   letter-spacing: 1px;
   cursor: pointer;
   box-shadow: 0 6px 20px rgba(14, 165, 233, 0.35);
-  transition: transform 0.12s ease, filter 0.15s ease;
 }
 
-.garage-drive-btn:hover {
-  filter: brightness(1.12);
-}
-
-.garage-drive-btn:active {
-  transform: scale(0.97);
-}
-
-@media (max-width: 1020px) {
-  .controls-panel {
-    display: none;
-  }
-  .minimap-panel {
-    transform: scale(0.84);
-    transform-origin: bottom left;
-  }
-  .telemetry-panel {
-    width: 230px;
-  }
-  .garage-body {
-    grid-template-columns: 1fr;
-  }
-  .garage-card {
-    max-height: 92vh;
-    overflow-y: auto;
-  }
-}
 /* =========================================================================
-   CONSOLE GAMEPAD BADGE & MOBILE MULTI-TOUCH CONTROLS
+   MOBILE MULTI-TOUCH CONTROLS (SLIM CORNER LAYOUT — 100% CLEAR CENTER VIEW!)
    ========================================================================= */
-html,
-body,
-#canvas-container {
-  touch-action: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  overscroll-behavior: none;
-}
-
-.pad-badge {
-  cursor: default;
-  pointer-events: none;
-  opacity: 0.72;
-}
-
-.pad-badge.connected {
-  opacity: 1;
-  border-color: rgba(74, 222, 128, 0.7);
-  box-shadow: 0 0 12px rgba(74, 222, 128, 0.28);
-}
-
-.pad-badge.connected span {
-  color: #4ade80;
-}
-
-/* Mobile Touch Controls Layer */
 .touch-controls {
   position: fixed;
   inset: 0;
@@ -831,7 +847,7 @@ body,
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding: 14px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  padding: 10px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
 }
 
 .touch-left,
@@ -839,14 +855,14 @@ body,
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 7px;
   touch-action: none;
 }
 
 .touch-aux-row,
 .touch-action-row {
   display: flex;
-  gap: 8px;
+  gap: 7px;
 }
 
 .touch-action-row {
@@ -854,20 +870,20 @@ body,
 }
 
 .touch-chip {
-  background: rgba(10, 15, 28, 0.76);
-  backdrop-filter: blur(8px);
+  background: rgba(10, 15, 28, 0.56);
+  backdrop-filter: blur(6px);
   color: #e2e8f0;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.32);
   border-radius: 999px;
-  padding: 8px 14px;
-  font-size: 11px;
+  padding: 6px 12px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.9px;
+  letter-spacing: 0.8px;
   touch-action: none;
 }
 
 .touch-chip.pressed {
-  background: rgba(56, 189, 248, 0.38);
+  background: rgba(56, 189, 248, 0.4);
   border-color: #38bdf8;
   transform: scale(0.95);
 }
@@ -877,41 +893,38 @@ body,
   color: #ffffff;
 }
 
-/* Hybrid Tap + Smooth Analog Slide Steering Pad */
 .touch-steer-pad {
   position: relative;
-  width: 214px;
-  height: 92px;
-  border-radius: 18px;
-  background: rgba(10, 15, 28, 0.72);
-  backdrop-filter: blur(10px);
+  width: 178px;
+  height: 76px;
+  border-radius: 16px;
+  background: rgba(10, 15, 28, 0.52);
+  backdrop-filter: blur(8px);
   border: 1.5px solid rgba(148, 163, 184, 0.34);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 18px;
+  padding: 0 14px;
   touch-action: none;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
 }
 
 .touch-steer-pad.active {
   border-color: #38bdf8;
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.3);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.28);
 }
 
 .steer-arrow {
-  font-size: 20px;
-  color: rgba(226, 232, 240, 0.55);
+  font-size: 17px;
+  color: rgba(226, 232, 240, 0.5);
   pointer-events: none;
-  z-index: 1;
 }
 
 .steer-track {
   position: absolute;
-  left: 16px;
-  right: 16px;
+  left: 14px;
+  right: 14px;
   top: 50%;
-  height: 6px;
+  height: 5px;
   transform: translateY(-50%);
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.22);
@@ -922,29 +935,27 @@ body,
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   background: radial-gradient(circle at 35% 35%, #7dd3fc, #0284c7);
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.45);
   pointer-events: none;
-  transition: transform 0.04s linear;
 }
 
-/* Drift & Nitro Action Buttons */
 .touch-action {
-  min-width: 82px;
-  height: 42px;
-  border-radius: 12px;
-  border: 1.5px solid rgba(148, 163, 184, 0.35);
-  background: rgba(10, 15, 28, 0.78);
-  backdrop-filter: blur(8px);
+  min-width: 70px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(148, 163, 184, 0.32);
+  background: rgba(10, 15, 28, 0.56);
+  backdrop-filter: blur(6px);
   color: #f8fafc;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 0.9px;
   touch-action: none;
 }
 
@@ -970,43 +981,41 @@ body,
   transform: scale(0.95);
 }
 
-/* Gas & Brake Pedals */
 .touch-pedal-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-end;
 }
 
 .touch-pedal {
-  width: 84px;
-  height: 106px;
-  border-radius: 16px;
-  border: 1.5px solid rgba(148, 163, 184, 0.35);
-  background: rgba(10, 15, 28, 0.78);
-  backdrop-filter: blur(10px);
+  width: 72px;
+  height: 88px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(148, 163, 184, 0.32);
+  background: rgba(10, 15, 28, 0.54);
+  backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   color: #f8fafc;
   touch-action: none;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.42);
 }
 
 .touch-pedal .pedal-icon {
-  font-size: 18px;
+  font-size: 15px;
 }
 
 .touch-pedal .pedal-label {
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 0.9px;
 }
 
 .touch-pedal.gas {
-  border-color: rgba(34, 197, 94, 0.6);
-  background: linear-gradient(180deg, rgba(22, 163, 74, 0.22), rgba(10, 15, 28, 0.84));
+  border-color: rgba(34, 197, 94, 0.58);
+  background: linear-gradient(180deg, rgba(22, 163, 74, 0.2), rgba(10, 15, 28, 0.58));
 }
 
 .touch-pedal.gas.pressed {
@@ -1016,8 +1025,8 @@ body,
 }
 
 .touch-pedal.brake {
-  border-color: rgba(239, 68, 68, 0.6);
-  background: linear-gradient(180deg, rgba(220, 38, 38, 0.22), rgba(10, 15, 28, 0.84));
+  border-color: rgba(239, 68, 68, 0.58);
+  background: linear-gradient(180deg, rgba(220, 38, 38, 0.2), rgba(10, 15, 28, 0.58));
 }
 
 .touch-pedal.brake.pressed {
@@ -1027,41 +1036,45 @@ body,
 }
 
 /* =========================================================================
-   TOUCH-MODE HUD REFLOW (ZERO OVERLAP WITH ON-SCREEN CONTROLS)
+   MOBILE / TOUCH HUD REFLOW — ZERO CENTER OBSTRUCTION!
    ========================================================================= */
 body.touch-mode .controls-panel {
   display: none !important;
 }
 
 body.touch-mode #hud {
-  padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
 }
 
 body.touch-mode .hud-top {
-  flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
 }
 
 body.touch-mode .brand-badge {
-  padding: 6px 10px;
+  padding: 4px 8px;
+  border-left-width: 3px;
 }
 
 body.touch-mode .brand-badge .title {
-  font-size: 12px;
+  display: none;
 }
 
-body.touch-mode .brand-badge .subtitle,
+body.touch-mode .brand-badge .subtitle {
+  font-size: 9.5px;
+  margin-top: 0;
+}
+
 body.touch-mode .brand-badge .car-tag {
-  font-size: 9px;
+  font-size: 8.5px;
+  margin-top: 1px;
 }
 
 body.touch-mode .toolbar {
   flex-wrap: nowrap;
   overflow-x: auto;
-  max-width: calc(100vw - 165px);
-  padding-bottom: 4px;
-  -webkit-overflow-scrolling: touch;
+  max-width: calc(100vw - 135px);
+  padding-bottom: 2px;
   scrollbar-width: none;
 }
 
@@ -1071,82 +1084,119 @@ body.touch-mode .toolbar::-webkit-scrollbar {
 
 body.touch-mode .hud-btn {
   flex-shrink: 0;
-  padding: 6px 9px;
-  font-size: 10px;
+  padding: 5px 8px;
+  font-size: 9.5px;
 }
 
-/* Move Minimap to Top-Left under Brand Badge so Bottom-Left stays clear for Steering */
+body.touch-mode .event-banner {
+  margin-top: 6px;
+  font-size: 12px;
+  padding: 3px 12px;
+}
+
+/* Compact Minimap tucked in Top-Left corner (never touches center car!) */
 body.touch-mode .minimap-panel {
   position: fixed;
-  left: max(12px, env(safe-area-inset-left));
-  top: 76px;
-  transform: scale(0.62);
-  transform-origin: top left;
-  padding: 6px;
+  left: max(10px, env(safe-area-inset-left));
+  top: 48px;
+  padding: 4px;
+  border-radius: 10px;
+  opacity: 0.85;
+  background: rgba(10, 15, 28, 0.56);
 }
 
-/* Center Compact Speedometer between Steering Pad and Pedals */
-body.touch-mode .hud-bottom {
-  justify-content: center;
-  align-items: flex-end;
+body.touch-mode #minimap {
+  width: 92px;
+  height: 92px;
+  border-radius: 7px;
 }
 
+body.touch-mode .minimap-coords {
+  display: none;
+}
+
+/* Ultra-Slim Telemetry Micro-Cluster tucked in Top-Right corner (leaves center 100% CLEAR!) */
 body.touch-mode .telemetry-panel {
-  width: 210px;
-  padding: 8px 11px;
+  position: fixed;
+  right: max(10px, env(safe-area-inset-right));
+  top: 48px;
+  width: 148px;
+  padding: 7px 9px;
   gap: 5px;
+  border-radius: 10px;
+  background: rgba(10, 15, 28, 0.56);
 }
 
-body.touch-mode #speed-value {
-  font-size: 30px;
+body.touch-mode .telemetry-top {
+  padding-bottom: 3px;
+}
+
+body.touch-mode .surface-pill {
+  font-size: 8px;
+  padding: 2px 5px;
+}
+
+body.touch-mode .grip-readout,
+body.touch-mode .aero-readout-row,
+body.touch-mode .bar-header,
+body.touch-mode .bar-moisture {
+  display: none;
 }
 
 body.touch-mode .gear-box {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+}
+
+body.touch-mode .gear-box .label {
+  display: none;
 }
 
 body.touch-mode #gear-value {
-  font-size: 17px;
+  font-size: 16px;
 }
 
-/* Compact Landscape Phones (short viewport height) */
-@media (max-height: 480px) {
+body.touch-mode .physics-badges {
+  display: none;
+}
+
+body.touch-mode #speed-value {
+  font-size: 26px;
+}
+
+body.touch-mode .speed-box .unit {
+  font-size: 8px;
+  margin-top: 1px;
+}
+
+body.touch-mode .bar-track {
+  height: 4px;
+}
+
+/* Extra-tight fit on short landscape phone screens */
+@media (max-height: 440px) {
   body.touch-mode .minimap-panel {
     display: none;
   }
   body.touch-mode .touch-steer-pad {
-    width: 185px;
-    height: 76px;
+    width: 158px;
+    height: 66px;
   }
   body.touch-mode .touch-pedal {
-    width: 72px;
-    height: 86px;
-  }
-  body.touch-mode .telemetry-panel {
-    width: 185px;
+    width: 64px;
+    height: 76px;
   }
 }
 
-/* Narrow Portrait Phones */
-@media (max-width: 680px) {
-  body.touch-mode .telemetry-panel {
-    position: fixed;
-    right: max(12px, env(safe-area-inset-right));
-    top: 66px;
-    width: 182px;
+@media (max-width: 1020px) {
+  .controls-panel {
+    display: none;
   }
-  body.touch-mode .touch-steer-pad {
-    width: 164px;
-    height: 82px;
+  .garage-body {
+    grid-template-columns: 1fr;
   }
-  body.touch-mode .touch-pedal {
-    width: 70px;
-    height: 92px;
-  }
-  body.touch-mode .touch-action {
-    min-width: 70px;
-    height: 38px;
-    font-size: 10px;
+  .car-grid {
+    grid-template-columns: 1fr;
   }
 }

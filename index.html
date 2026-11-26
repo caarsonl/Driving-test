@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <title>Horizon Drive 3D — Multi-City, Console & Mobile Edition</title>
+  <title>Velocity Coast 3D — Open-World Driving Simulator</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -20,9 +20,9 @@
     <!-- Top Bar -->
     <div class="hud-top">
       <div class="brand-badge">
-        <span class="title">HORIZON DRIVE 3D</span>
+        <span class="title">VELOCITY COAST 3D</span>
         <span class="subtitle" id="status-zone">METRO BAY CITY</span>
-        <span class="car-tag" id="active-car-label">APEX GT COUPE</span>
+        <span class="car-tag" id="active-car-label">VERIDIAN GT</span>
       </div>
 
       <div class="toolbar">
@@ -35,7 +35,7 @@
         <button id="btn-garage" class="hud-btn garage-btn" title="Open Vehicle Garage (G / Start)">
           GARAGE <span>[G]</span>
         </button>
-        <button id="btn-siren" class="hud-btn siren-btn hidden" title="Toggle Police Lightbar & Siren (L / RB)">
+        <button id="btn-siren" class="hud-btn siren-btn hidden" title="Toggle Patrol Lightbar & Siren (L / RB)">
           SIREN: <span id="siren-label">OFF</span>
         </button>
         <button id="btn-rt" class="hud-btn active" title="Toggle Real-Time Reflections (T / D-Pad Right)">
@@ -86,7 +86,7 @@
           &nbsp;|&nbsp; <kbd>L</kbd> / <kbd>RB</kbd> Siren
         </div>
         <div>
-          <kbd>G</kbd> / <kbd>Start</kbd> Garage
+          <kbd>G</kbd> / <kbd>Start</kbd> Garage (9 Cars)
           &nbsp;|&nbsp; <kbd>V</kbd> Weather
           &nbsp;|&nbsp; <kbd>X</kbd> Travel
           &nbsp;|&nbsp; <kbd>T</kbd> RT
@@ -96,7 +96,7 @@
         </div>
       </div>
 
-      <!-- Telemetry, Dynamic Wetness & Physics Status -->
+      <!-- Telemetry, Aerodynamics, Dynamic Wetness & Physics Status -->
       <div class="telemetry-panel">
         <div class="telemetry-top">
           <span class="surface-pill dry" id="surface-pill">DRY ASPHALT</span>
@@ -113,12 +113,19 @@
             <span class="phys-tag" id="badge-abs">ABS</span>
             <span class="phys-tag" id="badge-drift">DRIFT</span>
             <span class="phys-tag" id="badge-tcs">TCS</span>
+            <span class="phys-tag" id="badge-aero">DRS</span>
+            <span class="phys-tag" id="badge-draft">DRAFT</span>
           </div>
 
           <div class="speed-box">
             <span id="speed-value">0</span>
             <span class="unit">KM/H</span>
           </div>
+        </div>
+
+        <div class="aero-readout-row">
+          <span>AERO DOWNFORCE</span>
+          <span id="aero-df-text">0 kg</span>
         </div>
 
         <div class="bar-group">
@@ -131,7 +138,7 @@
           </div>
         </div>
 
-        <div class="bar-group">
+        <div class="bar-group bar-nitro">
           <div class="bar-header">
             <span>NITRO</span>
             <span id="nitro-text">100%</span>
@@ -141,7 +148,7 @@
           </div>
         </div>
 
-        <div class="bar-group">
+        <div class="bar-group bar-moisture">
           <div class="bar-header">
             <span>ROAD MOISTURE <em id="wetness-trend" class="trend-tag">DRY</em></span>
             <span id="wetness-text">0%</span>
@@ -156,7 +163,6 @@
 
   <!-- Mobile Multi-Touch Controls Overlay -->
   <div id="touch-controls" class="touch-controls hidden" aria-label="Touch Driving Controls">
-    <!-- Left Thumb: Hybrid Tap + Smooth Analog Slide Steering Pad -->
     <div class="touch-left">
       <div class="touch-aux-row">
         <button id="touch-horn" class="touch-chip" type="button">HORN</button>
@@ -171,7 +177,6 @@
       </div>
     </div>
 
-    <!-- Right Thumb: Drift, Nitro, Brake/Rev & Gas Pedals -->
     <div class="touch-right">
       <div class="touch-action-row">
         <button id="touch-drift" class="touch-action drift" type="button">DRIFT</button>
@@ -190,14 +195,14 @@
     </div>
   </div>
 
-  <!-- Vehicle Garage Modal -->
+  <!-- Vehicle Garage Modal (9 Original Copyright-Free Vehicles) -->
   <div id="garage-modal" class="garage-modal hidden" role="dialog" aria-modal="true" aria-labelledby="garage-title">
     <div class="garage-backdrop" id="garage-backdrop"></div>
     <div class="garage-card">
       <div class="garage-header">
         <div>
-          <h2 id="garage-title">VEHICLE GARAGE</h2>
-          <p class="garage-sub">Select a vehicle and paint finish — physics, suspension, and engine audio adapt live.</p>
+          <h2 id="garage-title">VEHICLE GARAGE — 9 ORIGINAL CLASSES</h2>
+          <p class="garage-sub">Every vehicle has distinct aerodynamics, downforce, drag, suspension, and procedural audio.</p>
         </div>
         <button id="btn-garage-close" class="garage-close-btn" title="Close Garage (G / Esc / B)">✕</button>
       </div>
@@ -205,39 +210,65 @@
       <div class="garage-body">
         <div class="car-grid" id="car-grid">
           <button class="car-option selected" data-car="gt">
-            <span class="car-class">SPORTS</span>
-            <span class="car-title">Apex GT Coupe</span>
-            <span class="car-desc">Balanced grip, crisp cornering, strong highway pace.</span>
+            <span class="car-class">GRAND TOURER</span>
+            <span class="car-title">Veridian GT</span>
+            <span class="car-desc">Active rear wing, balanced downforce, crisp city &amp; highway feel.</span>
           </button>
 
           <button class="car-option" data-car="muscle">
-            <span class="car-class">DRIFT</span>
-            <span class="car-title">Viper Drift Muscle</span>
-            <span class="car-desc">Heavy V8 torque, tail-happy rear bias, long power slides.</span>
+            <span class="car-class">DRIFT MUSCLE</span>
+            <span class="car-title">Brawler V8</span>
+            <span class="car-desc">Low-downforce RWD bruiser with blower V8 torque &amp; long power slides.</span>
           </button>
 
           <button class="car-option" data-car="supercar">
-            <span class="car-class">HYPER</span>
-            <span class="car-title">Hyperion Supercar</span>
-            <span class="car-desc">Widebody aero downforce, V10 scream, 360+ KM/H top speed.</span>
+            <span class="car-class">HYPERCAR</span>
+            <span class="car-title">Zenith Aero-X</span>
+            <span class="car-desc">Active DRS + Airbrake, huge splitter downforce, screaming V10.</span>
+          </button>
+
+          <button class="car-option" data-car="formula">
+            <span class="car-class">OPEN-WHEEL</span>
+            <span class="car-title">AeroFormula R1</span>
+            <span class="car-desc">Extreme ground-effect + twin-wing downforce (3.5G corners) &amp; DRS.</span>
+          </button>
+
+          <button class="car-option" data-car="rally">
+            <span class="car-class">RALLY AWD</span>
+            <span class="car-title">Boreal Rally R4</span>
+            <span class="car-desc">Short-gear turbo AWD with huge rally wing &amp; gravel/rain dominance.</span>
+          </button>
+
+          <button class="car-option" data-car="ev">
+            <span class="car-class">HYPER-EV</span>
+            <span class="car-title">ArcDrive EV</span>
+            <span class="car-desc">Ultra-low drag teardrop body, instant electric torque &amp; active aero.</span>
           </button>
 
           <button class="car-option" data-car="suv">
-            <span class="car-class">OFF-ROAD</span>
-            <span class="car-title">Trailblazer SUV</span>
-            <span class="car-desc">High suspension travel, boosted wet &amp; grass traction.</span>
+            <span class="car-class">OFF-ROAD 4X4</span>
+            <span class="car-title">Ridgeback 4x4</span>
+            <span class="car-desc">High drag boxy body, plush long-travel springs, high off-road grip.</span>
           </button>
 
           <button class="car-option" data-car="police">
             <span class="car-class">PURSUIT</span>
-            <span class="car-title">Interceptor Police</span>
-            <span class="car-desc">Pursuit-tuned sedan with flashing lightbar &amp; siren (L / RB).</span>
+            <span class="car-title">Aegis Patrol</span>
+            <span class="car-desc">AWD pursuit sedan with flashing strobe lightbar &amp; siren (L / RB).</span>
+          </button>
+
+          <button class="car-option" data-car="truck">
+            <span class="car-class">HEAVY 6X4</span>
+            <span class="car-title">Mammoth 6x4</span>
+            <span class="car-desc">6-wheel heavy semi rig — massive wind drag, diesel roar &amp; momentum.</span>
           </button>
         </div>
 
         <div class="garage-details">
           <div class="spec-panel">
-            <div class="spec-title" id="spec-car-name">Apex GT Coupe</div>
+            <div class="spec-title" id="spec-car-name">Veridian GT</div>
+            <div class="spec-aero-note" id="spec-aero-note">Active DRS + Airbrake · Balanced Aero (CdA 0.68)</div>
+
             <div class="spec-row">
               <span>TOP SPEED</span>
               <div class="spec-track"><div class="spec-fill" id="spec-speed" style="width: 82%"></div></div>
@@ -251,8 +282,12 @@
               <div class="spec-track"><div class="spec-fill" id="spec-grip" style="width: 86%"></div></div>
             </div>
             <div class="spec-row">
+              <span>AERODYNAMICS &amp; DOWNFORCE</span>
+              <div class="spec-track"><div class="spec-fill aero-bar" id="spec-aero" style="width: 74%"></div></div>
+            </div>
+            <div class="spec-row">
               <span>DRIFT / OFF-ROAD</span>
-              <div class="spec-track"><div class="spec-fill" id="spec-drift" style="width: 72%"></div></div>
+              <div class="spec-track"><div class="spec-fill" id="spec-drift" style="width: 70%"></div></div>
             </div>
           </div>
 
@@ -276,13 +311,13 @@
       </div>
 
       <div class="garage-footer">
-        <span class="garage-hint">Tip: Use <kbd>G</kbd> / <kbd>Start</kbd> anytime to swap vehicles without losing your spot.</span>
+        <span class="garage-hint">100% Original Procedural Assets &amp; Audio (Copyright-Free · MIT Three.js)</span>
         <button id="btn-garage-drive" class="garage-drive-btn">DRIVE VEHICLE</button>
       </div>
     </div>
   </div>
 
-  <!-- Three.js r128 UMD + World, Console/Mobile Controls & Game Engine -->
+  <!-- Three.js r128 UMD (MIT) + World, Console/Mobile Controls & Game Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="world.js"></script>
   <script src="controls.js"></script>
