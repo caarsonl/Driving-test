@@ -1191,6 +1191,9 @@ window.HorizonWorld = (() => {
   // =========================================================================
   // 5B. TRUE 3D GERSTNER WAVE OCEAN SHADER (ISLAND-CLIPPED + 5-TAP PLANAR RT)
   // =========================================================================
+  // =========================================================================
+  // 5B. TRUE 3D GERSTNER WAVE OCEAN SHADER (HARD ISLAND CLIP + 5-TAP PLANAR RT)
+  // =========================================================================
   function createWaterMaterial(reflTexture, resolution) {
     return new THREE.ShaderMaterial({
       uniforms: {
@@ -1228,7 +1231,7 @@ window.HorizonWorld = (() => {
           return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
         }
 
-        // Signed distance to nearest dry land: < 0 inside islands/tunnel, > 0 in open water & lagoon
+        // < 0 inside any island or tunnel, > 0 in open bay & Palm Marina Lagoon
         float signedWaterDist(vec2 p) {
           float dMetro = boxDist2D(p, vec2(-420.0, -340.0), vec2(320.0, 380.0));
           float dPalmOuter = boxDist2D(p, vec2(960.0, -380.0), vec2(1660.0, 360.0));
@@ -1260,16 +1263,14 @@ window.HorizonWorld = (() => {
           vec4 wp = modelMatrix * vec4(position, 1.0);
 
           vec2 relPatch = abs(wp.xz - uPatchCenter);
-          float patchFade = smoothstep(206.0, 152.0, max(relPatch.x, relPatch.y));
+          float patchFade = 1.0 - smoothstep(152.0, 206.0, max(relPatch.x, relPatch.y));
 
           float landDist = signedWaterDist(wp.xz);
-          // Zero waves underneath land & depress ocean safely below island slabs so it NEVER pokes through!
-          float openWaterMask = smoothstep(0.0, 4.5, landDist);
-          float shoreCalm = (0.18 + 0.82 * smoothstep(2.0, 26.0, max(0.0, landDist))) * openWaterMask;
+          float openWaterMask = smoothstep(0.0, 5.0, landDist);
+          float shoreCalm = (0.15 + 0.85 * smoothstep(2.0, 26.0, max(0.0, landDist))) * openWaterMask;
 
-          if (landDist < 0.0) {
-            wp.y -= 1.45 * smoothstep(0.0, -3.0, landDist);
-          }
+          // Push water geometry cleanly underneath all islands using strictly valid GLSL smoothstep
+          wp.y -= 3.0 * (1.0 - openWaterMask);
 
           float ampScale = uWaveStrength * patchFade * shoreCalm;
           vec3 disp = vec3(0.0);
@@ -1349,7 +1350,7 @@ window.HorizonWorld = (() => {
           vec2 diff = local - center;
           float dist = length(diff);
           float delta = dist - phase * 0.44;
-          float env = exp(-delta * delta * 34.0) * smoothstep(0.46, 0.04, dist) * (1.0 - phase);
+          float env = exp(-delta * delta * 34.0) * (1.0 - smoothstep(0.04, 0.46, dist)) * (1.0 - phase);
           return (diff / max(dist, 0.001)) * cos(delta * 32.0) * env;
         }
 
@@ -1375,22 +1376,27 @@ window.HorizonWorld = (() => {
           float dLagoon = boxDist2D(p, vec2(1340.0, 60.0), vec2(1600.0, 290.0));
           float dPalm = max(dPalmOuter, -dLagoon);
           float dPine = boxDist2D(p, vec2(-420.0, -1440.0), vec2(460.0, -880.0));
-          return min(min(dMetro, dPalm), dPine);
+          float dTunnelRidge = boxDist2D(p, vec2(-145.0, -885.0), vec2(145.0, -335.0));
+          return min(min(dMetro, dPalm), min(dPine, dTunnelRidge));
         }
 
         void main() {
+          // Hard pixel-level clip: guarantees ocean water can NEVER render on top of any island or road
+          float rawLandDist = signedWaterDist(vWorldPos.xz);
+          if (rawLandDist < -0.15) discard;
+
           vec3 toCam = cameraPosition - vWorldPos;
           float camDist = length(toCam);
           vec3 V = toCam / max(camDist, 0.0001);
           vec3 L = normalize(uSunDir);
 
-          float distAtten = smoothstep(850.0, 35.0, camDist);
+          float distAtten = 1.0 - smoothstep(35.0, 850.0, camDist);
           vec2 fineG = fineWaveGradient(vWorldPos.xz, uTime) * (0.45 + uWaveStrength * 0.55) * (0.28 + 0.72 * distAtten);
 
           vec3 toFrag = vWorldPos - uCarPos;
           float carDist = length(toFrag.xz);
           if (uCarPos.y < 1.2 && carDist < 24.0) {
-            float cWave = cos(carDist * 2.4 - uTime * 8.5) * smoothstep(24.0, 1.5, carDist) * 0.32;
+            float cWave = cos(carDist * 2.4 - uTime * 8.5) * (1.0 - smoothstep(1.5, 24.0, carDist)) * 0.32;
             fineG += (toFrag.xz / max(carDist, 0.01)) * cWave;
           }
 
@@ -1400,17 +1406,17 @@ window.HorizonWorld = (() => {
 
           vec3 N = normalize(normalize(vGeoNormal) + vec3(fineG.x + rainG.x, 0.0, fineG.y + rainG.y));
 
-          float edgeDist = max(0.0, signedWaterDist(vWorldPos.xz));
+          float edgeDist = max(0.0, rawLandDist);
 
           float foamNoise = noise2D(vWorldPos.xz * 0.42 + vec2(uTime * 0.28, -uTime * 0.22));
           float shoreWave = 0.5 + 0.5 * sin(edgeDist * 1.4 - uTime * 2.2);
-          float shoreFoam = smoothstep(4.2, 0.15, edgeDist) * smoothstep(0.26, 0.72, foamNoise + shoreWave * 0.3);
+          float shoreFoam = (1.0 - smoothstep(0.15, 4.2, edgeDist)) * smoothstep(0.26, 0.72, foamNoise + shoreWave * 0.3);
 
           float crestFoamNoise = noise2D(vWorldPos.xz * 0.35 + vec2(uTime * 0.4, -uTime * 0.3));
           float whitecap = smoothstep(0.32, 0.85, vWaveCrest * (0.65 + uWaveStrength * 0.35) + crestFoamNoise * 0.35)
                          * smoothstep(0.45, 1.3, uWaveStrength) * distAtten * 0.52;
 
-          float shallowMix = smoothstep(46.0, 2.0, edgeDist);
+          float shallowMix = 1.0 - smoothstep(2.0, 46.0, edgeDist);
           vec2 caustXZ = vWorldPos.xz - (V.xz / max(V.y, 0.35)) * (1.2 - shallowMix * 0.7) + N.xz * 1.4;
           float caustics = noise2D(caustXZ * 0.55 + vec2(uTime * 0.65, uTime * 0.42))
                          * noise2D(caustXZ * 0.74 - vec2(uTime * 0.48, -uTime * 0.55));
@@ -1446,11 +1452,11 @@ window.HorizonWorld = (() => {
             if (uHeadlightsOn > 0.5 && carDist < 72.0 && abs(toFrag.y) < 12.0) {
               vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
               float cone = dot(dir2, normalize(uCarForward.xz));
-              float beam = smoothstep(0.62, 0.95, cone) * smoothstep(72.0, 2.0, carDist);
+              float beam = smoothstep(0.62, 0.95, cone) * (1.0 - smoothstep(2.0, 72.0, carDist));
               color += vec3(1.0, 0.94, 0.82) * beam * 0.7;
             }
             if (uNitroActive > 0.5 && carDist < 18.0 && abs(toFrag.y) < 8.0) {
-              color += vec3(0.15, 0.8, 1.0) * smoothstep(18.0, 1.0, carDist) * 0.75;
+              color += vec3(0.15, 0.8, 1.0) * (1.0 - smoothstep(1.0, 18.0, carDist)) * 0.75;
             }
           } else {
             color = waterBase * (0.72 + NdotL * 0.62);
