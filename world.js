@@ -253,12 +253,13 @@ window.HorizonWorld = (() => {
 
   function samplePuddleAt(x, z, puddleLevel) {
     if (puddleLevel <= 0.02 || isPointInTunnel(x, z)) return 0.0;
-    const p1 = noise2DJS(x * 0.022, z * 0.022);
-    const p2 = noise2DJS(x * 0.056 + 11.3, z * 0.056 + 7.1);
-    const p3 = noise2DJS(x * 0.13 + 3.7, z * 0.13 + 19.4);
-    const n = p1 * 0.56 + p2 * 0.30 + p3 * 0.14;
-    const thresh = 0.78 - puddleLevel * 0.34;
-    return smoothstep(thresh - 0.055, thresh + 0.065, n) * smoothstep(0.02, 0.24, puddleLevel);
+    const p1 = noise2DJS(x * 0.032, z * 0.032);
+    const p2 = noise2DJS(x * 0.075 + 11.3, z * 0.075 + 7.1);
+    const p3 = noise2DJS(x * 0.17 + 3.7, z * 0.17 + 19.4);
+    const raw = p1 * 0.56 + p2 * 0.30 + p3 * 0.14;
+    const n = Math.max(0.0, Math.min(1.0, (raw - 0.24) / 0.52));
+    const thresh = 0.84 - puddleLevel * 0.44;
+    return smoothstep(thresh - 0.025, thresh + 0.025, n) * smoothstep(0.02, 0.22, puddleLevel);
   }
 
   function evalBridge(x) {
@@ -804,6 +805,9 @@ window.HorizonWorld = (() => {
   // =========================================================================
   // 5. 3D PUDDLE SHADER (MENISCUS LIP, OPTICAL REFRACTION & 3D NORMAL RIPPLES)
   // =========================================================================
+  // =========================================================================
+  // 5. 3D PUDDLE SHADER (CRISP MENISCUS BEVEL, PARALLAX REFRACTION & 3D RIPPLES)
+  // =========================================================================
   function createRealisticRoadMaterial(roadTex, reflTexture, resolution, isIntersection) {
     const emptyTrailPos = Array.from({ length: 20 }, () => new THREE.Vector4(0, 0, 0, -999));
     const emptyTrailMeta = Array.from({ length: 20 }, () => new THREE.Vector4(1.0, 1.4, 0, 0));
@@ -900,36 +904,36 @@ window.HorizonWorld = (() => {
           return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
         }
 
-        // Exact puddle depression field (matched 1:1 to JS samplePuddleAt)
+        // High-contrast organic puddle basin field (matched 1:1 with JS samplePuddleAt)
         float puddleField(vec2 p) {
-          float p1 = noise2D(p * 0.022);
-          float p2 = noise2D(p * 0.056 + vec2(11.3, 7.1));
-          float p3 = noise2D(p * 0.13 + vec2(3.7, 19.4));
-          return p1 * 0.56 + p2 * 0.30 + p3 * 0.14;
+          float p1 = noise2D(p * 0.032);
+          float p2 = noise2D(p * 0.075 + vec2(11.3, 7.1));
+          float p3 = noise2D(p * 0.17 + vec2(3.7, 19.4));
+          float raw = p1 * 0.56 + p2 * 0.30 + p3 * 0.14;
+          return clamp((raw - 0.24) / 0.52, 0.0, 1.0);
         }
 
-        // True 3D Normal-Mapped Rain Ripple Wave Slope (NO painted 2D circles!)
-        // Returns vec3(dh/dx, dh/dz, tinyCenterSplashPinpoint)
+        // True 3D Normal-Mapped Rain Ripple Wave Slope (strictly valid GLSL smoothsteps!)
         vec3 rainWaveNormalLayer(vec2 pos, float t, float speed) {
           vec2 cell = floor(pos);
           vec2 local = fract(pos) - 0.5;
           float rnd = hash21(cell);
           float phase = fract(t * speed + rnd * 13.71);
-          vec2 center = (vec2(hash21(cell + 7.1), hash21(cell + 19.3)) - 0.5) * 0.42;
+          vec2 center = (vec2(hash21(cell + 7.1), hash21(cell + 19.3)) - 0.5) * 0.40;
           vec2 diff = local - center;
           float dist = length(diff);
 
           float radius = phase * 0.44;
           float delta = dist - radius;
-          // Physical wave packet: sinusoidal slope damped radially & over time
-          float env = exp(-delta * delta * 38.0) * smoothstep(0.46, 0.04, dist) * (1.0 - phase) * smoothstep(0.0, 0.07, phase);
+          float radialMask = 1.0 - smoothstep(0.04, 0.46, dist);
+          float env = exp(-delta * delta * 34.0) * radialMask * (1.0 - phase) * smoothstep(0.0, 0.07, phase);
           float slope = cos(delta * 34.0) * env;
-          // Secondary trailing wave crest behind the primary ring for authentic liquid motion
-          float delta2 = dist - radius * 0.62;
-          float env2 = exp(-delta2 * delta2 * 48.0) * smoothstep(0.36, 0.02, dist) * (1.0 - phase) * 0.52;
+
+          float delta2 = dist - radius * 0.60;
+          float env2 = exp(-delta2 * delta2 * 44.0) * radialMask * (1.0 - phase) * 0.58;
           slope += cos(delta2 * 42.0) * env2;
 
-          float centerPinpoint = exp(-dist * dist * 420.0) * smoothstep(0.16, 0.0, phase);
+          float centerPinpoint = exp(-dist * dist * 360.0) * (1.0 - smoothstep(0.0, 0.16, phase));
           vec2 dir = diff / max(dist, 0.001);
           return vec3(dir * slope, centerPinpoint);
         }
@@ -958,28 +962,33 @@ window.HorizonWorld = (() => {
           vec3 V = toCam / max(camDist, 0.0001);
           vec3 L = normalize(uSunDir);
 
-          // 1) 3D Puddle Depression Depth + Exact Meniscus Boundary Gradient
+          // 1) Crisp 3D Puddle Basin, Depth & Curved Surface-Tension Meniscus Bevel
           float drainFactor = 1.0 - smoothstep(2.0, 12.0, vWorldPos.y) * 0.42;
           float pNoise = puddleField(vWorldPos.xz);
-          float thresh = 0.78 - basePuddleLvl * 0.34;
-          float puddleVis = smoothstep(0.02, 0.24, basePuddleLvl) * drainFactor;
+          float thresh = 0.84 - basePuddleLvl * 0.44;
+          float puddleVis = smoothstep(0.02, 0.22, basePuddleLvl) * drainFactor;
 
-          float puddle = smoothstep(thresh - 0.055, thresh + 0.065, pNoise) * puddleVis;
-          float puddleDepth = smoothstep(thresh - 0.03, thresh + 0.24, pNoise) * puddleVis;
-          float puddleRim = smoothstep(thresh - 0.16, thresh - 0.01, pNoise) * puddleVis;
+          // Tight shoreline (real water stops crisply at its surface-tension boundary!)
+          float puddle = smoothstep(thresh - 0.025, thresh + 0.025, pNoise) * puddleVis;
+          float puddleDepth = smoothstep(thresh - 0.01, thresh + 0.18, pNoise) * puddleVis;
+          float puddleRim = smoothstep(thresh - 0.15, thresh - 0.005, pNoise) * puddleVis;
 
-          // Finite-difference slope of the puddle edge -> creates a real 3D recessed meniscus lip!
+          // Recessed shoreline crease + curved 3D meniscus lip normal
+          float rimBand = smoothstep(0.02, 0.45, puddle) * (1.0 - smoothstep(0.45, 0.98, puddle));
+          float edgeCrease = smoothstep(thresh - 0.04, thresh, pNoise) * (1.0 - smoothstep(thresh, thresh + 0.03, pNoise)) * puddleVis;
+
           vec2 meniscusSlope = vec2(0.0);
-          float rimBand = smoothstep(0.01, 0.32, puddle) * smoothstep(0.96, 0.28, puddle);
           if (rimBand > 0.01) {
-            float eps = 0.24;
+            float eps = 0.18;
             float pX = puddleField(vWorldPos.xz + vec2(eps, 0.0));
             float pZ = puddleField(vWorldPos.xz + vec2(0.0, eps));
             vec2 gradP = vec2(pX - pNoise, pZ - pNoise) / eps;
-            meniscusSlope = -gradP * rimBand * 3.8;
+            vec2 edgeDir = gradP / (length(gradP) + 0.015);
+            // Distinct 3D beveled liquid lip curving down to meet the asphalt
+            meniscusSlope = -edgeDir * rimBand * 0.82;
           }
 
-          // 2) Live Car-to-Puddle Transformation (3D Wake Wave Slopes, Water Parting & Wet Tracks)
+          // 2) Live Car-to-Puddle Transformation (3D Wake Ridges, Water Parting & Wet Tracks)
           vec2 wakeGrad = vec2(0.0);
           float wakeRidge = 0.0;
           float puddlePart = 0.0;
@@ -1008,88 +1017,98 @@ window.HorizonWorld = (() => {
               float dtire = length(vec2(sideDiff, df));
 
               if (tm.w > 0.01) {
-                float trackFade = smoothstep(8.0, 0.0, age);
-                float trackBand = smoothstep(0.34, 0.09, dtire) * trackFade * tm.w;
+                float trackFade = 1.0 - smoothstep(0.0, 8.0, age);
+                float trackBand = (1.0 - smoothstep(0.09, 0.34, dtire)) * trackFade * tm.w;
                 wetTrack = max(wetTrack, trackBand);
               }
 
               if (tm.z > 0.01 && age < 4.2) {
-                float wakeFade = exp(-age * 0.92) * tm.z;
-                puddlePart = max(puddlePart, smoothstep(0.48, 0.08, dtire) * exp(-age * 0.72) * tm.z * 0.72);
+                float wakeFade = exp(-age * 0.88) * tm.z;
+                puddlePart = max(puddlePart, (1.0 - smoothstep(0.08, 0.50, dtire)) * exp(-age * 0.72) * tm.z * 0.78);
 
                 float waveR = 0.28 + age * 2.15;
-                float ringEnv = exp(-abs(dtire - waveR) * 2.5) * smoothstep(4.2, 0.12, dtire);
+                float ringEnv = exp(-abs(dtire - waveR) * 2.2) * (1.0 - smoothstep(0.12, 4.4, dtire));
                 float ringSlope = cos((dtire - waveR) * 14.0) * ringEnv * wakeFade;
 
                 vec2 worldRight = vec2(cH, -sH);
                 vec2 outDir = worldRight * (lr >= 0.0 ? 1.0 : -1.0) * (sideDiff >= 0.0 ? 1.0 : -1.0);
-                wakeGrad += outDir * ringSlope * 0.95;
-                wakeRidge += max(0.0, ringSlope) * 0.35 * wakeFade;
+                wakeGrad += outDir * ringSlope * 1.35;
+                wakeRidge += max(0.0, ringSlope) * 0.52 * wakeFade;
               }
             }
           }
 
-          float localMoisture = clamp(max(max(baseMoisture, puddleRim * 0.74), wetTrack * 0.88), 0.0, 1.0);
+          float localMoisture = clamp(max(max(baseMoisture, puddleRim * 0.78), wetTrack * 0.90), 0.0, 1.0);
           float effectivePuddle = clamp(puddle * (1.0 - puddlePart), 0.0, 1.0);
-          float effectiveDepth = clamp(puddleDepth * (1.0 - puddlePart * 0.8), 0.0, 1.0);
+          float effectiveDepth = clamp(puddleDepth * (1.0 - puddlePart * 0.82), 0.0, 1.0);
 
-          // 3) True 3D Normal-Mapped Rain Ripples + Car Wake Wave Normals
+          // 3) True 3D Sculptural Ripple Normals (Raindrops + Car Wake + Gentle Wind Breath)
           vec2 waterWaveSlope = wakeGrad * clamp(puddle * 1.4, 0.0, 1.0) + meniscusSlope;
+          // Subtle living wind shimmer even after rain stops so lingering puddles feel like liquid!
+          if (effectivePuddle > 0.05) {
+            float windShimmer = cos(vWorldPos.x * 1.7 + vWorldPos.z * 1.2 + uTime * 2.6) * 0.045;
+            waterWaveSlope += vec2(windShimmer, -windShimmer * 0.7) * effectivePuddle;
+          }
+
           float centerGlint = 0.0;
           if (activeRain > 0.03) {
-            float ripFade = smoothstep(105.0, 14.0, camDist);
-            vec3 r1 = rainWaveNormalLayer(vWorldPos.xz * 0.65, uTime, 1.45);
-            vec3 r2 = rainWaveNormalLayer(vWorldPos.xz * 1.18 + vec2(11.4, 5.7), uTime + 0.37, 1.95);
-            float waterPresence = clamp(effectivePuddle * 1.15 + localMoisture * 0.28, 0.0, 1.0);
-            waterWaveSlope += (r1.xy * 0.68 + r2.xy * 0.45) * activeRain * ripFade * waterPresence;
+            float ripFade = 1.0 - smoothstep(14.0, 115.0, camDist);
+            vec3 r1 = rainWaveNormalLayer(vWorldPos.xz * 0.72, uTime, 1.45);
+            vec3 r2 = rainWaveNormalLayer(vWorldPos.xz * 1.32 + vec2(11.4, 5.7), uTime + 0.37, 1.95);
+            float waterPresence = clamp(effectivePuddle * 1.35 + localMoisture * 0.16, 0.0, 1.0);
+            waterWaveSlope += (r1.xy * 0.95 + r2.xy * 0.65) * activeRain * ripFade * waterPresence;
             centerGlint = (r1.z + r2.z) * activeRain * ripFade * effectivePuddle;
           }
 
-          // 4) Optical Refraction of Submerged Road Texture & Asphalt Grain Underneath Puddles!
-          vec2 refractUV = (waterWaveSlope * 0.011 + meniscusSlope * 0.004) * effectivePuddle;
+          // 4) Visible Optical Refraction & Parallax Depth of Submerged Road Markings + Asphalt!
+          vec2 parallaxShift = (V.xz / max(V.y, 0.28)) * (effectiveDepth * 0.28);
+          vec2 refractUV = (waterWaveSlope * 0.022 + meniscusSlope * 0.009) * effectivePuddle;
           vec3 rawAlbedo = uIsIntersection > 0.5
             ? vec3(0.215, 0.235, 0.275)
             : texture2D(uRoadMap, vUv + refractUV).rgb;
 
-          // Parallax-refracted asphalt grain coordinate (submerged road shifts subtly with view angle!)
-          vec2 parallaxXZ = vWorldPos.xz - (V.xz / max(V.y, 0.32)) * (effectiveDepth * 0.16);
+          vec2 parallaxXZ = vWorldPos.xz - parallaxShift;
           float macroWear = noise2D(parallaxXZ * 0.075);
           float softGrain = noise2D(parallaxXZ * 1.75) * 0.65 + noise2D(parallaxXZ * 3.6) * 0.35;
 
-          // 3D Micro-Relief Normal for Exposed Asphalt (flattens to glass-smooth water inside puddles!)
+          // Rough 3D asphalt relief OUTSIDE puddles -> glass-smooth liquid surface INSIDE puddles!
           float eA = 0.08;
           float g0 = noise2D(vWorldPos.xz * 2.8);
           float gX = noise2D(vWorldPos.xz * 2.8 + vec2(eA, 0.0));
           float gZ = noise2D(vWorldPos.xz * 2.8 + vec2(0.0, eA));
-          vec2 asphaltBump = vec2(g0 - gX, g0 - gZ) * (1.0 / eA) * 0.085;
-          float roughAmt = mix(0.92, 0.45, localMoisture) * (1.0 - effectivePuddle * 0.96);
+          vec2 asphaltBump = vec2(g0 - gX, g0 - gZ) * (1.0 / eA) * 0.11;
+          float roughAmt = mix(1.0, 0.58, localMoisture) * (1.0 - effectivePuddle * 0.98);
 
           vec3 N = normalize(
             normalize(vWorldNormal)
-            + vec3(asphaltBump.x * roughAmt + waterWaveSlope.x * 0.42, 0.0, asphaltBump.y * roughAmt + waterWaveSlope.y * 0.42)
+            + vec3(asphaltBump.x * roughAmt + waterWaveSlope.x * 0.62, 0.0, asphaltBump.y * roughAmt + waterWaveSlope.y * 0.62)
           );
 
-          // 5) Beer-Lambert Water Volume Absorption + Submerged Road Albedo
+          // 5) Beer-Lambert Puddle Volume Absorption & Recessed Edge Shadow Crease
           float isMarking = smoothstep(0.48, 0.65, max(rawAlbedo.r, rawAlbedo.g));
           vec3 dryTex = rawAlbedo * (0.91 + softGrain * 0.12 + (macroWear - 0.5) * 0.06);
-          float darkenAmt = mix(localMoisture * 0.42 + effectivePuddle * 0.18, localMoisture * 0.14, isMarking);
-          vec3 albedo = dryTex * (1.0 - clamp(darkenAmt, 0.0, 0.56));
-          // Deep puddle volume absorbs light & adds cool translucent depth
-          vec3 deepWaterTint = albedo * vec3(0.42, 0.50, 0.58);
-          albedo = mix(albedo, deepWaterTint, effectiveDepth * 0.68);
-          // Subtle micro-AO darkening right along the depressed puddle edge
-          albedo *= 1.0 - rimBand * 0.14;
+          float darkenAmt = mix(localMoisture * 0.38 + effectivePuddle * 0.24, localMoisture * 0.12 + effectivePuddle * 0.16, isMarking);
+          vec3 albedo = dryTex * (1.0 - clamp(darkenAmt, 0.0, 0.62));
 
-          // 6) True 3D Lighting & Specular Across Ripples, Meniscus Rim & Asphalt Relief
+          // Deep water volume tint (gives puddles real optical thickness over the submerged road)
+          vec3 deepWaterTint = albedo * vec3(0.32, 0.42, 0.54);
+          albedo = mix(albedo, deepWaterTint, effectiveDepth * 0.78);
+          // Dark capillary crease right along the recessed puddle rim
+          albedo *= 1.0 - edgeCrease * 0.34;
+
+          // 6) 3D Directional Relief Lighting Across Ripples, Meniscus Rim & Asphalt
           float NdotL = max(dot(N, L), 0.0) * (1.0 - inTunnel);
           vec3 H = normalize(L + V);
           float NdotH = max(dot(N, H), 0.0);
-          float specPow = mix(mix(22.0, 76.0, localMoisture), 360.0, effectivePuddle);
-          float specStr = mix(mix(0.06, 0.36, localMoisture), 1.95, effectivePuddle) * (1.0 - inTunnel);
+          float specPow = mix(mix(20.0, 60.0, localMoisture), 320.0, effectivePuddle);
+          float specStr = mix(mix(0.05, 0.26, localMoisture), 2.4, effectivePuddle) * (1.0 - inTunnel);
           float spec = pow(NdotH, specPow) * specStr;
 
-          // Grazing rim highlight on the curved 3D puddle meniscus edge
-          float meniscusHighlight = pow(NdotH, 90.0) * rimBand * 0.55 * (1.0 - inTunnel);
+          // Crisp 3D specular bevel highlight right along the curved liquid meniscus lip
+          float meniscusRimGlow = (pow(NdotH, 48.0) * 1.15 + max(dot(N, normalize(vec3(L.x, 0.6, L.z))), 0.0) * 0.24) * rimBand * (1.0 - inTunnel);
+
+          // Subtle directional shadow/highlight modulation on 3D ripple slopes so waves pop even under overcast skies!
+          float rippleRelief = clamp(dot(waterWaveSlope, normalize(L.xz + V.xz * 0.5 + vec2(0.001))), -0.6, 0.8);
 
           vec3 lampGlow = vec3(0.0);
           if (inTunnel > 0.5) {
@@ -1102,76 +1121,78 @@ window.HorizonWorld = (() => {
           }
 
           vec3 color = albedo * (uAmbientColor * (1.0 - inTunnel * 0.65) + lampGlow + uSunColor * NdotL * 0.94)
-                     + uSunColor * (spec * 0.8 + meniscusHighlight);
+                     + uSunColor * (spec * 0.85 + meniscusRimGlow);
 
-          // Analytic Under-Car Contact AO
+          // Analytic Under-Car Contact AO (strictly valid smoothstep!)
           float contactAO = 1.0;
           if (carDist < 5.5 && toFrag.y < 0.8 && toFrag.y > -4.5) {
             vec2 carF = normalize(uCarForward.xz + vec2(0.0001));
             vec2 carR = vec2(-carF.y, carF.x);
             float lx = abs(dot(toFrag.xz, carR)) / max(0.8, uCarHalfW * 1.12);
             float lz = abs(dot(toFrag.xz, carF)) / max(1.6, uCarHalfL * 1.08);
-            float footprint = smoothstep(1.18, 0.62, max(lx, lz)) * smoothstep(1.38, 0.7, length(vec2(lx, lz)));
-            float heightFade = smoothstep(3.2, 0.0, max(0.0, uCarPos.y - vWorldPos.y));
+            float footprint = (1.0 - smoothstep(0.62, 1.18, max(lx, lz))) * (1.0 - smoothstep(0.7, 1.38, length(vec2(lx, lz))));
+            float heightFade = 1.0 - smoothstep(0.0, 3.2, max(0.0, uCarPos.y - vWorldPos.y));
             contactAO = 1.0 - footprint * heightFade * 0.68;
           }
           color *= contactAO;
 
-          // 3D Headlight Specular Glints off Rain Ripple Ridges, Meniscus Edges & Wet Asphalt!
+          // 3D Headlight Specular Glints off Rain Ripple Ridges, Meniscus Edges & Wet Asphalt
           if ((uHeadlightsOn > 0.5 || inTunnel > 0.5) && carDist < 76.0 && abs(toFrag.y) < 6.0) {
             vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
             float cone = dot(dir2, normalize(uCarForward.xz));
-            float headlightFactor = smoothstep(0.62, 0.96, cone) * smoothstep(76.0, 2.5, carDist);
+            float headlightFactor = smoothstep(0.62, 0.96, cone) * (1.0 - smoothstep(2.5, 76.0, carDist));
             vec3 headL = normalize(vec3(uCarPos.x - vWorldPos.x, 0.95, uCarPos.z - vWorldPos.z));
             vec3 headH = normalize(headL + V);
-            float headSpec = pow(max(dot(N, headH), 0.0), mix(32.0, 180.0, effectivePuddle));
-            color += vec3(1.0, 0.94, 0.82) * headlightFactor * (mix(0.32, 0.52, localMoisture) + headSpec * mix(0.28, 1.35, effectivePuddle));
+            float headSpec = pow(max(dot(N, headH), 0.0), mix(28.0, 150.0, effectivePuddle));
+            color += vec3(1.0, 0.94, 0.82) * headlightFactor * (mix(0.30, 0.48, localMoisture) + headSpec * mix(0.24, 1.85, effectivePuddle) + rimBand * 0.35);
           }
 
-          // Subtle physical specular glint at exact raindrop impact pinpoints & foaming wake crests (NO flat 2D circles!)
-          color += (uSunColor * 0.4 + vec3(0.55, 0.68, 0.82)) * (centerGlint * 0.35 + wakeRidge * effectivePuddle * 0.48);
+          color += (uSunColor * 0.4 + vec3(0.55, 0.72, 0.88)) * (centerGlint * 0.45 + wakeRidge * effectivePuddle * 0.62);
 
           vec3 rearPos = uCarPos - uCarForward * (uCarHalfL + 0.1);
           float rearDist = length(vWorldPos.xz - rearPos.xz);
           if (rearDist < 16.0 && abs(toFrag.y) < 4.0) {
-            float tailFalloff = smoothstep(16.0, 0.5, rearDist);
-            color += vec3(1.0, 0.1, 0.08) * tailFalloff * uBrakeIntensity * mix(0.16, 0.82, max(localMoisture * 0.5, effectivePuddle));
+            float tailFalloff = 1.0 - smoothstep(0.5, 16.0, rearDist);
+            color += vec3(1.0, 0.1, 0.08) * tailFalloff * uBrakeIntensity * mix(0.16, 0.88, max(localMoisture * 0.45, effectivePuddle));
             if (uNitroActive > 0.5) {
-              color += vec3(0.15, 0.82, 1.0) * tailFalloff * mix(0.3, 1.05, max(localMoisture * 0.5, effectivePuddle));
+              color += vec3(0.15, 0.82, 1.0) * tailFalloff * mix(0.3, 1.1, max(localMoisture * 0.45, effectivePuddle));
             }
           }
 
           if (uSparkIntensity > 0.02) {
             float sDist = length(vWorldPos - uSparkPos);
             if (sDist < 14.0) {
-              float sFall = smoothstep(14.0, 0.4, sDist);
+              float sFall = 1.0 - smoothstep(0.4, 14.0, sDist);
               color += vec3(1.0, 0.58, 0.14) * sFall * sFall * uSparkIntensity * mix(0.65, 1.5, max(localMoisture * 0.5, effectivePuddle));
             }
           }
 
-          // 7) 3D Wave-Distorted RT Planar Reflections (warps skyscraper reflections across 3D ripples & meniscus!)
+          // 7) High-Contrast Liquid Mirror RT Reflections (sharp & wave-bent inside puddles, soft on damp road!)
           if (uRTEnabled > 0.5) {
             float NdotV = max(dot(N, V), 0.0);
-            float fresnel = 0.02 + 0.98 * pow(1.0 - NdotV, 4.4);
-            float drySheen = (1.0 - inTunnel) * 0.042 * fresnel;
+            float fresnel = 0.03 + 0.97 * pow(1.0 - NdotV, 3.8);
+            float drySheen = (1.0 - inTunnel) * 0.035 * fresnel;
 
-            if (vWorldPos.y < 1.5 && (localMoisture > 0.03 || effectivePuddle > 0.02 || drySheen > 0.01)) {
+            if (vWorldPos.y < 1.5 && (localMoisture > 0.03 || effectivePuddle > 0.01 || drySheen > 0.01)) {
               vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
               vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
 
-              // Strong 3D normal bending in puddles makes reflections curve across ripples and edges
-              vec2 normalBend = vec2(N.x * 0.055, N.z * 0.085);
+              // Strong 3D wave & meniscus bending makes skyscraper reflections curve visibly across puddles
+              vec2 normalBend = vec2(N.x * 0.075, N.z * 0.115);
               reflUv = clamp(reflUv + normalBend, vec2(0.002), vec2(0.998));
 
-              float blurRad = mix(0.0095, 0.0008, effectivePuddle);
+              float blurRad = mix(0.014, 0.0007, effectivePuddle);
               vec3 reflSample = sampleGlossyRT(reflUv, blurRad);
-              float dampRefl = localMoisture * 0.34 * (0.16 + fresnel * 0.84);
-              float puddleRefl = effectivePuddle * (0.16 + fresnel * 0.82);
-              float reflFactor = clamp(max(max(dampRefl, puddleRefl), drySheen), 0.0, 0.9) * (1.0 - isMarking * (0.38 - effectivePuddle * 0.2));
-              color = mix(color, reflSample * 1.12 * mix(0.42, 1.0, contactAO), reflFactor);
+              // Lit ripple crests brighten the reflection slightly, troughs deepen it -> unmistakable 3D wave feel!
+              reflSample *= 1.0 + rippleRelief * effectivePuddle * 0.38;
+
+              float dampRefl = localMoisture * 0.24 * (0.14 + fresnel * 0.86);
+              float puddleRefl = effectivePuddle * (0.38 + fresnel * 0.58);
+              float reflFactor = clamp(max(max(dampRefl, puddleRefl), drySheen), 0.0, 0.94) * (1.0 - isMarking * (0.36 - effectivePuddle * 0.24));
+              color = mix(color, reflSample * 1.15 * mix(0.42, 1.0, contactAO), reflFactor);
             } else if (vWorldPos.y >= 1.5 && (localMoisture > 0.04 || effectivePuddle > 0.02)) {
-              float deckSheen = clamp((localMoisture * 0.3 + effectivePuddle * 0.48) * fresnel, 0.0, 0.58);
-              color = mix(color, uFogColor * 1.15 + uSunColor * 0.34 + lampGlow * 0.9, deckSheen);
+              float deckSheen = clamp((localMoisture * 0.26 + effectivePuddle * 0.58) * (0.28 + fresnel * 0.72), 0.0, 0.68);
+              color = mix(color, (uFogColor * 1.15 + uSunColor * 0.36 + lampGlow * 0.9) * (1.0 + rippleRelief * 0.3), deckSheen);
             }
           }
 
