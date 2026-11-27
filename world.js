@@ -4677,6 +4677,22 @@ window.HorizonWorld = (() => {
       };
     }
 
+    const CELL = 80;
+    const spatialGrid = new Map();
+    colliders.forEach((c) => {
+      const minCX = Math.floor(c.minX / CELL);
+      const maxCX = Math.floor(c.maxX / CELL);
+      const minCZ = Math.floor(c.minZ / CELL);
+      const maxCZ = Math.floor(c.maxZ / CELL);
+      for (let gx = minCX; gx <= maxCX; gx++) {
+        for (let gz = minCZ; gz <= maxCZ; gz++) {
+          const key = `${gx},${gz}`;
+          if (!spatialGrid.has(key)) spatialGrid.set(key, []);
+          spatialGrid.get(key).push(c);
+        }
+      }
+    });
+
     function getNearbyColliders(x, z) {
       const gx = Math.floor(x / CELL);
       const gz = Math.floor(z / CELL);
