@@ -3400,7 +3400,10 @@
       car.y += car.vy * subDt;
 
       const wasInWater = car.inWater;
-      const snapMargin = car.grounded && car.vy <= 1.2 && latestSurf.onRoad ? 0.55 : 0.08;
+      const isJumpRamp = Boolean(latestSurf.isJumpRamp);
+      const heightDelta = latestSurf.height - prevY;
+      const onSmoothRoad = car.grounded && latestSurf.onRoad && !isJumpRamp && Math.abs(heightDelta) < 1.2;
+      const snapMargin = onSmoothRoad ? 0.75 : car.grounded && car.vy <= 1.2 && latestSurf.onRoad ? 0.55 : 0.08;
 
       if (car.y <= latestSurf.height + snapMargin) {
         if (!car.grounded) {
@@ -3429,11 +3432,15 @@
             if (car.airTime > 0.55) showBanner(`AIR TIME ${car.airTime.toFixed(1)}S!`);
           }
         }
-        // Slope-derived vertical velocity prevents curb/edge seams from launching the car upward
+
         const stepUp = latestSurf.height - prevY;
         car.y = latestSurf.height;
-        const geoSlopeVy = vLong * Math.tan(THREE.MathUtils.clamp(latestSurf.slopePitch, -0.55, 0.55));
-        car.vy = stepUp > 0.35 ? 0 : THREE.MathUtils.clamp(geoSlopeVy, -12, 18);
+        if (isJumpRamp) {
+          const geoSlopeVy = vLong * Math.tan(THREE.MathUtils.clamp(latestSurf.slopePitch, -0.55, 0.55));
+          car.vy = stepUp > 0.35 ? 0 : THREE.MathUtils.clamp(geoSlopeVy, -12, 18);
+        } else {
+          car.vy = 0;
+        }
         car.grounded = true;
         car.inWater = latestSurf.overWater;
         car.airTime = 0;
@@ -3605,7 +3612,12 @@
       wheelMeshes[i].rotation.x -= wheelSpin;
     }
 
-    car.slopePitch = THREE.MathUtils.lerp(car.slopePitch, car.grounded ? latestSurf.slopePitch : 0, 10 * dt);
+    const pitchRate = car.grounded ? 22 : 6;
+    car.slopePitch = THREE.MathUtils.lerp(
+      car.slopePitch,
+      car.grounded ? latestSurf.slopePitch : 0,
+      1 - Math.exp(-pitchRate * dt)
+    );
     const dynamicPitch = car.grounded
       ? THREE.MathUtils.clamp(car.accelLong * 0.0046 * sp.rollMult, -0.095, 0.075)
       : THREE.MathUtils.clamp(car.vy * 0.018, -0.35, 0.35);

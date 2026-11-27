@@ -680,6 +680,7 @@ window.HorizonRoads = (() => {
           kind: cfg.kind,
           zone: cfg.zone,
           hasOverpassAbove,
+          overpassCrossings: cfg.overpassCrossings || null,
           isTubeTunnel: Boolean(cfg.isTubeTunnel),
           tubeMinZ: cfg.tubeMinZ || 0,
           tubeMaxZ: cfg.tubeMaxZ || 0,
@@ -868,39 +869,77 @@ window.HorizonRoads = (() => {
       const carFX = -Math.sin(heading);
       const carFZ = -Math.cos(heading);
       let best = null;
-      let bestScore = Infinity;
+      let bestInBounds = false;
+      let bestHeight = -Infinity;
+      let bestAlongOff = Infinity;
 
       for (let i = 0; i < list.length; i++) {
         const s = list[i];
-        const t = THREE.MathUtils.clamp(((x - s.x1) * s.dx + (z - s.z1) * s.dz) / s.lenSqXZ, 0, 1);
-        const px = s.x1 + s.dx * t;
-        const pz = s.z1 + s.dz * t;
-        const dSq = (x - px) * (x - px) + (z - pz) * (z - pz);
-        const limit = s.halfW + 0.65;
-        if (dSq > limit * limit) continue;
+        const ux = s.dx / s.horizLen;
+        const uz = s.dz / s.horizLen;
+        const relX = x - s.x1;
+        const relZ = z - s.z1;
 
+        const along = relX * ux + relZ * uz;
+        const perp = Math.abs(-relX * uz + relZ * ux);
+
+        // Tight longitudinal padding (0.65m) seals curved joints without bleeding across overpasses or ramps
+        if (along < -0.65 || along > s.horizLen + 0.65) continue;
+        if (perp > s.halfW + 0.65) continue;
+
+        const t = THREE.MathUtils.clamp(along / s.horizLen, 0, 1);
         const h = s.y1 + s.dy * t;
-        if (currentY < h - 1.35) continue;
 
-        const inSubseaSection = s.isTubeTunnel && z > s.tubeMinZ + 4 && z < s.tubeMaxZ - 4;
-        if (h < -1.8 && currentY > -1.2 && (s.hasOverpassAbove || inSubseaSection)) continue;
+        // Ignore decks well above the car
+        if (currentY < h - 1.8) continue;
 
-        const vertDiff = Math.abs(currentY - h);
-        const score = vertDiff + Math.sqrt(dSq) * 0.08;
-        if (score < bestScore) {
-          bestScore = score;
-          const dirX = s.dx / s.horizLen;
-          const dirZ = s.dz / s.horizLen;
-          const slopeAlong = (s.dy / s.horizLen) * (dirX * carFX + dirZ * carFZ);
+        // Never let sunken underways or subsea tunnel capture a car on a surface overpass or ocean above
+        if (h < -1.0 && currentY > -1.2) {
+          if (s.isTubeTunnel && z >= s.tubeMinZ - 2 && z <= s.tubeMaxZ + 2) continue;
+          if (s.overpassCrossings) {
+            let underOverpass = false;
+            for (let k = 0; k < s.overpassCrossings.length; k++) {
+              const ov = s.overpassCrossings[k];
+              if (Math.abs(z - ov.z) <= ov.halfW + 1.0) {
+                underOverpass = true;
+                break;
+              }
+            }
+            if (underOverpass) continue;
+          }
+        }
+
+        const inBounds = along >= 0 && along <= s.horizLen;
+        const alongOff = Math.max(0, -along, along - s.horizLen);
+
+        // Prefer segments strictly spanning (x, z), then the highest valid deck beneath the car
+        let better = false;
+        if (!best) {
+          better = true;
+        } else if (inBounds !== bestInBounds) {
+          better = inBounds;
+        } else if (inBounds) {
+          better = h > bestHeight;
+        } else {
+          better = alongOff < bestAlongOff - 0.05 || (Math.abs(alongOff - bestAlongOff) <= 0.05 && h > bestHeight);
+        }
+
+        if (better) {
+          bestInBounds = inBounds;
+          bestHeight = h;
+          bestAlongOff = alongOff;
+
+          const slopeAlong = (s.dy / s.horizLen) * (ux * carFX + uz * carFZ);
           const inTube = s.isTubeTunnel && z >= s.tubeMinZ && z <= s.tubeMaxZ;
           best = {
-            height: h,
+            height: h + 0.03,
             slopePitch: Math.atan(slopeAlong),
             surfaceType: inTube ? "TUNNEL" : h > 1.2 ? "BRIDGE" : "ROAD",
             onRoad: true,
             overWater: false,
             inTunnel: inTube,
             hitWall: false,
+            isJumpRamp: false,
             zone: s.zone,
           };
         }

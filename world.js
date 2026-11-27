@@ -4674,6 +4674,7 @@ window.HorizonWorld = (() => {
         overWater: !hasGroundSupport && !onRamp,
         inTunnel: false,
         hitWall,
+        isJumpRamp: onRamp,
       };
     }
 
