@@ -4346,10 +4346,17 @@
         desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -9.8, 9.8);
         desiredPos.y = Math.min(desiredPos.y, 8.8);
       } else {
-        desiredPos.y = Math.min(desiredPos.y, car.y + 4.8);
+        desiredPos.y = Math.min(desiredPos.y, Math.min(-1.55, car.y + 3.4));
       }
-    } else if (car.y < -1.5) {
-      desiredPos.y = Math.min(desiredPos.y, car.y + 4.6);
+    } else if (car.y < -1.2) {
+      const underMetroDeck =
+        Math.abs(desiredPos.x - 165) < 16 &&
+        (Math.abs(desiredPos.z) < 24 || Math.abs(desiredPos.z - 120) < 22);
+      if (underMetroDeck) {
+        desiredPos.y = Math.min(desiredPos.y, Math.min(-1.5, car.y + 3.0));
+      } else {
+        desiredPos.y = Math.min(desiredPos.y, car.y + 3.4);
+      }
     }
   }
 
@@ -4414,6 +4421,7 @@
       clampTunnelCam(desiredPos);
 
       camPosCurrent.lerp(desiredPos, 1 - Math.exp(-8.5 * dt));
+      clampTunnelCam(camPosCurrent);
       camLookCurrent.lerp(desiredLook, 1 - Math.exp(-11.5 * dt));
       camera.position.copy(camPosCurrent);
       camera.lookAt(camLookCurrent);
