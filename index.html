@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>Velocity Coast 3D — Apexia Grand Prix &amp; GPS Edition</title>
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=7" />
 </head>
 <body>
   <div id="canvas-container"></div>
@@ -26,7 +26,7 @@
       </div>
 
       <div class="toolbar">
-        <div id="pad-badge" class="hud-btn pad-badge" title="Connect an Xbox, PlayStation, or Bluetooth Controller">
+        <div id="pad-badge" class="hud-btn pad-badge" title="Connect a USB or Bluetooth Gamepad">
           PAD: <span id="pad-label">OFF</span>
         </div>
         <button id="btn-touch" class="hud-btn" title="Toggle On-Screen Mobile Touch Controls">
@@ -79,10 +79,10 @@
       <button id="btn-gps-clear" class="gps-clear-btn" title="Cancel GPS Route">✕</button>
     </div>
 
-    <!-- FIA Grade 1 Circuit Live Lap & Sector Timer -->
+    <!-- Grand Prix Grade 1 Circuit Live Lap & Sector Timer -->
     <div id="circuit-hud" class="circuit-hud hidden">
       <div class="circuit-header">
-        <span class="circuit-badge">FIA GRADE 1</span>
+        <span class="circuit-badge">GRADE 1</span>
         <span class="circuit-title">APEXIA GRAND PRIX CIRCUIT</span>
         <span class="circuit-lap-tag" id="lap-num">OUT LAP</span>
       </div>
@@ -119,7 +119,7 @@
         <div class="minimap-gps-hint">CLICK FOR GPS MAP [F]</div>
       </div>
 
-      <!-- Controls Legend (Desktop / Controller) -->
+      <!-- Controls Legend (Desktop / Gamepad) -->
       <div class="controls-panel" id="controls-panel">
         <div>
           <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>Stick</kbd> Drive
@@ -252,7 +252,7 @@
       </div>
 
       <div class="map-quick-row">
-        <button class="map-chip gp" data-x="420" data-z="950" data-name="APEXIA GP STARTING GRID">🏁 Apexia GP Circuit</button>
+        <button class="map-chip gp" data-x="460" data-z="950" data-name="APEXIA GP STARTING GRID">🏁 Apexia GP Circuit</button>
         <button class="map-chip" data-x="0" data-z="800" data-name="APEXIA SKYLINE DISTRICT">🏙️ Apexia Metropolis</button>
         <button class="map-chip" data-x="0" data-z="0" data-name="METRO BAY DOWNTOWN">🌆 Metro Bay</button>
         <button class="map-chip" data-x="1280" data-z="0" data-name="PALM ISLAND MARINA">🌴 Palm Island</button>
@@ -314,15 +314,15 @@
           </button>
 
           <button class="car-option" data-car="lmp">
-            <span class="car-class">ENDURANCE LMP</span>
-            <span class="car-title">Solstice LMP-1</span>
-            <span class="car-desc">Closed-cockpit prototype with dorsal fin, huge aero grip &amp; hybrid boost.</span>
+            <span class="car-class">PROTOTYPE</span>
+            <span class="car-title">Helios Proto-X</span>
+            <span class="car-desc">Closed-cockpit endurance racer with dorsal fin, venturi grip &amp; DRS.</span>
           </button>
 
           <button class="car-option" data-car="gt3">
-            <span class="car-class">FIA GT3 RACER</span>
-            <span class="car-title">Stratos GT3-R</span>
-            <span class="car-desc">Widebody track racer with canards, swan-neck wing &amp; razor apex bite.</span>
+            <span class="car-class">GT TRACK</span>
+            <span class="car-title">Cinder GT-R3</span>
+            <span class="car-desc">Widebody circuit racer with dive canards, swan-neck wing &amp; apex bite.</span>
           </button>
 
           <button class="car-option" data-car="drift">
@@ -344,9 +344,9 @@
           </button>
 
           <button class="car-option" data-car="buggy">
-            <span class="car-class">EXOCAR BAJA</span>
-            <span class="car-title">DuneValkyrie X</span>
-            <span class="car-desc">Featherweight open-cage buggy with plush long-travel jump suspension.</span>
+            <span class="car-class">DESERT EXOCAR</span>
+            <span class="car-title">SandRunner X</span>
+            <span class="car-desc">Featherweight open-cage exocar with plush long-travel jump suspension.</span>
           </button>
 
           <button class="car-option" data-car="suv">
@@ -421,10 +421,10 @@
     </div>
   </div>
 
-  <!-- Three.js r128 UMD (MIT) + World, Console/Mobile Controls & Game Engine -->
+  <!-- Three.js r128 UMD (MIT) + World, Gamepad/Touch Controls & Game Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="world.js?v=6"></script>
-  <script src="controls.js?v=6"></script>
-  <script src="game.js?v=6"></script>
+  <script src="world.js?v=7"></script>
+  <script src="controls.js?v=7"></script>
+  <script src="game.js?v=7"></script>
 </body>
 </html>

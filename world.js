@@ -356,7 +356,7 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 4. HIGH-RES SMOOTH PROCEDURAL TEXTURES (ROADS, FIA CIRCUIT & SKYSCRAPERS)
+  // 4. HIGH-RES SMOOTH PROCEDURAL TEXTURES (ROADS, GP CIRCUIT & SKYSCRAPERS)
   // =========================================================================
   function configureSmoothTexture(tex, repeatX = 1, repeatY = 1) {
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -367,46 +367,6 @@ window.HorizonWorld = (() => {
     tex.anisotropy = 16;
     tex.needsUpdate = true;
     return tex;
-  }
-
-  function createGrassTexture(tintHex, grainDelta) {
-    const c = document.createElement("canvas");
-    c.width = 512;
-    c.height = 512;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = tintHex;
-    ctx.fillRect(0, 0, 512, 512);
-
-    for (let i = 0; i < 160; i++) {
-      const gx = Math.random() * 512;
-      const gy = Math.random() * 512;
-      const rad = 24 + Math.random() * 68;
-      const grad = ctx.createRadialGradient(gx, gy, 2, gx, gy, rad);
-      const bright = Math.random() > 0.5;
-      const r = Math.max(0, Math.min(255, (bright ? 65 : 32) + grainDelta[0]));
-      const g = Math.max(0, Math.min(255, (bright ? 95 : 54) + grainDelta[1]));
-      const b = Math.max(0, Math.min(255, (bright ? 48 : 26) + grainDelta[2]));
-      grad.addColorStop(0, `rgba(${r},${g},${b},0.16)`);
-      grad.addColorStop(1, `rgba(${r},${g},${b},0.0)`);
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(gx, gy, rad, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 2400; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const l = 3 + Math.random() * 6;
-      ctx.strokeStyle = Math.random() > 0.5 ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.045)";
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + (Math.random() - 0.5) * 3, y - l);
-      ctx.stroke();
-    }
-
-    return configureSmoothTexture(new THREE.CanvasTexture(c), 0.055, 0.055);
   }
 
   function paintSmoothAsphaltBase(ctx, w, h, baseHex) {
@@ -534,31 +494,31 @@ window.HorizonWorld = (() => {
     return configureSmoothTexture(new THREE.CanvasTexture(c));
   }
 
-  // Dedicated 1024x1024 FIA Grade 1 Circuit Asphalt Texture (smooth dark polymer tarmac, rubbered racing line & white track limits)
+  // Dedicated 1024x1024 Grade 1 Grand Prix Racing Tarmac Texture
   function createCircuitTexture() {
     const c = document.createElement("canvas");
     c.width = 1024;
     c.height = 1024;
     const ctx = c.getContext("2d");
 
-    paintSmoothAsphaltBase(ctx, 1024, 1024, "#242933");
+    paintSmoothAsphaltBase(ctx, 1024, 1024, "#252b36");
 
-    // Rubbered racing groove down the track core
-    paintSoftWearBand(ctx, 512, 290, 1024, 0.28);
+    // Rubbered-in racing groove down the track core
+    paintSoftWearBand(ctx, 512, 290, 1024, 0.30);
     paintSoftWearBand(ctx, 310, 95, 1024, 0.16);
     paintSoftWearBand(ctx, 714, 95, 1024, 0.16);
 
-    // Subtle FIA asphalt apron outside white track limits
+    // Subtle paved apron outside white track limits
     ctx.fillStyle = "rgba(148, 163, 184, 0.08)";
     ctx.fillRect(0, 0, 56, 1024);
     ctx.fillRect(968, 0, 56, 1024);
 
-    // Crisp FIA Grade 1 White Track Limit Lines
+    // Crisp Grand Prix White Track Limit Lines
     ctx.fillStyle = "rgba(248, 250, 252, 0.96)";
     ctx.fillRect(56, 0, 18, 1024);
     ctx.fillRect(950, 0, 18, 1024);
 
-    // Subtle faint centerline reference dashes
+    // Subtle centerline reference dashes
     ctx.fillStyle = "rgba(226, 232, 240, 0.24)";
     for (let y = 80; y < 1024; y += 512) {
       ctx.fillRect(508, y, 8, 220);
@@ -853,11 +813,171 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 5. 3D PUDDLE SHADER (CRISP MENISCUS BEVEL, PARALLAX REFRACTION & 3D RIPPLES)
+  // 5A. ENHANCED PROCEDURAL GRASS SHADER (SEAMLESS TURF, WIND WAVES & DEW SHEEN)
+  // =========================================================================
+  function createRealisticGrassMaterial(lushHex, warmHex, soilHex) {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uLushColor: { value: new THREE.Color(lushHex) },
+        uWarmColor: { value: new THREE.Color(warmHex) },
+        uSoilColor: { value: new THREE.Color(soilHex) },
+        uTime: { value: 0.0 },
+        uRoadMoisture: { value: 0.0 },
+        uSunDir: { value: new THREE.Vector3(-0.6, 0.3, -0.5).normalize() },
+        uSunColor: { value: new THREE.Color(0xffa45b) },
+        uAmbientColor: { value: new THREE.Color(0x523c46) },
+        uFogColor: { value: new THREE.Color(0xb85247) },
+        uFogDensity: { value: 0.00064 },
+        uCarPos: { value: new THREE.Vector3(0, 0, 45) },
+        uCarForward: { value: new THREE.Vector3(0, 0, -1) },
+        uCarHalfW: { value: 1.15 },
+        uCarHalfL: { value: 2.35 },
+        uHeadlightsOn: { value: 1.0 },
+        uSparkPos: { value: new THREE.Vector3(0, -100, 0) },
+        uSparkIntensity: { value: 0.0 },
+      },
+      vertexShader: `
+        varying vec3 vWorldPos;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldPos = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uLushColor;
+        uniform vec3 uWarmColor;
+        uniform vec3 uSoilColor;
+        uniform float uTime;
+        uniform float uRoadMoisture;
+        uniform vec3 uSunDir;
+        uniform vec3 uSunColor;
+        uniform vec3 uAmbientColor;
+        uniform vec3 uFogColor;
+        uniform float uFogDensity;
+        uniform vec3 uCarPos;
+        uniform vec3 uCarForward;
+        uniform float uCarHalfW;
+        uniform float uCarHalfL;
+        uniform float uHeadlightsOn;
+        uniform vec3 uSparkPos;
+        uniform float uSparkIntensity;
+
+        varying vec3 vWorldPos;
+
+        float hash21(vec2 p) {
+          p = fract(p * vec2(127.1, 311.7));
+          p += dot(p, p + 34.5);
+          return fract(p.x * p.y);
+        }
+
+        float noise2D(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(
+            mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+            mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x),
+            f.y
+          );
+        }
+
+        void main() {
+          vec3 toCam = cameraPosition - vWorldPos;
+          float camDist = length(toCam);
+          vec3 V = toCam / max(camDist, 0.0001);
+          vec3 L = normalize(uSunDir);
+
+          // Multi-scale seamless organic meadow & turf variation (zero repeating grid!)
+          float macro = noise2D(vWorldPos.xz * 0.016);
+          float med = noise2D(vWorldPos.xz * 0.078 + vec2(9.2, 4.1));
+          float clover = noise2D(vWorldPos.xz * 0.36 + vec2(3.7, 17.3));
+
+          // Animated wind gusts rolling gently across the turf
+          float windWave = sin(vWorldPos.x * 0.075 + vWorldPos.z * 0.052 - uTime * 1.85 + macro * 3.5);
+          float windSheen = smoothstep(-0.2, 0.9, windWave) * (0.45 + 0.55 * med);
+
+          // Crisp near-field grass blade fibrous relief (attenuates cleanly at distance to avoid shimmer)
+          float nearMask = 1.0 - smoothstep(18.0, 145.0, camDist);
+          float bladeA = noise2D(vWorldPos.xz * 2.8 + vec2(windWave * 0.14, 0.0));
+          float bladeB = noise2D(vWorldPos.xz * 6.4 - vec2(0.0, windWave * 0.12));
+          float bladeDetail = (bladeA * 0.62 + bladeB * 0.38 - 0.5) * nearMask;
+
+          // Blend lush meadow, sunlit warm tips, and organic soil pockets
+          vec3 baseCol = mix(uLushColor, uWarmColor, smoothstep(0.28, 0.78, macro * 0.65 + med * 0.35));
+          baseCol = mix(baseCol, uSoilColor, smoothstep(0.72, 0.95, (1.0 - macro) * 0.55 + clover * 0.45) * 0.38);
+          baseCol *= 0.90 + bladeDetail * 0.28 + windSheen * 0.09;
+
+          // Subtle manicured stripe mowing effect inside the Apexia Grand Prix Circuit infield!
+          float inCircuitPark = step(420.0, vWorldPos.x) * step(vWorldPos.x, 1595.0) * step(720.0, vWorldPos.z) * step(vWorldPos.z, 1455.0);
+          if (inCircuitPark > 0.5) {
+            float mowStripe = 0.5 + 0.5 * sin(vWorldPos.x * 0.32);
+            baseCol *= 0.94 + mowStripe * 0.10;
+          }
+
+          // Rain dampness enriches & darkens the grass slightly
+          baseCol *= 1.0 - uRoadMoisture * 0.22;
+
+          // Procedural blade micro-normal tilted slightly by wind waves
+          vec3 N = normalize(vec3(
+            (bladeA - 0.5) * 0.42 * nearMask + windWave * 0.09,
+            1.0,
+            (bladeB - 0.5) * 0.42 * nearMask - windWave * 0.06
+          ));
+
+          float NdotL = max(dot(N, L), 0.0);
+          vec3 H = normalize(L + V);
+          // Soft velvety backlit grass translucency + wet dew specular
+          float rimVelvet = pow(1.0 - max(dot(N, V), 0.0), 3.0) * (0.14 + uRoadMoisture * 0.26);
+          float dewSpec = pow(max(dot(N, H), 0.0), mix(26.0, 84.0, uRoadMoisture)) * (0.08 + uRoadMoisture * 0.36);
+
+          vec3 color = baseCol * (uAmbientColor * 1.15 + uSunColor * (NdotL * 0.95 + rimVelvet))
+                     + uSunColor * (dewSpec + windSheen * 0.045);
+
+          // Grounded Under-Car Contact AO on grass too
+          vec3 toFrag = vWorldPos - uCarPos;
+          float carDist = length(toFrag.xz);
+          if (carDist < 5.5 && toFrag.y < 0.8 && toFrag.y > -4.5) {
+            vec2 carF = normalize(uCarForward.xz + vec2(0.0001));
+            vec2 carR = vec2(-carF.y, carF.x);
+            float lx = abs(dot(toFrag.xz, carR)) / max(0.8, uCarHalfW * 1.15);
+            float lz = abs(dot(toFrag.xz, carF)) / max(1.6, uCarHalfL * 1.1);
+            float footprint = (1.0 - smoothstep(0.62, 1.18, max(lx, lz))) * (1.0 - smoothstep(0.7, 1.38, length(vec2(lx, lz))));
+            float heightFade = 1.0 - smoothstep(0.0, 3.2, max(0.0, uCarPos.y - vWorldPos.y));
+            color *= 1.0 - footprint * heightFade * 0.65;
+          }
+
+          if (uHeadlightsOn > 0.5 && carDist < 70.0 && abs(toFrag.y) < 6.0) {
+            vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
+            float cone = dot(dir2, normalize(uCarForward.xz));
+            float beam = smoothstep(0.62, 0.96, cone) * (1.0 - smoothstep(2.5, 70.0, carDist));
+            color += vec3(1.0, 0.94, 0.82) * beam * 0.34;
+          }
+
+          if (uSparkIntensity > 0.02) {
+            float sDist = length(vWorldPos - uSparkPos);
+            if (sDist < 12.0) {
+              float sFall = 1.0 - smoothstep(0.4, 12.0, sDist);
+              color += vec3(1.0, 0.58, 0.14) * sFall * sFall * uSparkIntensity * 0.6;
+            }
+          }
+
+          float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * camDist * camDist);
+          color = mix(color, uFogColor, clamp(fogFactor, 0.0, 1.0));
+
+          gl_FragColor = vec4(color, 1.0);
+          #include <tonemapping_fragment>
+        }
+      `,
+    });
+  }
+
+  // =========================================================================
+  // 5B. OPTIMIZED 3D PUDDLE SHADER (MENISCUS BEVEL, REFRACTION & FAST PATH)
   // =========================================================================
   function createRealisticRoadMaterial(roadTex, reflTexture, resolution, isIntersection) {
-    const emptyTrailPos = Array.from({ length: 20 }, () => new THREE.Vector4(0, 0, 0, -999));
-    const emptyTrailMeta = Array.from({ length: 20 }, () => new THREE.Vector4(1.0, 1.4, 0, 0));
+    const emptyTrailPos = Array.from({ length: 14 }, () => new THREE.Vector4(0, 0, 0, -999));
+    const emptyTrailMeta = Array.from({ length: 14 }, () => new THREE.Vector4(1.0, 1.4, 0, 0));
 
     return new THREE.ShaderMaterial({
       uniforms: {
@@ -870,6 +990,7 @@ window.HorizonWorld = (() => {
         uRoadMoisture: { value: 0.0 },
         uPuddleLevel: { value: 0.0 },
         uRainIntensity: { value: 0.0 },
+        uHasTrails: { value: 0.0 },
         uSunDir: { value: new THREE.Vector3(-0.6, 0.3, -0.5).normalize() },
         uSunColor: { value: new THREE.Color(0xffa45b) },
         uAmbientColor: { value: new THREE.Color(0x523c46) },
@@ -913,6 +1034,7 @@ window.HorizonWorld = (() => {
         uniform float uRoadMoisture;
         uniform float uPuddleLevel;
         uniform float uRainIntensity;
+        uniform float uHasTrails;
         uniform vec3 uSunDir;
         uniform vec3 uSunColor;
         uniform vec3 uAmbientColor;
@@ -927,8 +1049,8 @@ window.HorizonWorld = (() => {
         uniform float uNitroActive;
         uniform vec3 uSparkPos;
         uniform float uSparkIntensity;
-        uniform vec4 uTrailPos[20];
-        uniform vec4 uTrailMeta[20];
+        uniform vec4 uTrailPos[14];
+        uniform vec4 uTrailMeta[14];
 
         varying vec2 vUv;
         varying vec3 vWorldPos;
@@ -984,6 +1106,9 @@ window.HorizonWorld = (() => {
         }
 
         vec3 sampleGlossyRT(vec2 uv, float blurRadius) {
+          if (blurRadius < 0.0022) {
+            return texture2D(uReflMap, uv).rgb;
+          }
           vec3 c = texture2D(uReflMap, uv).rgb * 0.36;
           vec2 o1 = vec2(blurRadius, blurRadius * 0.55);
           vec2 o2 = vec2(-blurRadius, blurRadius * 0.55);
@@ -1007,26 +1132,34 @@ window.HorizonWorld = (() => {
           vec3 V = toCam / max(camDist, 0.0001);
           vec3 L = normalize(uSunDir);
 
-          float drainFactor = 1.0 - smoothstep(2.0, 12.0, vWorldPos.y) * 0.42;
-          float pNoise = puddleField(vWorldPos.xz);
-          float thresh = 0.84 - basePuddleLvl * 0.44;
-          float puddleVis = smoothstep(0.02, 0.22, basePuddleLvl) * drainFactor;
-
-          float puddle = smoothstep(thresh - 0.025, thresh + 0.025, pNoise) * puddleVis;
-          float puddleDepth = smoothstep(thresh - 0.01, thresh + 0.18, pNoise) * puddleVis;
-          float puddleRim = smoothstep(thresh - 0.15, thresh - 0.005, pNoise) * puddleVis;
-
-          float rimBand = smoothstep(0.02, 0.45, puddle) * (1.0 - smoothstep(0.45, 0.98, puddle));
-          float edgeCrease = smoothstep(thresh - 0.04, thresh, pNoise) * (1.0 - smoothstep(thresh, thresh + 0.03, pNoise)) * puddleVis;
-
+          float puddle = 0.0;
+          float puddleDepth = 0.0;
+          float puddleRim = 0.0;
+          float rimBand = 0.0;
+          float edgeCrease = 0.0;
           vec2 meniscusSlope = vec2(0.0);
-          if (rimBand > 0.01) {
-            float eps = 0.18;
-            float pX = puddleField(vWorldPos.xz + vec2(eps, 0.0));
-            float pZ = puddleField(vWorldPos.xz + vec2(0.0, eps));
-            vec2 gradP = vec2(pX - pNoise, pZ - pNoise) / eps;
-            vec2 edgeDir = gradP / (length(gradP) + 0.015);
-            meniscusSlope = -edgeDir * rimBand * 0.82;
+
+          if (basePuddleLvl > 0.02) {
+            float drainFactor = 1.0 - smoothstep(2.0, 12.0, vWorldPos.y) * 0.42;
+            float pNoise = puddleField(vWorldPos.xz);
+            float thresh = 0.84 - basePuddleLvl * 0.44;
+            float puddleVis = smoothstep(0.02, 0.22, basePuddleLvl) * drainFactor;
+
+            puddle = smoothstep(thresh - 0.025, thresh + 0.025, pNoise) * puddleVis;
+            puddleDepth = smoothstep(thresh - 0.01, thresh + 0.18, pNoise) * puddleVis;
+            puddleRim = smoothstep(thresh - 0.15, thresh - 0.005, pNoise) * puddleVis;
+
+            rimBand = smoothstep(0.02, 0.45, puddle) * (1.0 - smoothstep(0.45, 0.98, puddle));
+            edgeCrease = smoothstep(thresh - 0.04, thresh, pNoise) * (1.0 - smoothstep(thresh, thresh + 0.03, pNoise)) * puddleVis;
+
+            if (rimBand > 0.01) {
+              float eps = 0.18;
+              float pX = puddleField(vWorldPos.xz + vec2(eps, 0.0));
+              float pZ = puddleField(vWorldPos.xz + vec2(0.0, eps));
+              vec2 gradP = vec2(pX - pNoise, pZ - pNoise) / eps;
+              vec2 edgeDir = gradP / (length(gradP) + 0.015);
+              meniscusSlope = -edgeDir * rimBand * 0.82;
+            }
           }
 
           vec2 wakeGrad = vec2(0.0);
@@ -1037,14 +1170,15 @@ window.HorizonWorld = (() => {
           vec3 toFrag = vWorldPos - uCarPos;
           float carDist = length(toFrag.xz);
 
-          if (carDist < 62.0 && abs(toFrag.y) < 4.0) {
-            for (int i = 0; i < 20; i++) {
+          // Fast-path: skip trail loop completely when road is dry with no active tracks!
+          if (uHasTrails > 0.5 && carDist < 56.0 && abs(toFrag.y) < 4.0) {
+            for (int i = 0; i < 14; i++) {
               vec4 tp = uTrailPos[i];
               float age = uTime - tp.w;
               if (age < 0.0 || age > 8.5) continue;
 
               vec2 rel = vWorldPos.xz - tp.xy;
-              if (dot(rel, rel) > 30.0) continue;
+              if (dot(rel, rel) > 28.0) continue;
 
               vec4 tm = uTrailMeta[i];
               float cH = cos(tp.z);
@@ -1089,7 +1223,7 @@ window.HorizonWorld = (() => {
           }
 
           float centerGlint = 0.0;
-          if (activeRain > 0.03) {
+          if (activeRain > 0.03 && camDist < 115.0) {
             float ripFade = 1.0 - smoothstep(14.0, 115.0, camDist);
             vec3 r1 = rainWaveNormalLayer(vWorldPos.xz * 0.72, uTime, 1.45);
             vec3 r2 = rainWaveNormalLayer(vWorldPos.xz * 1.32 + vec2(11.4, 5.7), uTime + 0.37, 1.95);
@@ -1206,7 +1340,7 @@ window.HorizonWorld = (() => {
               vec2 normalBend = vec2(N.x * 0.075, N.z * 0.115);
               reflUv = clamp(reflUv + normalBend, vec2(0.002), vec2(0.998));
 
-              float blurRad = mix(0.014, 0.0007, effectivePuddle);
+              float blurRad = mix(0.012, 0.0007, effectivePuddle);
               vec3 reflSample = sampleGlossyRT(reflUv, blurRad);
               reflSample *= 1.0 + rippleRelief * effectivePuddle * 0.38;
 
@@ -1231,7 +1365,7 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 5B. TRUE 3D GERSTNER WAVE OCEAN SHADER (4-ISLAND HARD CLIP + 5-TAP RT)
+  // 5C. TRUE 3D GERSTNER WAVE OCEAN SHADER (4-ISLAND HARD CLIP + 5-TAP RT)
   // =========================================================================
   function createWaterMaterial(reflTexture, resolution) {
     return new THREE.ShaderMaterial({
@@ -1513,7 +1647,7 @@ window.HorizonWorld = (() => {
   }
 
   // =========================================================================
-  // 6. WORLD BUILDER (SKY, 4 ISLANDS, 2-TIER 3D OCEAN & ROAD NETWORKS)
+  // 6. WORLD BUILDER (SKY, ENHANCED GRASS ISLANDS, 2-TIER OCEAN & ROADS)
   // =========================================================================
   function buildWorld(scene, reflTarget, drawingBufferSize) {
     const { ISLANDS, BRIDGE, SOUTH_WEST_BRIDGE, SOUTH_EAST_BRIDGE, TUNNEL, VIADUCT, ROAD_WIDTH, HIGHWAY_WIDTH } = CONFIG;
@@ -1693,15 +1827,23 @@ window.HorizonWorld = (() => {
     }
 
     const groundGroup = new THREE.Group();
+    const roadGroup = new THREE.Group();
+    const roadShadowGroup = new THREE.Group();
     scene.add(groundGroup);
+    scene.add(roadGroup);
+    scene.add(roadShadowGroup);
 
     const seawallMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.78 });
+    const roadShadowMat = new THREE.ShadowMaterial({ opacity: 0.36 });
+
+    // Rich Procedural Grass Materials per Island Biome
     const islandMaterials = {
-      metro: new THREE.MeshStandardMaterial({ map: createGrassTexture("#2f5327", [0, 34, -8]), roughness: 0.94 }),
-      palm: new THREE.MeshStandardMaterial({ map: createGrassTexture("#4f6f36", [28, 36, 4]), roughness: 0.92 }),
-      pinecrest: new THREE.MeshStandardMaterial({ map: createGrassTexture("#264428", [-6, 26, -6]), roughness: 0.95 }),
-      apexia: new THREE.MeshStandardMaterial({ map: createGrassTexture("#2c4a2e", [4, 28, -2]), roughness: 0.93 }),
+      metro: createRealisticGrassMaterial(0x2a5724, 0x437631, 0x3b3d26),
+      palm: createRealisticGrassMaterial(0x3a6a2e, 0x628c3b, 0x6c6541),
+      pinecrest: createRealisticGrassMaterial(0x1f4725, 0x346234, 0x363628),
+      apexia: createRealisticGrassMaterial(0x265429, 0x3f7537, 0x363c29),
     };
+    const allGrassMats = Object.values(islandMaterials);
 
     function addSeawallBox(x, z, w, d, h = 1.6) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), seawallMat);
@@ -1737,10 +1879,17 @@ window.HorizonWorld = (() => {
         addSeawallBox(isl.hole.maxX, lcz, 2.2, ld + 2);
       }
 
-      const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), islandMaterials[isl.id]);
+      const islandGeo = new THREE.ShapeGeometry(shape);
+      const mesh = new THREE.Mesh(islandGeo, islandMaterials[isl.id]);
       mesh.rotation.x = -Math.PI / 2;
-      mesh.receiveShadow = true;
       groundGroup.add(mesh);
+
+      // Shadow receiver overlay on grass so buildings, trees & cars cast real soft shadows on turf
+      const grassShadow = new THREE.Mesh(islandGeo, roadShadowMat);
+      grassShadow.rotation.x = -Math.PI / 2;
+      grassShadow.position.y = 0.012;
+      grassShadow.receiveShadow = true;
+      roadShadowGroup.add(grassShadow);
 
       const iw = isl.maxX - isl.minX;
       const id = isl.maxZ - isl.minZ;
@@ -1757,15 +1906,15 @@ window.HorizonWorld = (() => {
       new THREE.MeshStandardMaterial({ color: 0xd6b57c, roughness: 0.96 })
     );
     beachStrip.rotation.x = -Math.PI / 2;
-    beachStrip.position.set(1310, 0.015, 328);
+    beachStrip.position.set(1310, 0.018, 328);
     beachStrip.receiveShadow = true;
     groundGroup.add(beachStrip);
 
-    // 2-Tier 3D Gerstner Ocean Surface
+    // 2-Tier 3D Gerstner Ocean Surface (104x104 optimized near patch = 58% fewer vertices, smooth 3D waves!)
     const waterMat = createWaterMaterial(reflTarget.texture, drawingBufferSize);
     const waterGroup = new THREE.Group();
     const WATER_NEAR_SIZE = 420;
-    const WATER_NEAR_SEGS = 160;
+    const WATER_NEAR_SEGS = 104;
     const WATER_GRID_STEP = WATER_NEAR_SIZE / WATER_NEAR_SEGS;
 
     const waterNearGeo = new THREE.PlaneGeometry(WATER_NEAR_SIZE, WATER_NEAR_SIZE, WATER_NEAR_SEGS, WATER_NEAR_SEGS);
@@ -1818,12 +1967,6 @@ window.HorizonWorld = (() => {
     const roadMatBridge = createRealisticRoadMaterial(roadTexBridge, reflTarget.texture, drawingBufferSize, false);
     const roadMatCircuit = createRealisticRoadMaterial(roadTexCircuit, reflTarget.texture, drawingBufferSize, false);
     const roadMatInter = createRealisticRoadMaterial(roadTexCity, reflTarget.texture, drawingBufferSize, true);
-    const roadShadowMat = new THREE.ShadowMaterial({ opacity: 0.36 });
-
-    const roadGroup = new THREE.Group();
-    const roadShadowGroup = new THREE.Group();
-    scene.add(roadGroup);
-    scene.add(roadShadowGroup);
 
     const flatRoadRects = [];
     const roadSegments = [];
@@ -1871,7 +2014,7 @@ window.HorizonWorld = (() => {
       roadGroup.add(mesh);
     }
 
-    // 1) Metro Bay City Streets (extended South to x=0, z=380 for Apexia South-West Bridge)
+    // 1) Metro Bay City Streets
     addFlatRoad("z", 0, -340, 380, HIGHWAY_WIDTH, 0.038, true);
     addFlatRoad("x", 0, -260, 320, HIGHWAY_WIDTH, 0.038, true);
     addFlatRoad("z", -260, -240, 260, ROAD_WIDTH, 0.032, false);
@@ -1888,7 +2031,7 @@ window.HorizonWorld = (() => {
       [-130, -240, ROAD_WIDTH + 0.8], [-130, 0, HIGHWAY_WIDTH + 0.6], [-130, 120, ROAD_WIDTH + 0.8],
     ].forEach(([ix, iz, sz]) => addIntersection(ix, iz, sz));
 
-    // 2) Palm Island Marina Streets (extended South to x=1280, z=360 for Apexia South-East Bridge)
+    // 2) Palm Island Marina Streets
     addFlatRoad("x", 0, 960, 1540, HIGHWAY_WIDTH, 0.038, true);
     addFlatRoad("z", 1080, -280, 260, ROAD_WIDTH, 0.032, false);
     addFlatRoad("z", 1280, -380, 360, HIGHWAY_WIDTH, 0.038, true);
@@ -1917,16 +2060,16 @@ window.HorizonWorld = (() => {
     ].forEach(([ix, iz, sz]) => addIntersection(ix, iz, sz));
 
     // 4) Apexia Metropolis Skyscraper District Streets + Circuit Paddock Access Road
-    addFlatRoad("z", 0, 640, 1400, HIGHWAY_WIDTH, 0.038, true);     // Apexia Central Boulevard (connects SW Bridge)
-    addFlatRoad("x", 720, -320, 340, ROAD_WIDTH, 0.032, false);       // North Skyline Avenue
-    addFlatRoad("x", 950, -320, 452, HIGHWAY_WIDTH, 0.038, true);     // Grand Prix Paddock Boulevard (leads straight onto Pit Straight!)
-    addFlatRoad("x", 1200, -320, 340, ROAD_WIDTH, 0.032, false);      // South Financial Avenue
-    addFlatRoad("x", 1400, -320, 340, ROAD_WIDTH, 0.032, false);      // Harborfront Promenade
-    addFlatRoad("z", -320, 720, 1400, ROAD_WIDTH, 0.032, false);      // West Tower Drive
-    addFlatRoad("z", -160, 720, 1400, ROAD_WIDTH, 0.032, false);      // Midtown Glass Row
-    addFlatRoad("z", 180, 720, 1400, ROAD_WIDTH, 0.032, false);       // East Tower Drive
-    addFlatRoad("z", 340, 720, 1400, ROAD_WIDTH, 0.032, false);       // Circuit Paddock Avenue
-    addFlatRoad("z", 1280, 640, 695, HIGHWAY_WIDTH, 0.038, true);     // SE Bridge Landing Approach (north of GP Circuit)
+    addFlatRoad("z", 0, 640, 1400, HIGHWAY_WIDTH, 0.038, true);
+    addFlatRoad("x", 720, -320, 340, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("x", 950, -320, 452, HIGHWAY_WIDTH, 0.038, true);
+    addFlatRoad("x", 1200, -320, 340, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("x", 1400, -320, 340, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", -320, 720, 1400, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", -160, 720, 1400, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", 180, 720, 1400, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", 340, 720, 1400, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", 1280, 640, 695, HIGHWAY_WIDTH, 0.038, true);
 
     [
       [0, 720, HIGHWAY_WIDTH + 0.6], [0, 950, HIGHWAY_WIDTH + 0.8], [0, 1200, HIGHWAY_WIDTH + 0.6], [0, 1400, HIGHWAY_WIDTH + 0.6],
@@ -1939,6 +2082,7 @@ window.HorizonWorld = (() => {
     // 5) Sheltered 4-Lane Alpine Tunnel Expressway Floor
     addFlatRoad("z", 0, TUNNEL.endZ, TUNNEL.startZ, HIGHWAY_WIDTH, 0.042, true);
 
+    // FIXED: Counter-Clockwise (+Y Upward) Winding so Circuit Tarmac & ALL Bridge Decks render face-up!
     function buildElevatedRibbon(samples, halfW, mat) {
       const positions = [];
       const normals = [];
@@ -1963,7 +2107,7 @@ window.HorizonWorld = (() => {
 
         if (i < samples.length - 1) {
           const base = i * 2;
-          indices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
+          indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
         }
       }
 
@@ -1977,7 +2121,7 @@ window.HorizonWorld = (() => {
 
     // === END OF PART 1/2 — PASTE PART 2/2 DIRECTLY BELOW THIS LINE ===
     // =========================================================================
-    // 7. GOLDEN BAY SUSPENSION BRIDGE & TWIN APEXIA SOUTHERN BRIDGES
+    // 7. GOLDEN BAY SUSPENSION BRIDGE & TWIN APEXIA BRIDGES (INSTANCED BATCHING)
     // =========================================================================
     const bridgeSteelRed = new THREE.MeshStandardMaterial({ color: 0xb91c1c, metalness: 0.48, roughness: 0.38 });
     const bridgeDeckUndersideMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.55, roughness: 0.48 });
@@ -1985,9 +2129,10 @@ window.HorizonWorld = (() => {
     const jerseyBarrierMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.76, metalness: 0.16 });
     const steelRailMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.78, roughness: 0.25 });
     const gantrySteelMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.72, roughness: 0.34 });
-    const tlHousingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.35 });
+    const pierMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.8 });
+    const apexiaPylonMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.55, roughness: 0.28 });
 
-    // North Apexia Coastal Connector linking SE Bridge (1280, 685) to Apexia Skyline (340, 685) & GP North Gate
+    // North Apexia Coastal Connector linking SE Bridge (1280, 685) -> Apexia Skyline (340, 685) & GP North Gate
     addFlatRoad("x", 685, 340, 1280, HIGHWAY_WIDTH, 0.038, true);
     addFlatRoad("z", 340, 685, 725, ROAD_WIDTH, 0.032, false);
     addFlatRoad("z", 1280, 685, 755, ROAD_WIDTH, 0.036, false);
@@ -2010,6 +2155,17 @@ window.HorizonWorld = (() => {
     const catsEyeWhiteBatch = [];
     const highwayLampBatch = [];
     const gantrySignMaterials = [];
+
+    // High-efficiency instanced batches for all bridges & viaducts (cuts ~940 draw calls down to 5!)
+    const bridgeDeckBatch = [];
+    const jerseyBarrierBatch = [];
+    const steelRailBatch = [];
+    const pierBatch = [];
+    const suspRodBatch = [];
+
+    function pushEulerT(list, x, y, z, sx, sy, sz, rx = 0, ry = 0, rz = 0) {
+      list.push({ x, y, z, sx, sy, sz, rx, ry, rz });
+    }
 
     function addHighwayGantry(x, z, rotY, title, subtitle, arrow = "↑") {
       const g = new THREE.Group();
@@ -2083,13 +2239,7 @@ window.HorizonWorld = (() => {
       const segLen = Math.hypot(b.x - a.x, b.y - a.y);
       const pitch = Math.atan2(b.y - a.y, b.x - a.x);
 
-      const girder = new THREE.Mesh(
-        new THREE.BoxGeometry(segLen + 0.4, 2.3, HIGHWAY_WIDTH + 2.2),
-        bridgeDeckUndersideMat
-      );
-      girder.position.set(mx, my - 1.15, 0);
-      girder.rotation.z = pitch;
-      scene.add(girder);
+      pushEulerT(bridgeDeckBatch, mx, my - 1.15, 0, segLen + 0.4, 2.3, HIGHWAY_WIDTH + 2.2, 0, 0, pitch);
 
       catsEyeAmberBatch.push({ x: mx, y: my + 0.08, z: 0 });
       catsEyeWhiteBatch.push({ x: mx, y: my + 0.08, z: -(BRIDGE.halfW - 0.8) });
@@ -2102,15 +2252,8 @@ window.HorizonWorld = (() => {
 
       [-1, 1].forEach((side) => {
         const rz = side * (BRIDGE.halfW + 0.55);
-        const barrier = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.25, 1.05, 0.85), jerseyBarrierMat);
-        barrier.position.set(mx, my + 0.52, rz);
-        barrier.rotation.z = pitch;
-        scene.add(barrier);
-
-        const topRail = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.25, 0.22, 0.24), steelRailMat);
-        topRail.position.set(mx, my + 1.32, rz);
-        topRail.rotation.z = pitch;
-        scene.add(topRail);
+        pushEulerT(jerseyBarrierBatch, mx, my + 0.52, rz, segLen + 0.25, 1.05, 0.85, 0, 0, pitch);
+        pushEulerT(steelRailBatch, mx, my + 1.32, rz, segLen + 0.25, 0.22, 0.24, 0, 0, pitch);
 
         addAABB(
           Math.min(a.x, b.x),
@@ -2173,17 +2316,12 @@ window.HorizonWorld = (() => {
         const dy = evalBridge(x).h;
         const h = cy - dy;
         if (h > 1.5) {
-          const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, h, 5), cableMat);
-          rod.position.set(x, dy + h * 0.5, cz);
-          scene.add(rod);
+          pushEulerT(suspRodBatch, x, dy + h * 0.5, cz, 0.14, h, 0.14, 0, 0, 0);
         }
       }
     });
 
     // 7B) Twin Southern Cable-Stayed Bridges to Apexia Metropolis & GP Circuit
-    const pierMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.8 });
-    const apexiaPylonMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.55, roughness: 0.28 });
-
     function buildSouthSpanBridge(cfg) {
       const segs = 22;
       const samples = [];
@@ -2204,13 +2342,7 @@ window.HorizonWorld = (() => {
         const segLen = Math.hypot(b.z - a.z, b.y - a.y);
         const pitch = -Math.atan2(b.y - a.y, b.z - a.z);
 
-        const slab = new THREE.Mesh(
-          new THREE.BoxGeometry(HIGHWAY_WIDTH + 1.8, 1.9, segLen + 0.4),
-          bridgeDeckUndersideMat
-        );
-        slab.position.set(cfg.x, my - 0.95, mz);
-        slab.rotation.x = pitch;
-        scene.add(slab);
+        pushEulerT(bridgeDeckBatch, cfg.x, my - 0.95, mz, HIGHWAY_WIDTH + 1.8, 1.9, segLen + 0.4, pitch, 0, 0);
 
         catsEyeAmberBatch.push({ x: cfg.x, y: my + 0.08, z: mz });
         catsEyeWhiteBatch.push({ x: cfg.x - (cfg.halfW - 0.8), y: my + 0.08, z: mz });
@@ -2218,9 +2350,7 @@ window.HorizonWorld = (() => {
 
         if (i % 3 === 1) {
           if (my > 2.5) {
-            const pier = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 2.5, my + 4, 8), pierMat);
-            pier.position.set(cfg.x, (my - 4) * 0.5, mz);
-            scene.add(pier);
+            pushEulerT(pierBatch, cfg.x, (my - 4) * 0.5, mz, 2.2, my + 4, 2.2, 0, 0, 0);
           }
           highwayLampBatch.push({ x: cfg.x + (cfg.halfW + 0.85), y: my, z: mz, rotY: Math.PI / 2 });
           highwayLampBatch.push({ x: cfg.x - (cfg.halfW + 0.85), y: my, z: mz, rotY: -Math.PI / 2 });
@@ -2228,15 +2358,8 @@ window.HorizonWorld = (() => {
 
         [-1, 1].forEach((side) => {
           const rx = cfg.x + side * (cfg.halfW + 0.52);
-          const barrier = new THREE.Mesh(new THREE.BoxGeometry(0.82, 1.05, segLen + 0.25), jerseyBarrierMat);
-          barrier.position.set(rx, my + 0.52, mz);
-          barrier.rotation.x = pitch;
-          scene.add(barrier);
-
-          const rail = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, segLen + 0.25), steelRailMat);
-          rail.position.set(rx, my + 1.28, mz);
-          rail.rotation.x = pitch;
-          scene.add(rail);
+          pushEulerT(jerseyBarrierBatch, rx, my + 0.52, mz, 0.82, 1.05, segLen + 0.25, pitch, 0, 0);
+          pushEulerT(steelRailBatch, rx, my + 1.28, mz, 0.22, 0.22, segLen + 0.25, pitch, 0, 0);
 
           addAABB(
             rx - 0.45,
@@ -2252,6 +2375,7 @@ window.HorizonWorld = (() => {
 
       const midZ = (cfg.startZ + cfg.endZ) * 0.5;
       const pylonH = 58;
+      const upAxis = new THREE.Vector3(0, 1, 0);
       [-13.4, 13.4].forEach((ox) => {
         const leg = new THREE.Mesh(new THREE.BoxGeometry(2.6, pylonH, 3.2), apexiaPylonMat);
         leg.position.set(cfg.x + ox, pylonH * 0.5 - 4, midZ);
@@ -2268,7 +2392,7 @@ window.HorizonWorld = (() => {
           const len = pTop.distanceTo(pBot);
           const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, len, 5), cableMat);
           cable.position.copy(pTop).add(pBot).multiplyScalar(0.5);
-          cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pBot.clone().sub(pTop).normalize());
+          cable.quaternion.setFromUnitVectors(upAxis, pBot.clone().sub(pTop).normalize());
           scene.add(cable);
         }
       });
@@ -2418,7 +2542,7 @@ window.HorizonWorld = (() => {
     });
 
     // =========================================================================
-    // 9. NE COASTAL VIADUCT HIGHWAY (4-LANE DECK, BARRIERS & LAMPS)
+    // 9. NE COASTAL VIADUCT HIGHWAY (INSTANCED GIRDERS, BARRIERS & PIERS)
     // =========================================================================
     const eastSegs = 28;
     const eastSamples = [];
@@ -2439,13 +2563,7 @@ window.HorizonWorld = (() => {
       const segLen = Math.hypot(b.x - a.x, b.y - a.y);
       const pitch = Math.atan2(b.y - a.y, b.x - a.x);
 
-      const deckSlab = new THREE.Mesh(
-        new THREE.BoxGeometry(segLen + 0.4, 1.8, HIGHWAY_WIDTH + 1.8),
-        bridgeDeckUndersideMat
-      );
-      deckSlab.position.set(mx, my - 0.92, -1140);
-      deckSlab.rotation.z = pitch;
-      scene.add(deckSlab);
+      pushEulerT(bridgeDeckBatch, mx, my - 0.92, -1140, segLen + 0.4, 1.8, HIGHWAY_WIDTH + 1.8, 0, 0, pitch);
 
       catsEyeAmberBatch.push({ x: mx, y: my + 0.08, z: -1140 });
       catsEyeWhiteBatch.push({ x: mx, y: my + 0.08, z: -1140 - (VIADUCT.halfW - 0.8) });
@@ -2453,24 +2571,15 @@ window.HorizonWorld = (() => {
 
       if (i % 3 === 1) {
         if (my > 3) {
-          const pier = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.6, my + 4, 8), pierMat);
-          pier.position.set(mx, (my - 4) * 0.5, -1140);
-          scene.add(pier);
+          pushEulerT(pierBatch, mx, (my - 4) * 0.5, -1140, 2.3, my + 4, 2.3, 0, 0, 0);
         }
         highwayLampBatch.push({ x: mx, y: my, z: -1140 - (VIADUCT.halfW + 0.8), rotY: 0 });
       }
 
       [-1, 1].forEach((side) => {
         const rz = -1140 + side * (VIADUCT.halfW + 0.5);
-        const barrier = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.25, 1.05, 0.8), jerseyBarrierMat);
-        barrier.position.set(mx, my + 0.52, rz);
-        barrier.rotation.z = pitch;
-        scene.add(barrier);
-
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(segLen + 0.25, 0.2, 0.22), steelRailMat);
-        rail.position.set(mx, my + 1.28, rz);
-        rail.rotation.z = pitch;
-        scene.add(rail);
+        pushEulerT(jerseyBarrierBatch, mx, my + 0.52, rz, segLen + 0.25, 1.05, 0.8, 0, 0, pitch);
+        pushEulerT(steelRailBatch, mx, my + 1.28, rz, segLen + 0.25, 0.2, 0.22, 0, 0, pitch);
 
         addAABB(
           Math.min(a.x, b.x),
@@ -2506,13 +2615,7 @@ window.HorizonWorld = (() => {
 
       roadSegments.push({ x1: a.x, z1: a.z, x2: b.x, z2: b.z, w: HIGHWAY_WIDTH, kind: "viaduct" });
 
-      const slab = new THREE.Mesh(
-        new THREE.BoxGeometry(HIGHWAY_WIDTH + 1.8, 1.8, segLen + 0.8),
-        bridgeDeckUndersideMat
-      );
-      slab.position.set(mx, VIADUCT.deckH - 0.92, mz);
-      slab.rotation.y = yaw;
-      scene.add(slab);
+      pushEulerT(bridgeDeckBatch, mx, VIADUCT.deckH - 0.92, mz, HIGHWAY_WIDTH + 1.8, 1.8, segLen + 0.8, 0, yaw, 0);
 
       const midAng = -Math.PI * 0.5 + ((i + 0.5) / curveSegs) * (Math.PI * 0.5);
       catsEyeAmberBatch.push({ x: mx, y: VIADUCT.deckH + 0.08, z: mz });
@@ -2523,9 +2626,7 @@ window.HorizonWorld = (() => {
       });
 
       if (i % 3 === 1) {
-        const pier = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.7, VIADUCT.deckH + 4, 8), pierMat);
-        pier.position.set(mx, (VIADUCT.deckH - 4) * 0.5, mz);
-        scene.add(pier);
+        pushEulerT(pierBatch, mx, (VIADUCT.deckH - 4) * 0.5, mz, 2.4, VIADUCT.deckH + 4, 2.4, 0, 0, 0);
 
         const outerR = VIADUCT.curveR + VIADUCT.halfW + 0.8;
         highwayLampBatch.push({
@@ -2542,15 +2643,8 @@ window.HorizonWorld = (() => {
         const gz = VIADUCT.curveCZ + Math.sin(midAng) * rr;
         const railLen = (rr / VIADUCT.curveR) * segLen + 0.35;
 
-        const barrier = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.05, railLen), jerseyBarrierMat);
-        barrier.position.set(gx, VIADUCT.deckH + 0.52, gz);
-        barrier.rotation.y = yaw;
-        scene.add(barrier);
-
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, railLen), steelRailMat);
-        rail.position.set(gx, VIADUCT.deckH + 1.28, gz);
-        rail.rotation.y = yaw;
-        scene.add(rail);
+        pushEulerT(jerseyBarrierBatch, gx, VIADUCT.deckH + 0.52, gz, 0.8, 1.05, railLen, 0, yaw, 0);
+        pushEulerT(steelRailBatch, gx, VIADUCT.deckH + 1.28, gz, 0.22, 0.2, railLen, 0, yaw, 0);
 
         addOBB(gx, gz, 0.5, railLen * 0.5, yaw, VIADUCT.deckH - 1.5, VIADUCT.deckH + 3.5);
       });
@@ -2575,13 +2669,7 @@ window.HorizonWorld = (() => {
       const segLen = Math.hypot(b.z - a.z, b.y - a.y);
       const pitch = -Math.atan2(b.y - a.y, b.z - a.z);
 
-      const deckSlab = new THREE.Mesh(
-        new THREE.BoxGeometry(HIGHWAY_WIDTH + 1.8, 1.8, segLen + 0.4),
-        bridgeDeckUndersideMat
-      );
-      deckSlab.position.set(1280, my - 0.92, mz);
-      deckSlab.rotation.x = pitch;
-      scene.add(deckSlab);
+      pushEulerT(bridgeDeckBatch, 1280, my - 0.92, mz, HIGHWAY_WIDTH + 1.8, 1.8, segLen + 0.4, pitch, 0, 0);
 
       catsEyeAmberBatch.push({ x: 1280, y: my + 0.08, z: mz });
       catsEyeWhiteBatch.push({ x: 1280 - (VIADUCT.halfW - 0.8), y: my + 0.08, z: mz });
@@ -2589,24 +2677,15 @@ window.HorizonWorld = (() => {
 
       if (i % 3 === 1) {
         if (my > 3) {
-          const pier = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.6, my + 4, 8), pierMat);
-          pier.position.set(1280, (my - 4) * 0.5, mz);
-          scene.add(pier);
+          pushEulerT(pierBatch, 1280, (my - 4) * 0.5, mz, 2.3, my + 4, 2.3, 0, 0, 0);
         }
         highwayLampBatch.push({ x: 1280 + (VIADUCT.halfW + 0.8), y: my, z: mz, rotY: Math.PI / 2 });
       }
 
       [-1, 1].forEach((side) => {
         const rx = 1280 + side * (VIADUCT.halfW + 0.5);
-        const barrier = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.05, segLen + 0.25), jerseyBarrierMat);
-        barrier.position.set(rx, my + 0.52, mz);
-        barrier.rotation.x = pitch;
-        scene.add(barrier);
-
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, segLen + 0.25), steelRailMat);
-        rail.position.set(rx, my + 1.28, mz);
-        rail.rotation.x = pitch;
-        scene.add(rail);
+        pushEulerT(jerseyBarrierBatch, rx, my + 0.52, mz, 0.8, 1.05, segLen + 0.25, pitch, 0, 0);
+        pushEulerT(steelRailBatch, rx, my + 1.28, mz, 0.22, 0.2, segLen + 0.25, pitch, 0, 0);
 
         addAABB(
           rx - 0.45,
@@ -2620,35 +2699,61 @@ window.HorizonWorld = (() => {
       });
     }
 
+    // Flush all batched bridge/viaduct meshes in just 5 GPU draw calls!
+    const sharedUnitBox = new THREE.BoxGeometry(1, 1, 1);
+    const sharedUnitCyl = new THREE.CylinderGeometry(1, 1, 1, 8);
+    function flushEulerInstanced(geo, mat, list, castShadow = false, receiveShadow = true) {
+      if (!list.length) return;
+      const inst = new THREE.InstancedMesh(geo, mat, list.length);
+      inst.castShadow = castShadow;
+      inst.receiveShadow = receiveShadow;
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        dummy.position.set(it.x, it.y, it.z);
+        dummy.rotation.set(it.rx, it.ry, it.rz, "YXZ");
+        dummy.scale.set(it.sx, it.sy, it.sz);
+        dummy.updateMatrix();
+        inst.setMatrixAt(i, dummy.matrix);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      scene.add(inst);
+    }
+
+    flushEulerInstanced(sharedUnitBox, bridgeDeckUndersideMat, bridgeDeckBatch, false, true);
+    flushEulerInstanced(sharedUnitBox, jerseyBarrierMat, jerseyBarrierBatch, false, true);
+    flushEulerInstanced(sharedUnitBox, steelRailMat, steelRailBatch, false, false);
+    flushEulerInstanced(sharedUnitCyl, pierMat, pierBatch, false, true);
+    flushEulerInstanced(sharedUnitCyl, cableMat, suspRodBatch, false, false);
+
     // =========================================================================
-    // 9B. APEXIA GRAND PRIX CIRCUIT (FIA GRADE 1 TRACK, KERBS, PITS & GRANDSTANDS)
+    // 9B. APEXIA GRAND PRIX CIRCUIT (GRADE 1 TARMAC, KERBS, PITS & GRANDSTANDS)
     // =========================================================================
-    const CIRCUIT_HALF_W = 9.2;
+    const CIRCUIT_HALF_W = 9.2; // 18.4m Grade 1 racing surface
     const circuitCtrlPts = [
-      new THREE.Vector3(460, 0, 830),
-      new THREE.Vector3(460, 0, 980),
-      new THREE.Vector3(460, 0, 1150),
-      new THREE.Vector3(460, 0, 1315),
-      new THREE.Vector3(520, 0, 1405),
-      new THREE.Vector3(655, 0, 1418),
-      new THREE.Vector3(805, 0, 1398),
-      new THREE.Vector3(915, 0, 1318),
-      new THREE.Vector3(1045, 0, 1388),
-      new THREE.Vector3(1195, 0, 1322),
-      new THREE.Vector3(1345, 0, 1406),
-      new THREE.Vector3(1495, 0, 1372),
-      new THREE.Vector3(1545, 0, 1235),
-      new THREE.Vector3(1460, 0, 1125),
-      new THREE.Vector3(1275, 0, 1142),
-      new THREE.Vector3(1135, 0, 1055),
-      new THREE.Vector3(1245, 0, 965),
-      new THREE.Vector3(1445, 0, 948),
-      new THREE.Vector3(1532, 0, 855),
-      new THREE.Vector3(1430, 0, 755),
-      new THREE.Vector3(1180, 0, 755),
-      new THREE.Vector3(880, 0, 755),
-      new THREE.Vector3(605, 0, 755),
-      new THREE.Vector3(492, 0, 770),
+      new THREE.Vector3(460, 0, 830),   // Main Straight North
+      new THREE.Vector3(460, 0, 980),   // Start / Finish Line (Southbound)
+      new THREE.Vector3(460, 0, 1150),  // Main Straight Mid
+      new THREE.Vector3(460, 0, 1315),  // T1 Braking Zone
+      new THREE.Vector3(520, 0, 1405),  // T1 Apex (Apexia Corner)
+      new THREE.Vector3(655, 0, 1418),  // T2 Exit
+      new THREE.Vector3(805, 0, 1398),  // High-Speed Esses Entry
+      new THREE.Vector3(915, 0, 1318),  // T3 Left
+      new THREE.Vector3(1045, 0, 1388), // T4 Right
+      new THREE.Vector3(1195, 0, 1322), // T5 Left
+      new THREE.Vector3(1345, 0, 1406), // South Sweeper
+      new THREE.Vector3(1495, 0, 1372), // T6 East Bend
+      new THREE.Vector3(1545, 0, 1235), // East Run
+      new THREE.Vector3(1460, 0, 1125), // T7 Stadium Entry
+      new THREE.Vector3(1275, 0, 1142), // T8 Stadium Apex
+      new THREE.Vector3(1135, 0, 1055), // T9 Harbor Hairpin
+      new THREE.Vector3(1245, 0, 965),  // T10 Hairpin Exit
+      new THREE.Vector3(1445, 0, 948),  // East Stadium Straight
+      new THREE.Vector3(1532, 0, 855),  // T11 Fast Sweep
+      new THREE.Vector3(1430, 0, 755),  // Back Straight Entry (DRS 2)
+      new THREE.Vector3(1180, 0, 755),  // Back Straight Mid
+      new THREE.Vector3(880, 0, 755),   // Back Straight West
+      new THREE.Vector3(605, 0, 755),   // Final Corner Braking
+      new THREE.Vector3(492, 0, 770),   // T12 Final Corner Apex
     ];
 
     const circuitCurve = new THREE.CatmullRomCurve3(circuitCtrlPts, true, "centripetal", 0.5);
@@ -2666,9 +2771,10 @@ window.HorizonWorld = (() => {
       }
       const rx = -tan.z;
       const rz = tan.x;
+      // y = 0.025 + 0.04 in buildElevatedRibbon = 0.065m (cleanly above grass & city roads!)
       circuitSamples.push({
         x: pt.x,
-        y: 0.02,
+        y: 0.025,
         z: pt.z,
         tx: tan.x,
         tz: tan.z,
@@ -2681,10 +2787,11 @@ window.HorizonWorld = (() => {
       });
     }
 
+    // Build Grade 1 Racing Tarmac Surface Ribbon (now properly upward-facing with full RT puddles!)
     roadGroup.add(buildElevatedRibbon(circuitSamples, CIRCUIT_HALF_W, roadMatCircuit));
 
     const circuitShadowMesh = buildElevatedRibbon(circuitSamples, CIRCUIT_HALF_W, roadShadowMat);
-    circuitShadowMesh.position.y = 0.022;
+    circuitShadowMesh.position.y = 0.015;
     circuitShadowMesh.receiveShadow = true;
     roadShadowGroup.add(circuitShadowMesh);
 
@@ -2694,6 +2801,7 @@ window.HorizonWorld = (() => {
       roadSegments.push({ x1: a.x, z1: a.z, x2: b.x, z2: b.z, w: CIRCUIT_HALF_W * 2, kind: "circuit" });
     }
 
+    // Instanced Red & White 3D Kerbs + Perimeter Safety Impact Barriers (with open Paddock & North Gates)
     const kerbRedMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.52 });
     const kerbWhiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.48 });
     const barrierRedMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.62 });
@@ -2721,15 +2829,7 @@ window.HorizonWorld = (() => {
         const inNorthGate = kz < 752 && kx > 1254 && kx < 1306;
 
         if (!inWestGate && !inNorthGate) {
-          (isRed ? kerbRedBatch : kerbWhiteBatch).push({
-            x: kx,
-            y: 0.075,
-            z: kz,
-            sx: 1.75,
-            sy: 0.11,
-            sz: segLen + 0.35,
-            ry: yaw,
-          });
+          pushEulerT(isRed ? kerbRedBatch : kerbWhiteBatch, kx, 0.085, kz, 1.75, 0.11, segLen + 0.35, 0, yaw, 0);
         }
 
         const bx = mx + a.rx * side * (CIRCUIT_HALF_W + 5.6);
@@ -2738,42 +2838,16 @@ window.HorizonWorld = (() => {
         const barInNorthGate = bz < 754 && bx > 1250 && bx < 1310;
 
         if (!barInWestGate && !barInNorthGate) {
-          (isRed ? barRedBatch : barWhiteBatch).push({
-            x: bx,
-            y: 0.62,
-            z: bz,
-            sx: 0.9,
-            sy: 1.24,
-            sz: segLen + 0.55,
-            ry: yaw,
-          });
+          pushEulerT(isRed ? barRedBatch : barWhiteBatch, bx, 0.62, bz, 0.9, 1.24, segLen + 0.55, 0, yaw, 0);
           addOBB(bx, bz, 0.55, segLen * 0.5 + 0.25, yaw, -1, 3.0);
         }
       });
     }
 
-    const gpUnitBox = new THREE.BoxGeometry(1, 1, 1);
-    function addSimpleInst(geo, mat, list, castShadow = false) {
-      if (!list.length) return;
-      const inst = new THREE.InstancedMesh(geo, mat, list.length);
-      inst.castShadow = castShadow;
-      inst.receiveShadow = true;
-      for (let i = 0; i < list.length; i++) {
-        const it = list[i];
-        dummy.position.set(it.x, it.y, it.z);
-        dummy.rotation.set(0, it.ry, 0);
-        dummy.scale.set(it.sx, it.sy, it.sz);
-        dummy.updateMatrix();
-        inst.setMatrixAt(i, dummy.matrix);
-      }
-      inst.instanceMatrix.needsUpdate = true;
-      scene.add(inst);
-    }
-
-    addSimpleInst(gpUnitBox, kerbRedMat, kerbRedBatch, false);
-    addSimpleInst(gpUnitBox, kerbWhiteMat, kerbWhiteBatch, false);
-    addSimpleInst(gpUnitBox, barrierRedMat, barRedBatch, true);
-    addSimpleInst(gpUnitBox, barrierWhiteMat, barWhiteBatch, true);
+    flushEulerInstanced(sharedUnitBox, kerbRedMat, kerbRedBatch, false, true);
+    flushEulerInstanced(sharedUnitBox, kerbWhiteMat, kerbWhiteBatch, false, true);
+    flushEulerInstanced(sharedUnitBox, barrierRedMat, barRedBatch, true, true);
+    flushEulerInstanced(sharedUnitBox, barrierWhiteMat, barWhiteBatch, true, true);
 
     let startIdx = 0;
     let bestStartD = Infinity;
@@ -2796,6 +2870,7 @@ window.HorizonWorld = (() => {
       return circuitSamples[0];
     }
 
+    // Checkered Start / Finish Strip + Painted Grand Prix Starting Grid Slots (y = 0.095 cleanly above tarmac!)
     const checkCanvas = document.createElement("canvas");
     checkCanvas.width = 512;
     checkCanvas.height = 128;
@@ -2809,7 +2884,7 @@ window.HorizonWorld = (() => {
     const checkMat = new THREE.MeshStandardMaterial({ map: configureSmoothTexture(new THREE.CanvasTexture(checkCanvas)), roughness: 0.45 });
     const sfStrip = new THREE.Mesh(new THREE.PlaneGeometry(CIRCUIT_HALF_W * 2 - 1.2, 3.8), checkMat);
     sfStrip.rotation.x = -Math.PI / 2;
-    sfStrip.position.set(460, 0.085, 980);
+    sfStrip.position.set(460, 0.095, 980);
     scene.add(sfStrip);
 
     const gridLineMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
@@ -2818,9 +2893,12 @@ window.HorizonWorld = (() => {
       const gx = 460 + (g % 2 === 0 ? -3.4 : 3.4);
       const boxF = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.32), gridLineMat);
       boxF.rotation.x = -Math.PI / 2;
-      boxF.position.set(gx, 0.085, gz);
+      boxF.position.set(gx, 0.095, gz);
       scene.add(boxF);
     }
+
+    // Defined here BEFORE buildCircuitArch so there is zero TDZ reference error
+    const tlHousingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.35 });
 
     function buildCircuitArch(sample, title, accentHex, isStartGantry = false) {
       const arch = new THREE.Group();
@@ -2884,6 +2962,7 @@ window.HorizonWorld = (() => {
     buildCircuitArch(getCircuitSampleAtDist(s1Dist), "SECTOR 1 · TIMING", 0x38bdf8, false);
     buildCircuitArch(getCircuitSampleAtDist(s2Dist), "SECTOR 2 · TIMING", 0xf59e0b, false);
 
+    // Pit Building Complex, Race Control Tower & 3 Covered Grandstands
     const pitWallMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.38, metalness: 0.45 });
     const pitGlassMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x38bdf8, emissiveIntensity: 0.55, roughness: 0.14, metalness: 0.85 });
     const standRoofMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.35, metalness: 0.3 });
@@ -2960,13 +3039,29 @@ window.HorizonWorld = (() => {
       addCircleCollider(fx, fz, 0.7, -2, 26, false);
     });
 
+    // Fast Coarse-to-Fine Circuit Progress Sampler (5x faster than brute-force!)
     function getTrackProgress(x, z) {
       if (x < 425 || x > 1585 || z < 720 || z > 1455) {
         return { onTrack: false, onTarmac: false, dist: 0, distToCenter: 999 };
       }
+
+      let bestCoarseIdx = 0;
+      let bestCoarseSq = Infinity;
+      for (let i = 0; i < CIRCUIT_SEGS; i += 10) {
+        const s = circuitSamples[i];
+        const dx = x - s.x;
+        const dz = z - s.z;
+        const dSq = dx * dx + dz * dz;
+        if (dSq < bestCoarseSq) {
+          bestCoarseSq = dSq;
+          bestCoarseIdx = i;
+        }
+      }
+
       let bestDistSq = Infinity;
       let bestS = 0;
-      for (let i = 0; i < CIRCUIT_SEGS; i++) {
+      for (let off = -12; off <= 12; off++) {
+        const i = (bestCoarseIdx + off + CIRCUIT_SEGS) % CIRCUIT_SEGS;
         const a = circuitSamples[i];
         const b = circuitSamples[i + 1];
         const abx = b.x - a.x;
@@ -2981,6 +3076,7 @@ window.HorizonWorld = (() => {
           bestS = a.dist + t * Math.sqrt(lenSq);
         }
       }
+
       const d = Math.sqrt(bestDistSq);
       return {
         onTrack: d <= CIRCUIT_HALF_W + 6.5,
@@ -3000,6 +3096,7 @@ window.HorizonWorld = (() => {
       getTrackProgress,
     };
 
+    // Instanced Highway Cat's-Eye Studs & Cobra-Head Streetlamps
     const studAmberMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xf59e0b, emissiveIntensity: 2.5 });
     const studWhiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, emissive: 0xe2e8f0, emissiveIntensity: 2.0 });
     const studGeo = new THREE.BoxGeometry(0.24, 0.07, 0.24);
@@ -3207,7 +3304,7 @@ window.HorizonWorld = (() => {
     }
 
     // =========================================================================
-    // 11. STUNT RAMPS & METRO BAY NEEDLE LANDMARK
+    // 11. STUNT RAMPS, METRO BAY NEEDLE & 260m APEXIA SUPERTALL SPIRE
     // =========================================================================
     const ramps = [];
     const rampMatShared = new THREE.MeshStandardMaterial({
@@ -3266,7 +3363,7 @@ window.HorizonWorld = (() => {
     addCircleCollider(110, -120, 7.2, -2, 180, true);
 
     // =========================================================================
-    // 12. FOUR DISTINCT ARCHITECTURAL CITIES (INCLUDING APEXIA SUPERTALLS!)
+    // 12. FOUR ARCHITECTURAL CITIES + 3D SWAYING GRASS TUFTS
     // =========================================================================
     function isClearOfRoadsAndWater(cx, cz, hw, hd) {
       const pad = 6.2;
@@ -3306,7 +3403,7 @@ window.HorizonWorld = (() => {
       buildingMaterials.push(mat);
     });
 
-    // Iconic 260m Apexia Spire Supertall Landmark (at x = -80, z = 1075)
+    // Iconic 260m Apexia Spire Supertall Landmark
     const apexSpireGrp = new THREE.Group();
     const sTiers = [
       { w: 34, h: 78, y: 39, mat: facadeMats.glass },
@@ -3620,19 +3717,18 @@ window.HorizonWorld = (() => {
       return inst;
     }
 
-    const unitBoxGeo = new THREE.BoxGeometry(1, 1, 1);
     const unitCylGeo = new THREE.CylinderGeometry(1, 1, 1, 12);
     const unitConeGeo = new THREE.ConeGeometry(1, 1, 4);
     const spireConeGeo = new THREE.ConeGeometry(1, 1, 6);
 
-    buildInstanced(unitBoxGeo, facadeMats.glass, boxBatches.glass);
-    buildInstanced(unitBoxGeo, facadeMats.artdeco, boxBatches.artdeco);
-    buildInstanced(unitBoxGeo, facadeMats.resort, boxBatches.resort);
-    buildInstanced(unitBoxGeo, facadeMats.alpine, boxBatches.alpine);
-    buildInstanced(unitBoxGeo, facadeMats.warehouse, boxBatches.warehouse);
-    buildInstanced(unitBoxGeo, facadeMats.cyber, boxBatches.cyber);
-    buildInstanced(unitBoxGeo, roofDarkMat, boxBatches.roof);
-    buildInstanced(unitBoxGeo, containerMat, boxBatches.container);
+    buildInstanced(sharedUnitBox, facadeMats.glass, boxBatches.glass);
+    buildInstanced(sharedUnitBox, facadeMats.artdeco, boxBatches.artdeco);
+    buildInstanced(sharedUnitBox, facadeMats.resort, boxBatches.resort);
+    buildInstanced(sharedUnitBox, facadeMats.alpine, boxBatches.alpine);
+    buildInstanced(sharedUnitBox, facadeMats.warehouse, boxBatches.warehouse);
+    buildInstanced(sharedUnitBox, facadeMats.cyber, boxBatches.cyber);
+    buildInstanced(sharedUnitBox, roofDarkMat, boxBatches.roof);
+    buildInstanced(sharedUnitBox, containerMat, boxBatches.container);
 
     buildInstanced(unitCylGeo, facadeMats.glass, cylBatches.glass);
     buildInstanced(unitCylGeo, facadeMats.cyber, cylBatches.cyber);
@@ -3641,7 +3737,7 @@ window.HorizonWorld = (() => {
 
     buildInstanced(spireConeGeo, spireMetalMat, spireBatch, false, false);
     buildInstanced(unitConeGeo, pitchedRoofMat, pitchedRoofBatch);
-    neonBatches.forEach((b, idx) => buildInstanced(unitBoxGeo, neonMaterials[idx], b, false, false));
+    neonBatches.forEach((b, idx) => buildInstanced(sharedUnitBox, neonMaterials[idx], b, false, false));
 
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9 });
     const leafMat = new THREE.MeshStandardMaterial({ color: 0x1e5c2e, roughness: 0.85 });
@@ -3664,6 +3760,107 @@ window.HorizonWorld = (() => {
       crownInst.instanceMatrix.needsUpdate = true;
       scene.add(trunkInst);
       scene.add(crownInst);
+    }
+
+    // --- 3D Wind-Swaying Instanced Grass Tufts (1 GPU Draw Call, Skipped in Mirror RT Pass!) ---
+    const tuftPositions = [];
+    for (let attempt = 0; attempt < 2600 && tuftPositions.length < 1300; attempt++) {
+      const isl = ISLANDS[Math.floor(rand() * ISLANDS.length)];
+      const gx = isl.minX + 12 + rand() * (isl.maxX - isl.minX - 24);
+      const gz = isl.minZ + 12 + rand() * (isl.maxZ - isl.minZ - 24);
+      if (isl.id === "palm" && gz > 295) continue; // Keep beach strip sandy
+      if (!isClearOfRoadsAndWater(gx, gz, 2.2, 2.2)) continue;
+      if (isl.id === "apexia" && getTrackProgress(gx, gz).onTrack) continue;
+      // Avoid spawning inside buildings
+      let blocked = false;
+      for (let b = 0; b < minimapBuildings.length; b++) {
+        const mb = minimapBuildings[b];
+        if (gx > mb.minX - 2 && gx < mb.maxX + 2 && gz > mb.minZ - 2 && gz < mb.maxZ + 2) {
+          blocked = true;
+          break;
+        }
+      }
+      if (!blocked) tuftPositions.push({ x: gx, z: gz, s: 0.75 + rand() * 0.75, ry: rand() * Math.PI });
+    }
+
+    const tuftMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0.0 },
+        uRoadMoisture: { value: 0.0 },
+        uSunColor: { value: new THREE.Color(0xffa45b) },
+        uAmbientColor: { value: new THREE.Color(0x523c46) },
+        uFogColor: { value: new THREE.Color(0xb85247) },
+        uFogDensity: { value: 0.00064 },
+      },
+      side: THREE.DoubleSide,
+      vertexShader: `
+        uniform float uTime;
+        varying vec2 vUv;
+        varying float vCamDist;
+        void main() {
+          vUv = uv;
+          vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
+          float sway = sin(wp.x * 0.14 + wp.z * 0.10 - uTime * 2.3) * 0.18 * uv.y * uv.y;
+          wp.x += sway;
+          wp.z += sway * 0.6;
+          vCamDist = length(cameraPosition - wp.xyz);
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform float uRoadMoisture;
+        uniform vec3 uSunColor;
+        uniform vec3 uAmbientColor;
+        uniform vec3 uFogColor;
+        uniform float uFogDensity;
+        varying vec2 vUv;
+        varying float vCamDist;
+        void main() {
+          if (vCamDist > 135.0) discard;
+          // 3 tapered procedural grass blades per crossed quad
+          float bx = fract(vUv.x * 3.0) - 0.5;
+          float width = (1.0 - vUv.y) * 0.44;
+          if (abs(bx) > width) discard;
+
+          vec3 rootCol = vec3(0.11, 0.24, 0.09);
+          vec3 tipCol = vec3(0.32, 0.56, 0.20);
+          vec3 col = mix(rootCol, tipCol, pow(vUv.y, 0.85)) * (1.0 - uRoadMoisture * 0.2);
+          col *= (uAmbientColor * 1.15 + uSunColor * (0.45 + 0.55 * vUv.y));
+
+          float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * vCamDist * vCamDist);
+          col = mix(col, uFogColor, clamp(fogFactor, 0.0, 1.0));
+          gl_FragColor = vec4(col, 1.0);
+          #include <tonemapping_fragment>
+        }
+      `,
+    });
+
+    if (tuftPositions.length) {
+      // Crossed X-quad geometry (4 triangles per tuft)
+      const tPos = new Float32Array([
+        -0.65, 0, 0,  0.65, 0, 0,  0.65, 0.58, 0,  -0.65, 0.58, 0,
+        0, 0, -0.65,  0, 0, 0.65,  0, 0.58, 0.65,   0, 0.58, -0.65,
+      ]);
+      const tUv = new Float32Array([
+        0, 0, 1, 0, 1, 1, 0, 1,
+        0, 0, 1, 0, 1, 1, 0, 1,
+      ]);
+      const tGeo = new THREE.BufferGeometry();
+      tGeo.setAttribute("position", new THREE.BufferAttribute(tPos, 3));
+      tGeo.setAttribute("uv", new THREE.BufferAttribute(tUv, 2));
+      tGeo.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]);
+
+      const tuftInst = new THREE.InstancedMesh(tGeo, tuftMat, tuftPositions.length);
+      for (let i = 0; i < tuftPositions.length; i++) {
+        const tp = tuftPositions[i];
+        dummy.position.set(tp.x, 0.0, tp.z);
+        dummy.rotation.set(0, tp.ry, 0);
+        dummy.scale.set(tp.s, tp.s, tp.s);
+        dummy.updateMatrix();
+        tuftInst.setMatrixAt(i, dummy.matrix);
+      }
+      tuftInst.instanceMatrix.needsUpdate = true;
+      groundGroup.add(tuftInst);
     }
 
     if (lampBatch.length) {
@@ -3692,7 +3889,7 @@ window.HorizonWorld = (() => {
       const rad = 2250 + (i % 4) * 160;
       const h = 120 + (i % 5) * 58;
       const w = 160 + (i % 3) * 60;
-      dummy.position.set(600 + Math.cos(a) * rad, h * 0.5 - 2, Math.sin(a) * rad);
+      dummy.position.set(600 + Math.cos(a) * rad, h * 0.5 - 2, 0 + Math.sin(a) * rad);
       dummy.rotation.set(0, a, 0);
       dummy.scale.set(w, h, w);
       dummy.updateMatrix();
@@ -3856,6 +4053,7 @@ window.HorizonWorld = (() => {
       return out;
     }
 
+    // --- Interactive A* GPS Road Network Across All 4 Islands, Bridges, Tunnel & GP Circuit ---
     const gpsNodes = [];
     const gpsAdj = new Map();
     const gpsNodeIndex = new Map();
@@ -4018,7 +4216,7 @@ window.HorizonWorld = (() => {
     }
 
     // =========================================================================
-    // 14. JAM-FREE AI TRAFFIC (4 CITIES — GP CIRCUIT KEPT CLEAR FOR HOT LAPS!)
+    // 14. JAM-FREE AI TRAFFIC (4 CITIES — GP CIRCUIT KEPT CLEAR FOR HOT LAPS)
     // =========================================================================
     const trafficGroup = new THREE.Group();
     scene.add(trafficGroup);
@@ -4323,15 +4521,15 @@ window.HorizonWorld = (() => {
     }
 
     const compiledLoops = [
-      { loop: buildSmoothLaneLoop(ROUTES[0], false, 3.2), count: 9 },
-      { loop: buildSmoothLaneLoop(ROUTES[0], false, 7.2), count: 7 },
-      { loop: buildSmoothLaneLoop(ROUTES[0], true, 3.2), count: 9 },
-      { loop: buildSmoothLaneLoop(ROUTES[0], true, 7.2), count: 7 },
-      { loop: buildSmoothLaneLoop(ROUTES[1], false, 3.8), count: 5 },
+      { loop: buildSmoothLaneLoop(ROUTES[0], false, 3.2), count: 8 },
+      { loop: buildSmoothLaneLoop(ROUTES[0], false, 7.2), count: 6 },
+      { loop: buildSmoothLaneLoop(ROUTES[0], true, 3.2), count: 8 },
+      { loop: buildSmoothLaneLoop(ROUTES[0], true, 7.2), count: 6 },
+      { loop: buildSmoothLaneLoop(ROUTES[1], false, 3.8), count: 4 },
       { loop: buildSmoothLaneLoop(ROUTES[2], false, 3.8), count: 4 },
       { loop: buildSmoothLaneLoop(ROUTES[3], false, 3.8), count: 4 },
-      { loop: buildSmoothLaneLoop(ROUTES[4], false, 3.8), count: 8 },
-      { loop: buildSmoothLaneLoop(ROUTES[5], false, 3.6), count: 8 },
+      { loop: buildSmoothLaneLoop(ROUTES[4], false, 3.8), count: 7 },
+      { loop: buildSmoothLaneLoop(ROUTES[5], false, 3.6), count: 7 },
     ];
 
     compiledLoops.forEach(({ loop, count }, loopIdx) => {
@@ -4930,7 +5128,6 @@ window.HorizonWorld = (() => {
             }
             continue;
           }
-
           const t = b.age / b.life;
           const fadeScale = Math.sin(t * Math.PI) * b.power;
           const timeS = b.age;
@@ -5029,24 +5226,31 @@ window.HorizonWorld = (() => {
     }
 
     const allRoadMats = [roadMatCity, roadMatHighway, roadMatBridge, roadMatCircuit, roadMatInter];
+
+    function setGrassUniform(name, val) {
+      for (let i = 0; i < allGrassMats.length; i++) {
+        const u = allGrassMats[i].uniforms[name];
+        if (!u) continue;
+        if (u.value && typeof u.value.copy === "function") u.value.copy(val);
+        else u.value = val;
+      }
+    }
+
     function setRoadUniform(name, val) {
-      allRoadMats.forEach((m) => {
-        if (!m.uniforms[name]) return;
-        if (m.uniforms[name].value && typeof m.uniforms[name].value.copy === "function") {
-          m.uniforms[name].value.copy(val);
-        } else {
-          m.uniforms[name].value = val;
-        }
-      });
+      for (let i = 0; i < allRoadMats.length; i++) {
+        const u = allRoadMats[i].uniforms[name];
+        if (!u) continue;
+        if (u.value && typeof u.value.copy === "function") u.value.copy(val);
+        else u.value = val;
+      }
+      setGrassUniform(name, val);
     }
 
     function setWaterUniform(name, val) {
-      if (!waterMat.uniforms[name]) return;
-      if (waterMat.uniforms[name].value && typeof waterMat.uniforms[name].value.copy === "function") {
-        waterMat.uniforms[name].value.copy(val);
-      } else {
-        waterMat.uniforms[name].value = val;
-      }
+      const u = waterMat.uniforms[name];
+      if (!u) return;
+      if (u.value && typeof u.value.copy === "function") u.value.copy(val);
+      else u.value = val;
     }
 
     return {
@@ -5078,6 +5282,7 @@ window.HorizonWorld = (() => {
       getZoneName,
       computeGPSRoute,
       setRoadUniform,
+      setGrassUniform,
       setWaterUniform,
       setTrafficLighting,
       updateTrafficAndBoats,
