@@ -2,434 +2,266 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <title>Velocity Coast 3D — Apexia Grand Prix &amp; GPS Edition</title>
-  <link rel="stylesheet" href="style.css?v=7" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Velocity Coast 3D — Open-World Driving</title>
+  <link rel="stylesheet" href="style.css?v=16" />
 </head>
 <body>
   <div id="canvas-container"></div>
+  <div id="flash-overlay"></div>
+  <div id="tunnel-overlay"></div>
+  <div id="event-banner"></div>
 
-  <!-- Environmental Screen Overlays -->
-  <div id="flash-overlay" aria-hidden="true"></div>
-  <div id="tunnel-overlay" aria-hidden="true"></div>
+  <!-- Top HUD Bar -->
+  <div id="top-hud">
+    <div class="brand-card">
+      <div class="brand-title">VELOCITY COAST 3D</div>
+      <div id="status-zone" class="brand-zone">METRO BAY CITY</div>
+      <div id="active-car-label" class="brand-car">VERIDIAN GT</div>
+    </div>
 
-  <!-- HUD Overlay -->
-  <div id="hud">
-    <!-- Top Bar -->
-    <div class="hud-top">
-      <div class="brand-badge">
-        <span class="title">VELOCITY COAST 3D</span>
-        <span class="subtitle" id="status-zone">METRO BAY CITY</span>
-        <span class="car-tag" id="active-car-label">VERIDIAN GT</span>
+    <div class="controls-bar">
+      <button id="btn-pad" class="hud-btn" title="Controller Status">PAD: <span id="pad-label">OFF</span></button>
+      <button id="btn-touch" class="hud-btn" title="Toggle Touch Controls">TOUCH: <span id="touch-label">OFF</span></button>
+      <button id="btn-map" class="hud-btn accent-green" title="Open Interactive GPS Map [F]">MAP [F]</button>
+      <button id="btn-garage" class="hud-btn accent-purple" title="Open Vehicle Garage [G]">GARAGE [G]</button>
+      <button id="btn-siren" class="hud-btn hidden" title="Toggle Patrol Siren [L]">SIREN: <span id="siren-label">OFF</span></button>
+      <button id="btn-rt" class="hud-btn active" title="Toggle RT Reflections, FXAA & Bloom [T]">RT: <span id="rt-label">ON</span></button>
+      <button id="btn-weather" class="hud-btn" title="Cycle Weather [V]">WEATHER: <span id="weather-label">CLEAR</span></button>
+      <button id="btn-time" class="hud-btn" title="Cycle Time of Day [N]">TIME: <span id="time-label">SUNSET</span></button>
+      <button id="btn-traffic" class="hud-btn active" title="Toggle Traffic & Boats [P]">TRAFFIC: <span id="traffic-label">ON</span></button>
+      <button id="btn-camera" class="hud-btn" title="Switch Camera View [C]">CAM: <span id="cam-label">CHASE</span></button>
+      <button id="btn-warp" class="hud-btn" title="Fast Travel [X]">TRAVEL: <span id="warp-label">METRO BAY</span></button>
+      <button id="btn-sound" class="hud-btn" title="Toggle Audio [M]">AUDIO: <span id="sound-label">MUTED</span></button>
+      <button id="btn-reset" class="hud-btn" title="Reset Vehicle [R]">RESET [R]</button>
+    </div>
+  </div>
+
+  <!-- Turn-by-Turn GPS Navigation Bar -->
+  <div id="gps-bar" class="hidden">
+    <div id="gps-arrow">↑</div>
+    <div class="gps-info">
+      <div id="gps-instruction">CONTINUE STRAIGHT</div>
+      <div id="gps-dest-name">DESTINATION</div>
+    </div>
+    <div id="gps-distance">0 m</div>
+    <button id="btn-gps-clear" class="gps-clear-btn" title="Clear GPS Route">✕</button>
+  </div>
+
+  <!-- Grade 1 Grand Prix Circuit Live Lap & Sector Timing HUD -->
+  <div id="circuit-hud" class="hidden">
+    <div class="circuit-header">
+      <span class="circuit-tag">APEXIA GP CIRCUIT</span>
+      <span id="lap-num" class="lap-badge">OUT LAP</span>
+    </div>
+    <div class="lap-times-row">
+      <div class="lap-col">
+        <span class="lap-lbl">CURRENT</span>
+        <span id="lap-current" class="lap-val">0:00.00</span>
       </div>
+      <div class="lap-col">
+        <span class="lap-lbl">BEST</span>
+        <span id="lap-best" class="lap-val best">--:--.--</span>
+      </div>
+      <div class="lap-col">
+        <span class="lap-lbl">LAST</span>
+        <span id="lap-last" class="lap-val">--:--.--</span>
+      </div>
+    </div>
+    <div class="sectors-row">
+      <span id="sec-1" class="sec-pill">S1 --.-</span>
+      <span id="sec-2" class="sec-pill">S2 --.-</span>
+      <span id="sec-3" class="sec-pill">S3 --.-</span>
+    </div>
+  </div>
 
-      <div class="toolbar">
-        <div id="pad-badge" class="hud-btn pad-badge" title="Connect a USB or Bluetooth Gamepad">
-          PAD: <span id="pad-label">OFF</span>
-        </div>
-        <button id="btn-touch" class="hud-btn" title="Toggle On-Screen Mobile Touch Controls">
-          TOUCH: <span id="touch-label">AUTO</span>
-        </button>
-        <button id="btn-map" class="hud-btn map-btn" title="Open Interactive GPS Map (F)">
-          MAP <span>[F]</span>
-        </button>
-        <button id="btn-garage" class="hud-btn garage-btn" title="Open Vehicle Garage (G / Start)">
-          GARAGE <span>[G]</span>
-        </button>
-        <button id="btn-siren" class="hud-btn siren-btn hidden" title="Toggle Patrol Lightbar &amp; Siren (L / RB)">
-          SIREN: <span id="siren-label">OFF</span>
-        </button>
-        <button id="btn-rt" class="hud-btn active" title="Toggle Real-Time Reflections (T / D-Pad Right)">
-          RT: <span id="rt-label">ON</span>
-        </button>
-        <button id="btn-weather" class="hud-btn" title="Cycle Weather (V / D-Pad Up)">
-          WEATHER: <span id="weather-label">CLEAR</span>
-        </button>
-        <button id="btn-time" class="hud-btn" title="Cycle Time of Day (N / D-Pad Down)">
-          TIME: <span id="time-label">SUNSET</span>
-        </button>
-        <button id="btn-traffic" class="hud-btn active" title="Toggle AI Traffic &amp; Boats (P)">
-          TRAFFIC: <span id="traffic-label">ON</span>
-        </button>
-        <button id="btn-camera" class="hud-btn" title="Switch Camera (C / Y)">
-          CAM: <span id="cam-label">CHASE</span>
-        </button>
-        <button id="btn-warp" class="hud-btn" title="Fast Travel (X / D-Pad Left)">
-          TRAVEL: <span id="warp-label">METRO BAY</span>
-        </button>
-        <button id="btn-sound" class="hud-btn" title="Toggle Audio (M)">
-          AUDIO: <span id="sound-label">CLICK / DRIVE</span>
-        </button>
-        <button id="btn-reset" class="hud-btn accent" title="Reset Car to Nearest Road (R / View)">
-          RESET
-        </button>
+  <!-- Bottom-Left Minimap & Coordinates -->
+  <div id="minimap-panel" title="Click to open Full GPS Map [F]">
+    <canvas id="minimap" width="196" height="196"></canvas>
+    <div id="coords-display">X: 0 | Z: 45 | ALT: 0m</div>
+  </div>
+
+  <!-- Bottom-Right Speedometer, Telemetry & Aero Panel -->
+  <div id="telemetry-panel">
+    <div class="surface-row">
+      <span id="surface-pill" class="surface-pill dry">DRY ASPHALT</span>
+      <span id="grip-readout" class="grip-readout">GRIP 100%</span>
+    </div>
+
+    <div class="speed-cluster">
+      <div class="gear-box">
+        <span class="gear-lbl">GEAR</span>
+        <span id="gear-value">N</span>
+      </div>
+      <div class="speed-box">
+        <span id="speed-value">0</span>
+        <span class="speed-unit">KM/H</span>
+      </div>
+      <div class="assist-grid">
+        <span id="badge-abs" class="assist-badge">ABS</span>
+        <span id="badge-tcs" class="assist-badge">TCS</span>
+        <span id="badge-drift" class="assist-badge">DRIFT</span>
+        <span id="badge-aero" class="assist-badge">DRS</span>
+        <span id="badge-draft" class="assist-badge">DRAFT</span>
       </div>
     </div>
 
-    <!-- Live Turn-by-Turn GPS Bar -->
-    <div id="gps-bar" class="gps-bar hidden">
-      <div class="gps-arrow-box" id="gps-arrow">↑</div>
-      <div class="gps-info">
-        <span class="gps-instruction" id="gps-instruction">FOLLOW ROUTE</span>
-        <span class="gps-sub" id="gps-dest-name">DESTINATION</span>
+    <div class="bar-row">
+      <div class="bar-meta">
+        <span>RPM</span>
+        <span id="rpm-text">850</span>
       </div>
-      <div class="gps-dist" id="gps-distance">0 m</div>
-      <button id="btn-gps-clear" class="gps-clear-btn" title="Cancel GPS Route">✕</button>
+      <div class="bar-track"><div id="rpm-fill" class="bar-fill rpm"></div></div>
     </div>
 
-    <!-- Grand Prix Grade 1 Circuit Live Lap & Sector Timer -->
-    <div id="circuit-hud" class="circuit-hud hidden">
-      <div class="circuit-header">
-        <span class="circuit-badge">GRADE 1</span>
-        <span class="circuit-title">APEXIA GRAND PRIX CIRCUIT</span>
-        <span class="circuit-lap-tag" id="lap-num">OUT LAP</span>
+    <div class="bar-row">
+      <div class="bar-meta">
+        <span>NITRO [SHIFT]</span>
+        <span id="nitro-text">100%</span>
       </div>
-      <div class="circuit-times">
-        <div class="time-cell main">
-          <span class="t-lbl">CURRENT</span>
-          <span class="t-val" id="lap-current">0:00.00</span>
-        </div>
-        <div class="time-cell">
-          <span class="t-lbl">BEST</span>
-          <span class="t-val best" id="lap-best">--:--.--</span>
-        </div>
-        <div class="time-cell">
-          <span class="t-lbl">LAST</span>
-          <span class="t-val" id="lap-last">--:--.--</span>
-        </div>
-      </div>
-      <div class="circuit-sectors">
-        <span class="sec-pill" id="sec-1">S1 --.-</span>
-        <span class="sec-pill" id="sec-2">S2 --.-</span>
-        <span class="sec-pill" id="sec-3">S3 --.-</span>
-      </div>
+      <div class="bar-track"><div id="nitro-fill" class="bar-fill nitro"></div></div>
     </div>
 
-    <!-- Center Event Banner -->
-    <div id="event-banner" class="event-banner"></div>
+    <div class="bar-row">
+      <div class="bar-meta">
+        <span>ROAD WETNESS <em id="wetness-trend" class="trend-tag">DRY</em></span>
+        <span id="wetness-text">0%</span>
+      </div>
+      <div class="bar-track"><div id="wetness-fill" class="bar-fill wetness"></div></div>
+    </div>
 
-    <!-- Bottom HUD -->
-    <div class="hud-bottom">
-      <!-- Clickable Minimap -->
-      <div class="minimap-panel" id="minimap-panel" title="Click to Open Interactive GPS Map (F)">
-        <canvas id="minimap" width="200" height="200"></canvas>
-        <div class="minimap-coords" id="coords-display">X: 0 | Z: 45 | ALT: 0m</div>
-        <div class="minimap-gps-hint">CLICK FOR GPS MAP [F]</div>
+    <div class="aero-row">
+      <span>AERO DOWNFORCE</span>
+      <span id="aero-df-text">0 kg</span>
+    </div>
+  </div>
+
+  <!-- Vehicle Garage Modal [G] -->
+  <div id="garage-modal" class="modal hidden">
+    <div id="garage-backdrop" class="modal-backdrop"></div>
+    <div class="modal-card garage-card">
+      <div class="modal-header">
+        <h2>VEHICLE GARAGE</h2>
+        <button id="btn-garage-close" class="modal-close">✕</button>
       </div>
 
-      <!-- Controls Legend (Desktop / Gamepad) -->
-      <div class="controls-panel" id="controls-panel">
-        <div>
-          <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>Stick</kbd> Drive
-          &nbsp;|&nbsp; <kbd>Space</kbd> / <kbd>B</kbd> Drift
-          &nbsp;|&nbsp; <kbd>Shift</kbd> / <kbd>A</kbd> Nitro
-          &nbsp;|&nbsp; <kbd>H</kbd> / <kbd>LB</kbd> Horn
-          &nbsp;|&nbsp; <kbd>L</kbd> / <kbd>RB</kbd> Siren
-        </div>
-        <div>
-          <kbd>F</kbd> GPS Map
-          &nbsp;|&nbsp; <kbd>G</kbd> / <kbd>Start</kbd> Garage (13 Cars)
-          &nbsp;|&nbsp; <kbd>V</kbd> Weather
-          &nbsp;|&nbsp; <kbd>X</kbd> Travel
-          &nbsp;|&nbsp; <kbd>T</kbd> RT
-          &nbsp;|&nbsp; <kbd>N</kbd> Time
-          &nbsp;|&nbsp; <kbd>C</kbd> / <kbd>Y</kbd> Cam
-          &nbsp;|&nbsp; <kbd>R</kbd> Reset
-        </div>
-      </div>
-
-      <!-- Telemetry, Aerodynamics, Dynamic Wetness & Physics Status -->
-      <div class="telemetry-panel">
-        <div class="telemetry-top">
-          <span class="surface-pill dry" id="surface-pill">DRY ASPHALT</span>
-          <span class="grip-readout" id="grip-readout">GRIP 100%</span>
+      <div class="garage-grid">
+        <div class="car-list">
+          <button class="car-option selected" data-car="gt">Veridian GT <span>Grand Tourer</span></button>
+          <button class="car-option" data-car="muscle">Brawler V8 <span>Classic Muscle</span></button>
+          <button class="car-option" data-car="supercar">Zenith Aero-X <span>Hypercar</span></button>
+          <button class="car-option" data-car="formula">AeroFormula R1 <span>Open-Wheel</span></button>
+          <button class="car-option" data-car="lmp">Helios Proto-X <span>Endurance Prototype</span></button>
+          <button class="car-option" data-car="gt3">Cinder GT-R3 <span>GT Track Coupe</span></button>
+          <button class="car-option" data-car="drift">Kitsune S-Drift <span>Pro Drift Spec</span></button>
+          <button class="car-option" data-car="rally">Boreal Rally R4 <span>AWD Rally Hatch</span></button>
+          <button class="car-option" data-car="ev">ArcDrive EV <span>Electric Fastback</span></button>
+          <button class="car-option" data-car="buggy">SandRunner X <span>Desert Exocar</span></button>
+          <button class="car-option" data-car="suv">Ridgeback 4x4 <span>Off-Road SUV</span></button>
+          <button class="car-option" data-car="police">Aegis Patrol <span>Interceptor [L Siren]</span></button>
+          <button class="car-option" data-car="truck">Mammoth 6x4 <span>Heavy Semi Cab</span></button>
         </div>
 
-        <div class="speed-row">
-          <div class="gear-box">
-            <span class="label">GEAR</span>
-            <span id="gear-value">N</span>
+        <div class="car-details">
+          <h3 id="spec-car-name">Veridian GT</h3>
+          <p id="spec-aero-note" class="aero-note">Active DRS + Airbrake · Balanced Aero (CdA 0.68)</p>
+
+          <div class="spec-bars">
+            <div class="spec-row"><span>TOP SPEED</span><div class="spec-track"><div id="spec-speed" class="spec-fill" style="width: 82%"></div></div></div>
+            <div class="spec-row"><span>ACCELERATION</span><div class="spec-track"><div id="spec-accel" class="spec-fill" style="width: 80%"></div></div></div>
+            <div class="spec-row"><span>CORNERING GRIP</span><div class="spec-track"><div id="spec-grip" class="spec-fill" style="width: 84%"></div></div></div>
+            <div class="spec-row"><span>AERO DOWNFORCE</span><div class="spec-track"><div id="spec-aero" class="spec-fill" style="width: 74%"></div></div></div>
+            <div class="spec-row"><span>DRIFT BALANCE</span><div class="spec-track"><div id="spec-drift" class="spec-fill" style="width: 72%"></div></div></div>
           </div>
 
-          <div class="physics-badges">
-            <span class="phys-tag" id="badge-abs">ABS</span>
-            <span class="phys-tag" id="badge-drift">DRIFT</span>
-            <span class="phys-tag" id="badge-tcs">TCS</span>
-            <span class="phys-tag" id="badge-aero">DRS</span>
-            <span class="phys-tag" id="badge-draft">DRAFT</span>
+          <div class="paint-section">
+            <div class="paint-header">
+              <span>PAINT FINISH</span>
+              <span id="paint-name">Crimson Red</span>
+            </div>
+            <div class="swatch-row">
+              <button class="swatch selected" data-color="#e11d48" data-name="Crimson Red" style="background:#e11d48"></button>
+              <button class="swatch" data-color="#f97316" data-name="Solar Orange" style="background:#f97316"></button>
+              <button class="swatch" data-color="#f59e0b" data-name="Apex Gold" style="background:#f59e0b"></button>
+              <button class="swatch" data-color="#10b981" data-name="Emerald Green" style="background:#10b981"></button>
+              <button class="swatch" data-color="#06b6d4" data-name="Electric Cyan" style="background:#06b6d4"></button>
+              <button class="swatch" data-color="#2563eb" data-name="Cobalt Blue" style="background:#2563eb"></button>
+              <button class="swatch" data-color="#7c3aed" data-name="Hyper Violet" style="background:#7c3aed"></button>
+              <button class="swatch" data-color="#ec4899" data-name="Neon Magenta" style="background:#ec4899"></button>
+              <button class="swatch" data-color="#f8fafc" data-name="Glacier White" style="background:#f8fafc"></button>
+              <button class="swatch" data-color="#1e293b" data-name="Midnight Slate" style="background:#1e293b"></button>
+            </div>
           </div>
 
-          <div class="speed-box">
-            <span id="speed-value">0</span>
-            <span class="unit">KM/H</span>
-          </div>
-        </div>
-
-        <div class="aero-readout-row">
-          <span>AERO DOWNFORCE</span>
-          <span id="aero-df-text">0 kg</span>
-        </div>
-
-        <div class="bar-group">
-          <div class="bar-header">
-            <span>RPM</span>
-            <span id="rpm-text">850</span>
-          </div>
-          <div class="bar-track">
-            <div id="rpm-fill" class="bar-fill rpm"></div>
-          </div>
-        </div>
-
-        <div class="bar-group bar-nitro">
-          <div class="bar-header">
-            <span>NITRO</span>
-            <span id="nitro-text">100%</span>
-          </div>
-          <div class="bar-track">
-            <div id="nitro-fill" class="bar-fill nitro"></div>
-          </div>
-        </div>
-
-        <div class="bar-group bar-moisture">
-          <div class="bar-header">
-            <span>ROAD MOISTURE <em id="wetness-trend" class="trend-tag">DRY</em></span>
-            <span id="wetness-text">0%</span>
-          </div>
-          <div class="bar-track">
-            <div id="wetness-fill" class="bar-fill wetness"></div>
-          </div>
+          <button id="btn-garage-drive" class="primary-action-btn">DRIVE VEHICLE</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Mobile Multi-Touch Controls Overlay -->
-  <div id="touch-controls" class="touch-controls hidden" aria-label="Touch Driving Controls">
-    <div class="touch-left">
-      <div class="touch-aux-row">
-        <button id="touch-horn" class="touch-chip" type="button">HORN</button>
-        <button id="touch-siren" class="touch-chip siren hidden" type="button">SIREN</button>
-      </div>
-      <div id="touch-steer-pad" class="touch-steer-pad" role="slider" aria-label="Steering">
-        <span class="steer-arrow left">◀</span>
-        <div class="steer-track">
-          <div id="touch-steer-thumb" class="steer-thumb"></div>
-        </div>
-        <span class="steer-arrow right">▶</span>
-      </div>
-    </div>
-
-    <div class="touch-right">
-      <div class="touch-action-row">
-        <button id="touch-drift" class="touch-action drift" type="button">DRIFT</button>
-        <button id="touch-nitro" class="touch-action nitro" type="button">NITRO</button>
-      </div>
-      <div class="touch-pedal-row">
-        <button id="touch-brake" class="touch-pedal brake" type="button">
-          <span class="pedal-icon">▼</span>
-          <span class="pedal-label">BRAKE</span>
-        </button>
-        <button id="touch-gas" class="touch-pedal gas" type="button">
-          <span class="pedal-icon">▲</span>
-          <span class="pedal-label">GAS</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Interactive Full-Screen GPS Map Modal -->
-  <div id="map-modal" class="map-modal hidden" role="dialog" aria-modal="true" aria-labelledby="map-modal-title">
-    <div class="map-backdrop" id="map-backdrop"></div>
-    <div class="map-card">
-      <div class="map-header">
-        <div>
-          <h2 id="map-modal-title">INTERACTIVE GPS NAVIGATION MAP</h2>
-          <p class="map-sub">Click anywhere on the map to plot a live road GPS route with 3D directional chevrons.</p>
-        </div>
-        <button id="btn-map-close" class="garage-close-btn" title="Close Map (F / Esc)">✕</button>
+  <!-- Full-Screen Interactive 6-City GPS Map Modal [F] -->
+  <div id="map-modal" class="modal hidden">
+    <div id="map-backdrop" class="modal-backdrop"></div>
+    <div class="modal-card map-card">
+      <div class="modal-header">
+        <h2>6-CITY GPS NAVIGATION MAP</h2>
+        <button id="btn-map-close" class="modal-close">✕</button>
       </div>
 
       <div class="map-quick-row">
-        <button class="map-chip gp" data-x="460" data-z="950" data-name="APEXIA GP STARTING GRID">🏁 Apexia GP Circuit</button>
-        <button class="map-chip" data-x="0" data-z="800" data-name="APEXIA SKYLINE DISTRICT">🏙️ Apexia Metropolis</button>
-        <button class="map-chip" data-x="0" data-z="0" data-name="METRO BAY DOWNTOWN">🌆 Metro Bay</button>
-        <button class="map-chip" data-x="1280" data-z="0" data-name="PALM ISLAND MARINA">🌴 Palm Island</button>
-        <button class="map-chip" data-x="0" data-z="-1140" data-name="PINECREST ALPINE">🏔️ Pinecrest</button>
-        <button class="map-chip" data-x="640" data-z="0" data-name="GOLDEN BAY BRIDGE">🌉 Golden Bay Bridge</button>
-        <button class="map-chip" data-x="-820" data-z="280" data-name="KUROSHIO NEON DISTRICT">🌃 Kuroshio Neon</button>
-        <button class="map-chip" data-x="1520" data-z="-1120" data-name="SOLARA MESA TECH CITY">☀️ Solara Mesa</button>
-        <button class="map-chip" data-x="0" data-z="0" data-name="METRO SKYWAY INTERCHANGE">🛣️ Skyway Hub</button>
+        <button class="map-chip" data-x="0" data-z="45" data-name="METRO BAY CITY">🏙️ Metro Bay</button>
+        <button class="map-chip" data-x="-860" data-z="280" data-name="KUROSHIO NEON DISTRICT">🌃 Kuroshio Neon</button>
+        <button class="map-chip" data-x="1520" data-z="-960" data-name="SOLARA MESA TECH CITY">☀️ Solara Mesa</button>
+        <button class="map-chip" data-x="1280" data-z="-140" data-name="PALM ISLAND MARINA">🌴 Palm Marina</button>
+        <button class="map-chip" data-x="0" data-z="-1140" data-name="PINECREST ALPINE">🌲 Pinecrest</button>
+        <button class="map-chip" data-x="0" data-z="950" data-name="APEXIA METROPOLIS">🌆 Apexia Skyline</button>
+        <button class="map-chip" data-x="460" data-z="915" data-name="APEXIA GRAND PRIX CIRCUIT">🏁 Apexia GP Circuit</button>
+        <button class="map-chip" data-x="-72" data-z="180" data-name="METRO SKYWAY STACK">🛣️ Skyway Stack</button>
+        <button class="map-chip" data-x="85" data-z="582" data-name="LEVEL-4 TRANS-BAY OVERPASS">🌉 Level-4 Overpass</button>
+        <button class="map-chip" data-x="165" data-z="-215" data-name="METRO BAY CENTRAL UNDERWAY">🚇 Metro Underway</button>
+        <button class="map-chip" data-x="1540" data-z="-285" data-name="PALM-SOLARA SUBSEA TUNNEL">🌊 Subsea Tunnel</button>
+        <button class="map-chip" data-x="-346" data-z="-1152" data-name="PINECREST ALPINE TOUGE">⛰️ Pinecrest Touge</button>
+        <button class="map-chip" data-x="1080" data-z="-140" data-name="PALM ISLAND ROUNDABOUT">🔄 Palm Roundabout</button>
       </div>
 
-      <div class="map-canvas-wrap">
-        <canvas id="full-map-canvas" width="840" height="580"></canvas>
-      </div>
+      <canvas id="full-map-canvas" width="840" height="580"></canvas>
 
       <div class="map-footer">
-        <div class="map-status" id="map-status-text">Tap or click anywhere on the map to set a GPS destination.</div>
-        <div class="map-actions">
-          <button id="btn-map-clear" class="hud-btn">CLEAR GPS</button>
-          <button id="btn-map-warp" class="hud-btn accent hidden">WARP TO PIN</button>
-          <button id="btn-map-drive" class="garage-drive-btn">DRIVE ROUTE</button>
+        <span id="map-status-text">Tap or click anywhere on the map to set a GPS destination.</span>
+        <div class="map-footer-actions">
+          <button id="btn-map-warp" class="hud-btn accent-purple hidden">FAST TRAVEL TO PIN</button>
+          <button id="btn-map-clear" class="hud-btn">CLEAR ROUTE</button>
+          <button id="btn-map-drive" class="primary-action-btn compact">BACK TO DRIVE</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Vehicle Garage Modal (13 Original Copyright-Free Vehicles) -->
-  <div id="garage-modal" class="garage-modal hidden" role="dialog" aria-modal="true" aria-labelledby="garage-title">
-    <div class="garage-backdrop" id="garage-backdrop"></div>
-    <div class="garage-card">
-      <div class="garage-header">
-        <div>
-          <h2 id="garage-title">VEHICLE GARAGE — 13 ORIGINAL CLASSES</h2>
-          <p class="garage-sub">Every vehicle has distinct aerodynamics, downforce, drag, suspension, and procedural audio.</p>
-        </div>
-        <button id="btn-garage-close" class="garage-close-btn" title="Close Garage (G / Esc / B)">✕</button>
+  <!-- Mobile / Tablet On-Screen Touch Controls -->
+  <div id="touch-controls" class="hidden">
+    <div class="touch-left-pad">
+      <button id="touch-left" class="touch-btn">◀</button>
+      <button id="touch-right" class="touch-btn">▶</button>
+    </div>
+    <div class="touch-right-pad">
+      <div class="touch-aux-row">
+        <button id="touch-horn" class="touch-btn small">HORN</button>
+        <button id="touch-siren" class="touch-btn small hidden">SIREN</button>
+        <button id="touch-nitro" class="touch-btn small nitro">NOS</button>
+        <button id="touch-handbrake" class="touch-btn small">DRIFT</button>
       </div>
-
-      <div class="garage-body">
-        <div class="car-grid" id="car-grid">
-          <button class="car-option selected" data-car="gt">
-            <span class="car-class">GRAND TOURER</span>
-            <span class="car-title">Veridian GT</span>
-            <span class="car-desc">Active rear wing, balanced downforce, crisp city &amp; highway feel.</span>
-          </button>
-
-          <button class="car-option" data-car="muscle">
-            <span class="car-class">DRIFT MUSCLE</span>
-            <span class="car-title">Brawler V8</span>
-            <span class="car-desc">Low-downforce RWD bruiser with blower V8 torque &amp; long power slides.</span>
-          </button>
-
-          <button class="car-option" data-car="supercar">
-            <span class="car-class">HYPERCAR</span>
-            <span class="car-title">Zenith Aero-X</span>
-            <span class="car-desc">Active DRS + Airbrake, huge splitter downforce, screaming V10.</span>
-          </button>
-
-          <button class="car-option" data-car="formula">
-            <span class="car-class">OPEN-WHEEL GP</span>
-            <span class="car-title">AeroFormula R1</span>
-            <span class="car-desc">Extreme ground-effect + twin-wing downforce (3.5G corners) &amp; DRS.</span>
-          </button>
-
-          <button class="car-option" data-car="lmp">
-            <span class="car-class">PROTOTYPE</span>
-            <span class="car-title">Helios Proto-X</span>
-            <span class="car-desc">Closed-cockpit endurance racer with dorsal fin, venturi grip &amp; DRS.</span>
-          </button>
-
-          <button class="car-option" data-car="gt3">
-            <span class="car-class">GT TRACK</span>
-            <span class="car-title">Cinder GT-R3</span>
-            <span class="car-desc">Widebody circuit racer with dive canards, swan-neck wing &amp; apex bite.</span>
-          </button>
-
-          <button class="car-option" data-car="drift">
-            <span class="car-class">PRO DRIFT</span>
-            <span class="car-title">Kitsune S-Drift</span>
-            <span class="car-desc">High-angle steering lock, twin-turbo spool &amp; effortless linked drifts.</span>
-          </button>
-
-          <button class="car-option" data-car="rally">
-            <span class="car-class">RALLY AWD</span>
-            <span class="car-title">Boreal Rally R4</span>
-            <span class="car-desc">Short-gear turbo AWD with huge rally wing &amp; gravel/rain dominance.</span>
-          </button>
-
-          <button class="car-option" data-car="ev">
-            <span class="car-class">HYPER-EV</span>
-            <span class="car-title">ArcDrive EV</span>
-            <span class="car-desc">Ultra-low drag teardrop body, instant electric torque &amp; active aero.</span>
-          </button>
-
-          <button class="car-option" data-car="buggy">
-            <span class="car-class">DESERT EXOCAR</span>
-            <span class="car-title">SandRunner X</span>
-            <span class="car-desc">Featherweight open-cage exocar with plush long-travel jump suspension.</span>
-          </button>
-
-          <button class="car-option" data-car="suv">
-            <span class="car-class">OFF-ROAD 4X4</span>
-            <span class="car-title">Ridgeback 4x4</span>
-            <span class="car-desc">High drag boxy body, plush long-travel springs, high off-road grip.</span>
-          </button>
-
-          <button class="car-option" data-car="police">
-            <span class="car-class">PURSUIT</span>
-            <span class="car-title">Aegis Patrol</span>
-            <span class="car-desc">AWD pursuit sedan with flashing strobe lightbar &amp; siren (L / RB).</span>
-          </button>
-
-          <button class="car-option" data-car="truck">
-            <span class="car-class">HEAVY 6X4</span>
-            <span class="car-title">Mammoth 6x4</span>
-            <span class="car-desc">6-wheel heavy semi rig — massive wind drag, diesel roar &amp; momentum.</span>
-          </button>
-        </div>
-
-        <div class="garage-details">
-          <div class="spec-panel">
-            <div class="spec-title" id="spec-car-name">Veridian GT</div>
-            <div class="spec-aero-note" id="spec-aero-note">Active DRS + Airbrake · Balanced Aero (CdA 0.68)</div>
-
-            <div class="spec-row">
-              <span>TOP SPEED</span>
-              <div class="spec-track"><div class="spec-fill" id="spec-speed" style="width: 82%"></div></div>
-            </div>
-            <div class="spec-row">
-              <span>ACCELERATION</span>
-              <div class="spec-track"><div class="spec-fill" id="spec-accel" style="width: 80%"></div></div>
-            </div>
-            <div class="spec-row">
-              <span>HANDLING &amp; GRIP</span>
-              <div class="spec-track"><div class="spec-fill" id="spec-grip" style="width: 86%"></div></div>
-            </div>
-            <div class="spec-row">
-              <span>AERODYNAMICS &amp; DOWNFORCE</span>
-              <div class="spec-track"><div class="spec-fill aero-bar" id="spec-aero" style="width: 74%"></div></div>
-            </div>
-            <div class="spec-row">
-              <span>DRIFT / OFF-ROAD</span>
-              <div class="spec-track"><div class="spec-fill" id="spec-drift" style="width: 70%"></div></div>
-            </div>
-          </div>
-
-          <div class="paint-panel">
-            <div class="paint-header">
-              <span>PAINT FINISH</span>
-              <span id="paint-name">CRIMSON RED</span>
-            </div>
-            <div class="swatch-row" id="swatch-row">
-              <button class="swatch selected" data-color="#e11d48" data-name="CRIMSON RED" style="background:#e11d48" title="Crimson Red"></button>
-              <button class="swatch" data-color="#2563eb" data-name="COBALT BLUE" style="background:#2563eb" title="Cobalt Blue"></button>
-              <button class="swatch" data-color="#f8fafc" data-name="PEARL WHITE" style="background:#f8fafc" title="Pearl White"></button>
-              <button class="swatch" data-color="#f59e0b" data-name="SOLAR GOLD" style="background:#f59e0b" title="Solar Gold"></button>
-              <button class="swatch" data-color="#10b981" data-name="EMERALD" style="background:#10b981" title="Emerald"></button>
-              <button class="swatch" data-color="#7c3aed" data-name="CYBER VIOLET" style="background:#7c3aed" title="Cyber Violet"></button>
-              <button class="swatch" data-color="#f97316" data-name="SUNSET ORANGE" style="background:#f97316" title="Sunset Orange"></button>
-              <button class="swatch" data-color="#1e293b" data-name="OBSIDIAN" style="background:#1e293b" title="Obsidian"></button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="garage-footer">
-        <span class="garage-hint">100% Original Procedural Assets &amp; Audio (Copyright-Free · MIT Three.js)</span>
-        <button id="btn-garage-drive" class="garage-drive-btn">DRIVE VEHICLE</button>
+      <div class="touch-pedal-row">
+        <button id="touch-brake" class="touch-btn pedal brake">BRAKE</button>
+        <button id="touch-gas" class="touch-btn pedal gas">GAS</button>
       </div>
     </div>
   </div>
 
-  <!-- Three.js r128 UMD (MIT) + World, Gamepad/Touch Controls & Game Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="world.js?v=14"></script>
-  <script src="roads.js?v=15"></script>
-  <script src="cars.js?v=14"></script>
-  <script src="controls.js?v=14"></script>
-  <script src="game.js?v=14"></script>
+  <script src="roads.js?v=16"></script>
+  <script src="world.js?v=16"></script>
+  <script src="cars.js?v=16"></script>
+  <script src="controls.js?v=16"></script>
+  <script src="game.js?v=16"></script>
 </body>
 </html>

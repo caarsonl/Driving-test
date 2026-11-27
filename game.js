@@ -3397,8 +3397,11 @@
             if (car.airTime > 0.55) showBanner(`AIR TIME ${car.airTime.toFixed(1)}S!`);
           }
         }
+        // Slope-derived vertical velocity prevents curb/edge seams from launching the car upward
+        const stepUp = latestSurf.height - prevY;
         car.y = latestSurf.height;
-        car.vy = Math.max(0, (car.y - prevY) / Math.max(subDt, 0.002));
+        const geoSlopeVy = vLong * Math.tan(THREE.MathUtils.clamp(latestSurf.slopePitch, -0.55, 0.55));
+        car.vy = stepUp > 0.35 ? 0 : THREE.MathUtils.clamp(geoSlopeVy, -12, 18);
         car.grounded = true;
         car.inWater = latestSurf.overWater;
         car.airTime = 0;
@@ -3799,7 +3802,6 @@
     if (mapOpen) drawFullMap();
   }
 
-  // Full-Screen Map Projection (fits all 6 cities & skyways cleanly inside 840x580 canvas)
   const MAP_VIEW = { minX: -1240, maxX: 1960, minZ: -1540, maxZ: 1580 };
 
   function worldToFullMap(wx, wz) {
@@ -4025,7 +4027,7 @@
   if (btnMapWarp) {
     btnMapWarp.addEventListener("click", () => {
       if (!gpsDest) return;
-      const surf = world.sampleSurface(gpsDest.x, gpsDest.z, 25, car.heading);
+      const surf = world.sampleSurface(gpsDest.x, gpsDest.z, 38, car.heading);
       teleportCar(gpsDest.x, Math.max(0.2, surf.height + 0.2), gpsDest.z, car.heading, `ARRIVED: ${gpsDest.name}`);
       clearGPSDestination(true);
       toggleMap(false);
@@ -4148,7 +4150,7 @@
       gpsChevrons[i].visible = false;
     }
 
-    const destSurf = world.sampleSurface(gpsDest.x, gpsDest.z, 25, 0);
+    const destSurf = world.sampleSurface(gpsDest.x, gpsDest.z, 38, 0);
     destBeaconGroup.visible = true;
     destBeaconGroup.position.set(gpsDest.x, Math.max(0, destSurf.height), gpsDest.z);
     const pulse = 0.88 + 0.24 * Math.sin(elapsed * 5.0);

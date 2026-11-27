@@ -70,11 +70,11 @@ window.HorizonRoads = (() => {
     return false;
   }
 
-  // Trench cutouts in flat island shapes so sunken underpasses & subsea tunnel ramps never clip grass
+  // Trench cutouts in flat island shapes (shared by visual mesh AND isOnIslandLand physics!)
   const ISLAND_TRENCH_HOLES = {
-    metro: [{ minX: 155, maxX: 175, minZ: -162, maxZ: 194 }],
-    palm: [{ minX: 1518, maxX: 1544, minZ: -380, maxZ: -305 }],
-    solara: [{ minX: 1508, maxX: 1534, minZ: -815, maxZ: -780 }],
+    metro: [{ minX: 155.5, maxX: 174.5, minZ: -162, maxZ: 196 }],
+    palm: [{ minX: 1518, maxX: 1544, minZ: -380, maxZ: -302 }],
+    solara: [{ minX: 1510, maxX: 1538, minZ: -830, maxZ: -780 }],
   };
 
   function buildComplexNetwork(ctx) {
@@ -97,13 +97,14 @@ window.HorizonRoads = (() => {
       addCircleCollider,
       addGpsNode,
       linkGps,
+      isOnFlatRoad,
     } = ctx;
 
     // =======================================================================
     // 1. COMPLEX CORRIDOR DEFINITIONS (4 LEVELS, CURVES, U-TURNS, UNDERWAYS)
     // =======================================================================
     const CORRIDORS = [
-      // 1) LEVEL 3/4: Metro Stack Spiral Flyover (+11.5m SKYWAY_EW -> +27m Banked Arc -> +22m SKYWAY_NS)
+      // 1) LEVEL 3/4: Metro Stack Spiral Flyover (+11.5m SKYWAY_EW -> +27m Arc -> +22m SKYWAY_NS)
       {
         id: "metro_spiral",
         zone: "METRO STACK SPIRAL FLYOVER",
@@ -148,37 +149,39 @@ window.HorizonRoads = (() => {
           [650, 31.0, 425],
           [895, 19.5, 336],
           [1028, 6.8, 282],
-          [1080, 0.06, 260],
+          [1065, 1.4, 266],
+          [1080, 0.05, 260],
         ],
         gpsConnectStart: "sky_ns_m",
         gpsConnectEnd: "p_1080_s",
       },
 
-      // 3) Apexia GP Express Diversion (Peels off +22m SKYWAY_NS -> Descends to GP Paddock Blvd)
+      // 3) Apexia GP Express Diversion (Stays north of z=950 until clean merge at x=340!)
       {
         id: "gp_diversion",
         zone: "APEXIA GP EXPRESS DIVERSION",
         kind: "viaduct",
         mat: roadMatBridge,
         halfW: 7.6,
-        segs: 44,
+        segs: 46,
         barriers: true,
         openEnds: 0.12,
         neonIdx: 1,
         piers: true,
         pts: [
           [-72, 22.05, 748],
-          [-50, 20.2, 815],
-          [30, 15.2, 886],
-          [150, 8.6, 936],
-          [265, 2.2, 950],
-          [340, 0.06, 950],
+          [-48, 20.0, 812],
+          [35, 15.0, 868],
+          [145, 9.2, 886],
+          [245, 4.2, 898],
+          [310, 0.8, 926],
+          [340, 0.05, 950],
         ],
         gpsConnectStart: "sky_ns_m",
         gpsConnectEnd: "a_e2_950",
       },
 
-      // 4) Golden Bay Bridge -> Palm Roundabout Curved Diversion Slip-Lane
+      // 4) Golden Bay Bridge -> Palm Roundabout West Ring Diversion (exact 4.68m start height)
       {
         id: "palm_diversion",
         zone: "PALM RESORT DIVERSION RAMP",
@@ -187,28 +190,28 @@ window.HorizonRoads = (() => {
         halfW: 6.8,
         segs: 28,
         barriers: true,
-        openEnds: 0.15,
+        openEnds: 0.16,
         neonIdx: 4,
         piers: true,
         pts: [
-          [885, 4.74, 0],
-          [945, 3.3, -24],
-          [1012, 1.3, -76],
-          [1055, 0.15, -112],
-          [1080, 0.05, -140],
+          [885, 4.68, 0],
+          [942, 3.2, -26],
+          [992, 1.3, -84],
+          [1024, 0.18, -124],
+          [1048, 0.05, -140],
         ],
         gpsConnectStart: "br_e",
         gpsConnectEnd: "p_1080_0",
       },
 
-      // 5) LEVEL -1 (-6.2m): Metro Bay Central Underway (Dives Underneath z=0, z=60 & z=120 Avenues!)
+      // 5) LEVEL -1 (-6.2m): Metro Bay Central Underway (Dense flat points prevent spline sag/crest!)
       {
         id: "metro_underway",
         zone: "METRO BAY CENTRAL UNDERWAY",
         kind: "underpass",
         mat: roadMatHighway,
         halfW: 8.6,
-        segs: 48,
+        segs: 64,
         barriers: false,
         underpassWalls: true,
         overpassCrossings: [
@@ -218,26 +221,33 @@ window.HorizonRoads = (() => {
         ],
         pts: [
           [165, 0.04, -240],
-          [165, 0.02, -160],
-          [165, -3.2, -118],
+          [165, 0.04, -195],
+          [165, 0.0, -160],
+          [165, -2.0, -132],
+          [165, -4.4, -102],
           [165, -6.2, -72],
+          [165, -6.2, -30],
+          [165, -6.2, 20],
+          [165, -6.2, 70],
           [165, -6.2, 118],
-          [165, -3.0, 158],
-          [165, 0.02, 196],
+          [165, -4.2, 146],
+          [165, -1.9, 172],
+          [165, 0.0, 198],
+          [165, 0.04, 228],
           [165, 0.04, 260],
         ],
         gpsConnectStart: "m_e_240n",
         gpsConnectEnd: "m_e_260",
       },
 
-      // 6) LEVEL -1 (-7.5m): Palm–Solara Subsea Bay Tunnel (Illuminated Underwater Expressway Tube!)
+      // 6) LEVEL -1 (-7.5m): Palm–Solara Subsea Bay Tunnel (Level underwater floor aligned to arch!)
       {
         id: "subsea_tunnel",
         zone: "PALM-SOLARA SUBSEA BAY TUNNEL",
         kind: "tunnel",
         mat: roadMatHighway,
         halfW: 9.2,
-        segs: 56,
+        segs: 76,
         barriers: false,
         underpassWalls: true,
         isTubeTunnel: true,
@@ -245,13 +255,19 @@ window.HorizonRoads = (() => {
         tubeMaxZ: -376,
         pts: [
           [1540, 0.04, -280],
-          [1536, -0.5, -312],
-          [1532, -4.8, -356],
-          [1530, -7.5, -405],
-          [1526, -7.5, -735],
-          [1522, -4.2, -782],
-          [1520, -0.4, -816],
-          [1520, 0.04, -840],
+          [1538, 0.02, -302],
+          [1534, -2.2, -332],
+          [1530, -5.2, -366],
+          [1528, -7.5, -402],
+          [1528, -7.5, -460],
+          [1528, -7.5, -530],
+          [1528, -7.5, -600],
+          [1528, -7.5, -670],
+          [1528, -7.5, -738],
+          [1525, -5.0, -772],
+          [1522, -2.1, -802],
+          [1520, 0.02, -830],
+          [1520, 0.04, -844],
         ],
         gpsConnectStart: "p_1540_n",
         gpsConnectEnd: "s_m_s",
@@ -419,6 +435,22 @@ window.HorizonRoads = (() => {
       },
     ];
 
+    // Landscaped center island for Palm Roundabout (1080, -140)
+    const rbtCurb = new THREE.Mesh(
+      new THREE.CylinderGeometry(23.5, 24.2, 0.45, 28),
+      jerseyBarrierMat
+    );
+    rbtCurb.position.set(1080, 0.22, -140);
+    rbtCurb.receiveShadow = true;
+    scene.add(rbtCurb);
+    const rbtTurf = new THREE.Mesh(
+      new THREE.CylinderGeometry(22.6, 22.6, 0.5, 28),
+      new THREE.MeshStandardMaterial({ color: 0x3b6e32, roughness: 0.9 })
+    );
+    rbtTurf.position.set(1080, 0.24, -140);
+    scene.add(rbtTurf);
+    addCircleCollider(1080, -140, 23.6, -1, 3.0, false);
+
     // =======================================================================
     // 2. INSTANCED STRUCTURAL BATCHES & SPATIAL SEGMENT HASH (ZERO LAG!)
     // =======================================================================
@@ -522,6 +554,17 @@ window.HorizonRoads = (() => {
         const pitch = -Math.atan2(dy, horizLen);
         const uMid = (i + 0.5) / cfg.segs;
 
+        let hasOverpassAbove = false;
+        if (cfg.overpassCrossings) {
+          for (let k = 0; k < cfg.overpassCrossings.length; k++) {
+            const ov = cfg.overpassCrossings[k];
+            if (ov.addDeck && Math.abs(mz - ov.z) <= ov.halfW) {
+              hasOverpassAbove = true;
+              break;
+            }
+          }
+        }
+
         indexSegment({
           x1: a.x, y1: a.y, z1: a.z,
           x2: b.x, y2: b.y, z2: b.z,
@@ -531,6 +574,7 @@ window.HorizonRoads = (() => {
           halfW: cfg.halfW,
           kind: cfg.kind,
           zone: cfg.zone,
+          hasOverpassAbove,
           isTubeTunnel: Boolean(cfg.isTubeTunnel),
           tubeMinZ: cfg.tubeMinZ || 0,
           tubeMaxZ: cfg.tubeMaxZ || 0,
@@ -541,8 +585,8 @@ window.HorizonRoads = (() => {
           roadSegments.push({ x1: a.x, z1: a.z, x2: bMap.x, z2: bMap.z, w: cfg.halfW * 2, kind: cfg.kind });
         }
 
-        // Elevated underside deck + piers + glowing side trim
-        if (my > 0.65) {
+        // Elevated underside deck + piers (skip girders near ground & skip piers over ground avenues!)
+        if (my > 1.35) {
           girderBatch.push({ x: mx, y: my - 0.85, z: mz, sx: cfg.halfW * 2 + 1.4, sy: 1.65, sz: segLen3D + 0.45, rx: pitch, ry: yaw, rz: 0 });
           if (cfg.neonIdx !== undefined && my > 4.0) {
             [-1, 1].forEach((side) => {
@@ -560,12 +604,15 @@ window.HorizonRoads = (() => {
             });
           }
           if (cfg.piers && my > 5.2 && i % 5 === 2) {
-            pierBatch.push({ x: mx, y: (my - 3.0) * 0.5, z: mz, sx: 1.6, sy: my + 2.0, sz: 1.6, rx: 0, ry: 0, rz: 0 });
-            addCircleCollider(mx, mz, 1.1, -2, my - 1.5, false);
+            const onStreet = isOnFlatRoad && isOnFlatRoad(mx, mz);
+            if (!onStreet) {
+              pierBatch.push({ x: mx, y: (my - 3.0) * 0.5, z: mz, sx: 1.6, sy: my + 2.0, sz: 1.6, rx: 0, ry: 0, rz: 0 });
+              addCircleCollider(mx, mz, 1.1, -2, my - 1.5, false);
+            }
           }
         }
 
-        // Side concrete barriers & rails (auto-opened at merge ends so diversions are 100% unobstructed)
+        // Side concrete barriers & rails (auto-opened at merge ends)
         const openEnd = cfg.openEnds || 0;
         if (cfg.barriers && uMid > openEnd && uMid < 1.0 - openEnd) {
           [-1, 1].forEach((side) => {
@@ -619,7 +666,7 @@ window.HorizonRoads = (() => {
         });
       }
 
-      // Subsea Bay Illuminated Concrete-Arch Tunnel Shell (tucked cleanly beneath the ocean surface)
+      // Subsea Bay Illuminated Concrete-Arch Tunnel Shell (aligned cleanly to flat x=1528, y=-7.5 floor)
       if (cfg.isTubeTunnel) {
         const len = cfg.tubeMaxZ - cfg.tubeMinZ;
         const midZ = (cfg.tubeMaxZ + cfg.tubeMinZ) * 0.5;
@@ -630,10 +677,10 @@ window.HorizonRoads = (() => {
         tube.scale.set(1.0, 0.7, 1.0);
         scene.add(tube);
 
-        // Twin Underwater Portal Frames
+        // Twin Underwater Portal Frames (raised for full semi-truck clearance)
         [cfg.tubeMinZ, cfg.tubeMaxZ].forEach((pz) => {
-          const cap = new THREE.Mesh(new THREE.BoxGeometry(cfg.halfW * 2 + 5.5, 3.6, 3.2), underWallMat);
-          cap.position.set(1528, 0.0, pz);
+          const cap = new THREE.Mesh(new THREE.BoxGeometry(cfg.halfW * 2 + 5.5, 2.4, 3.2), underWallMat);
+          cap.position.set(1528, 1.4, pz);
           scene.add(cap);
         });
       }
@@ -711,9 +758,12 @@ window.HorizonRoads = (() => {
         if (dSq > limit * limit) continue;
 
         const h = s.y1 + s.dy * t;
-        // Multi-level layer checks: never warp up onto an overpass or drop through a ground avenue into an underpass
-        if (currentY < h - 3.8) continue;
-        if (h < -2.2 && currentY > h + 3.8) continue;
+        // Tight upward snap limit (1.35m) stops ground cars from teleporting onto adjacent elevated ramps
+        if (currentY < h - 1.35) continue;
+
+        // Only skip the underground floor when actually driving on a crossing overpass or ocean surface above it
+        const inSubseaSection = s.isTubeTunnel && z > s.tubeMinZ + 4 && z < s.tubeMaxZ - 4;
+        if (h < -1.8 && currentY > -1.2 && (s.hasOverpassAbove || inSubseaSection)) continue;
 
         const vertDiff = Math.abs(currentY - h);
         const score = vertDiff + Math.sqrt(dSq) * 0.08;

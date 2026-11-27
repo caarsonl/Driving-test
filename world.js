@@ -43,7 +43,6 @@ window.HorizonWorld = (() => {
       halfW: 11.0,
     },
 
-    // Multi-Level Urban Skyways weaving directly through city skyscraper canyons
     SKYWAY_EW: {
       axis: "x",
       coord: 60,
@@ -71,7 +70,7 @@ window.HorizonWorld = (() => {
       rampUpEnd: 1140,
       rampDownStart: 1600,
       rampDownEnd: 1745,
-      deckH: 12.04, // +4cm offset eliminates z-fighting at Coastal Viaduct Y-split
+      deckH: 12.04,
       halfW: 9.8,
     },
   };
@@ -2060,7 +2059,6 @@ window.HorizonWorld = (() => {
         addSeawallBox(isl.hole.maxX, lcz, 2.2, ld + 2);
       }
 
-      // Cut sunken underway & subsea tunnel ramp trenches cleanly out of island grass
       const trenchHoles = window.HorizonRoads && window.HorizonRoads.ISLAND_TRENCH_HOLES[isl.id];
       if (trenchHoles) {
         trenchHoles.forEach((th) => {
@@ -2166,6 +2164,14 @@ window.HorizonWorld = (() => {
     const roadSegments = [];
     const dummy = new THREE.Object3D();
 
+    function isOnFlatRoad(x, z) {
+      for (let i = 0; i < flatRoadRects.length; i++) {
+        const r = flatRoadRects[i];
+        if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
+      }
+      return false;
+    }
+
     function addFlatRoad(axis, coord, minP, maxP, width = ROAD_WIDTH, y = 0.035, isHighway = false) {
       const len = maxP - minP;
       const mid = (minP + maxP) * 0.5;
@@ -2228,9 +2234,10 @@ window.HorizonWorld = (() => {
       [165, -240, 19.2], [165, 260, 19.2],
     ].forEach(([ix, iz, sz]) => addIntersection(ix, iz, sz));
 
-    // 2) Palm Island Marina Streets
+    // 2) Palm Island Marina Streets (split at Palm Roundabout center 1080, -140)
     addFlatRoad("x", 0, 960, 1540, HIGHWAY_WIDTH, 0.038, true);
-    addFlatRoad("z", 1080, -280, 260, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", 1080, -280, -172, ROAD_WIDTH, 0.032, false);
+    addFlatRoad("z", 1080, -108, 260, ROAD_WIDTH, 0.032, false);
     addFlatRoad("z", 1280, -380, 360, HIGHWAY_WIDTH, 0.038, true);
     addFlatRoad("z", 1540, -280, 0, ROAD_WIDTH, 0.032, false);
     addFlatRoad("x", -280, 1080, 1540, ROAD_WIDTH, 0.032, false);
@@ -2722,6 +2729,7 @@ window.HorizonWorld = (() => {
               [-1, 1].forEach((side) => {
                 if (isMergeOpen(mx, cfg.coord, my, side)) return;
                 const pz = cfg.coord + side * (cfg.halfW + 0.85);
+                if (isOnFlatRoad(mx, pz)) return;
                 pushOriented(pierBatch, mx, (my - 3.0) * 0.5, pz, 1.1, my + 2.0, 1.1);
                 addCircleCollider(mx, pz, 0.7, -2, my, false);
               });
@@ -2757,6 +2765,7 @@ window.HorizonWorld = (() => {
               [-1, 1].forEach((side) => {
                 if (isMergeOpen(cfg.coord, mz, my, side)) return;
                 const px = cfg.coord + side * (cfg.halfW + 0.85);
+                if (isOnFlatRoad(px, mz)) return;
                 pushOriented(pierBatch, px, (my - 3.0) * 0.5, mz, 1.1, my + 2.0, 1.1);
                 addCircleCollider(px, mz, 0.7, -2, my, false);
               });
@@ -2983,7 +2992,6 @@ window.HorizonWorld = (() => {
 
       if (i % 3 === 1) {
         pushOriented(pierBatch, mx, (VIADUCT.deckH - 4) * 0.5, mz, 2.4, VIADUCT.deckH + 4, 2.4);
-        // Keep outer lamps cleanly past the Solara Skyway Y-split deck (i >= 7)
         if (i >= 7) {
           const outerR = VIADUCT.curveR + VIADUCT.halfW + 0.8;
           highwayLampBatch.push({
@@ -2996,7 +3004,6 @@ window.HorizonWorld = (() => {
       }
 
       [-1, 1].forEach((side) => {
-        // Leave full open Y-split on the outer edge (side === 1) for i < 9 so players transition cleanly to Solara Skyway!
         if (side === 1 && i < 9) return;
         const rr = VIADUCT.curveR + side * (VIADUCT.halfW + 0.5);
         const gx = VIADUCT.curveCX + Math.cos(midAng) * rr;
@@ -3591,6 +3598,7 @@ window.HorizonWorld = (() => {
           addCircleCollider,
           addGpsNode,
           linkGps,
+          isOnFlatRoad,
         })
       : null;
 
@@ -3804,7 +3812,7 @@ window.HorizonWorld = (() => {
     }
 
     // =========================================================================
-    // 11. STUNT RAMPS & ICONIC LANDMARKS ACROSS ALL 6 CITIES
+    // 11. STUNT RAMPS (CLEAR OF ALL CURVED ROADS) & ICONIC LANDMARKS
     // =========================================================================
     const ramps = [];
     const rampMatShared = new THREE.MeshStandardMaterial({
@@ -3834,12 +3842,12 @@ window.HorizonWorld = (() => {
     }
 
     addRamp(-180, 315, 14, 5.2, 24, Math.PI / 2);
-    addRamp(1160, 315, 15, 5.8, 26, -Math.PI / 2);
+    addRamp(1215, 195, 15, 5.8, 26, -Math.PI / 2);
     addRamp(1595, -140, 14, 5.5, 24, 0);
-    addRamp(-355, -1180, 14, 5.5, 24, 0);
+    addRamp(-210, -945, 14, 5.5, 24, 0);
     addRamp(-365, 1080, 14, 5.8, 26, Math.PI);
-    addRamp(-1120, 410, 14, 5.6, 25, 0);
-    addRamp(1820, -1040, 14, 5.6, 25, 0);
+    addRamp(-1010, 620, 14, 5.6, 25, 0);
+    addRamp(1400, -885, 14, 5.6, 25, 0);
 
     const needleMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.72, roughness: 0.25 });
     const landmarkGroup = new THREE.Group();
@@ -3875,15 +3883,12 @@ window.HorizonWorld = (() => {
           return false;
         }
       }
-      // Keep every curved road, Touge switchback, roundabout, U-turn, spiral flyover & underway clear!
       if (customRoads && customRoads.isNearAnyCorridor(cx, cz, Math.max(hw, hd) + 5.5)) {
         return false;
       }
-      // Keep Metro Bay Central Underway trench & ramps completely clear
       if (cx + hw > 148 && cx - hw < 182 && cz + hd > -245 && cz - hd < 265) {
         return false;
       }
-      // Keep elevated urban skyways & viaduct corridors cleanly framed
       if (cx + hw > SKYWAY_EW.rampUpStart - 10 && cx - hw < SKYWAY_EW.rampDownEnd + 10 && Math.abs(cz - SKYWAY_EW.coord) < SKYWAY_EW.halfW + hd + 3.2) {
         return false;
       }
@@ -4483,7 +4488,8 @@ window.HorizonWorld = (() => {
     farMtnInst.instanceMatrix.needsUpdate = true;
     scene.add(farMtnInst);
 
-    // === END OF PART 2A — PASTE PART 2B DIRECTLY BELOW THIS LINE ===// =========================================================================
+    // === END OF PART 2A — PASTE PART 2B DIRECTLY BELOW THIS LINE ===
+    // =========================================================================
     // 13. MULTI-LEVEL SURFACE SAMPLER, SPATIAL COLLIDERS & A* GPS PATHFINDER
     // =========================================================================
     function isOnIslandLand(x, z) {
@@ -4493,16 +4499,15 @@ window.HorizonWorld = (() => {
           if (isl.hole && x > isl.hole.minX && x < isl.hole.maxX && z > isl.hole.minZ && z < isl.hole.maxZ) {
             return false;
           }
+          const tHoles = window.HorizonRoads && window.HorizonRoads.ISLAND_TRENCH_HOLES[isl.id];
+          if (tHoles) {
+            for (let k = 0; k < tHoles.length; k++) {
+              const th = tHoles[k];
+              if (x > th.minX && x < th.maxX && z > th.minZ && z < th.maxZ) return false;
+            }
+          }
           return true;
         }
-      }
-      return false;
-    }
-
-    function isOnFlatRoad(x, z) {
-      for (let i = 0; i < flatRoadRects.length; i++) {
-        const r = flatRoadRects[i];
-        if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return true;
       }
       return false;
     }
@@ -4531,7 +4536,7 @@ window.HorizonWorld = (() => {
         Math.abs(x - SKYWAY_NS.coord) <= SKYWAY_NS.halfW + 0.6
       ) {
         const { h, slope } = evalSkywayDeck(z, SKYWAY_NS);
-        if (currentY >= h - 4.2) {
+        if (currentY >= h - 1.35) {
           return { height: h, slopePitch: Math.atan(slope * carFZ), surfaceType: "BRIDGE", onRoad: true, overWater: false, inTunnel: false, hitWall: false };
         }
       }
@@ -4543,7 +4548,7 @@ window.HorizonWorld = (() => {
         Math.abs(z - SKYWAY_EW.coord) <= SKYWAY_EW.halfW + 0.6
       ) {
         const { h, slope } = evalSkywayDeck(x, SKYWAY_EW);
-        if (currentY >= h - 4.2) {
+        if (currentY >= h - 1.35) {
           return { height: h, slopePitch: Math.atan(slope * carFX), surfaceType: "BRIDGE", onRoad: true, overWater: false, inTunnel: false, hitWall: false };
         }
       }
@@ -4555,7 +4560,7 @@ window.HorizonWorld = (() => {
         Math.abs(z - SKYWAY_SOLARA.coord) <= SKYWAY_SOLARA.halfW + 0.6
       ) {
         const { h, slope } = evalSkywayDeck(x, SKYWAY_SOLARA);
-        if (currentY >= h - 4.2) {
+        if (currentY >= h - 1.35) {
           return { height: h, slopePitch: Math.atan(slope * carFX), surfaceType: "BRIDGE", onRoad: true, overWater: false, inTunnel: false, hitWall: false };
         }
       }
@@ -4563,28 +4568,28 @@ window.HorizonWorld = (() => {
       // 4) Major Bay & Inter-City Bridges
       if (x >= BRIDGE.startX && x <= BRIDGE.endX && Math.abs(z - BRIDGE.z) <= BRIDGE.halfW + 0.6) {
         const { h, dhdx } = evalBridge(x);
-        if (currentY >= h - 4.2) {
+        if (currentY >= h - 1.35) {
           return { height: h, slopePitch: Math.atan(dhdx * carFX), surfaceType: "BRIDGE", onRoad: true, overWater: false, inTunnel: false, hitWall: false };
         }
       }
 
       if (z >= SOUTH_WEST_BRIDGE.startZ && z <= SOUTH_WEST_BRIDGE.endZ && Math.abs(x - SOUTH_WEST_BRIDGE.x) <= SOUTH_WEST_BRIDGE.halfW + 0.6) {
         const { h, dhdz } = evalSpanBridgeZ(z, SOUTH_WEST_BRIDGE);
-        if (currentY >= h - 4.2) {
+        if (currentY >= h - 1.35) {
           return { height: h, slopePitch: Math.atan(dhdz * carFZ), surfaceType: "BRIDGE", onRoad: true, overWater: false, inTunnel: false, hitWall: false };
         }
       }
 
       if (z >= SOUTH_EAST_BRIDGE.startZ && z <= SOUTH_EAST_BRIDGE.endZ && Math.abs(x - SOUTH_EAST_BRIDGE.x) <= SOUTH_EAST_BRIDGE.halfW + 0.6) {
         const { h, dhdz } = evalSpanBridgeZ(z, SOUTH_EAST_BRIDGE);
-        if (currentY >= h - 4.2) {
+        if (currentY >= h - 1.35) {
           return { height: h, slopePitch: Math.atan(dhdz * carFZ), surfaceType: "BRIDGE", onRoad: true, overWater: false, inTunnel: false, hitWall: false };
         }
       }
 
       if (x >= WEST_APEXIA_BRIDGE.startX && x <= WEST_APEXIA_BRIDGE.endX && Math.abs(z - WEST_APEXIA_BRIDGE.z) <= WEST_APEXIA_BRIDGE.halfW + 0.6) {
         const { h, dhdx } = evalSpanBridgeX(x, WEST_APEXIA_BRIDGE);
-        if (currentY >= h - 4.2) {
+        if (currentY >= h - 1.35) {
           return { height: h, slopePitch: Math.atan(dhdx * carFX), surfaceType: "BRIDGE", onRoad: true, overWater: false, inTunnel: false, hitWall: false };
         }
       }
@@ -4592,34 +4597,37 @@ window.HorizonWorld = (() => {
       // 5) NE Coastal Viaduct Highway
       if (x >= VIADUCT.eastStartX && x <= VIADUCT.curveCX && Math.abs(z + 1140) <= VIADUCT.halfW + 0.6) {
         const { h, dhdx } = evalEastViaduct(x);
-        if (currentY >= h - 4.2) {
+        if (currentY >= h - 1.35) {
           return { height: h, slopePitch: Math.atan(dhdx * carFX), surfaceType: "BRIDGE", onRoad: true, overWater: false, inTunnel: false, hitWall: false };
         }
       }
 
       if (x >= VIADUCT.curveCX && z <= VIADUCT.curveCZ) {
         const r = Math.hypot(x - VIADUCT.curveCX, z - VIADUCT.curveCZ);
-        if (Math.abs(r - VIADUCT.curveR) <= VIADUCT.halfW + 0.6 && currentY >= VIADUCT.deckH - 4.2) {
+        if (Math.abs(r - VIADUCT.curveR) <= VIADUCT.halfW + 0.6 && currentY >= VIADUCT.deckH - 1.35) {
           return { height: VIADUCT.deckH, slopePitch: 0, surfaceType: "BRIDGE", onRoad: true, overWater: false, inTunnel: false, hitWall: false };
         }
       }
 
       if (z >= VIADUCT.curveCZ && z <= VIADUCT.southEndZ && Math.abs(x - 1280) <= VIADUCT.halfW + 0.6) {
         const { h, dhdz } = evalSouthViaduct(z);
-        if (currentY >= h - 4.2) {
+        if (currentY >= h - 1.35) {
           return { height: h, slopePitch: Math.atan(dhdz * carFZ), surfaceType: "BRIDGE", onRoad: true, overWater: false, inTunnel: false, hitWall: false };
         }
       }
 
-      if (inTunnel) {
+      // Alpine Ridge Tunnel only (Subsea Tunnel is handled by customRoads without clamping y to 0)
+      if (Math.abs(x - TUNNEL.x) <= TUNNEL.halfW + 1.8 && z <= TUNNEL.startZ && z >= TUNNEL.endZ) {
         return { height: 0.0, slopePitch: 0, surfaceType: "TUNNEL", onRoad: true, overWater: false, inTunnel: true, hitWall: false };
       }
 
       const onLand = isOnIslandLand(x, z);
+      const onFlatOverpass = isOnFlatRoad(x, z);
+      const hasGroundSupport = onLand || onFlatOverpass;
       const circuitProg = onLand ? circuitData.getTrackProgress(x, z) : { onTarmac: false };
       const onCircuit = circuitProg.onTarmac;
-      const onRoad = onLand && (onCircuit || isOnFlatRoad(x, z) || Boolean(groundCustomHit));
-      let bestH = onLand ? 0.0 : -0.35;
+      const onRoad = hasGroundSupport && (onCircuit || onFlatOverpass || Boolean(groundCustomHit));
+      let bestH = hasGroundSupport ? 0.0 : -0.35;
       let slopePitch = 0;
       let hitWall = false;
       let onRamp = false;
@@ -4652,9 +4660,9 @@ window.HorizonWorld = (() => {
       return {
         height: bestH,
         slopePitch,
-        surfaceType: !onLand && !onRamp ? "WATER" : onCircuit ? "CIRCUIT" : onRoad || onRamp ? "ROAD" : "GRASS",
+        surfaceType: !hasGroundSupport && !onRamp ? "WATER" : onCircuit ? "CIRCUIT" : onRoad || onRamp ? "ROAD" : "GRASS",
         onRoad: onRoad || onRamp,
-        overWater: !onLand && !onRamp,
+        overWater: !hasGroundSupport && !onRamp,
         inTunnel: false,
         hitWall,
       };
@@ -5887,7 +5895,6 @@ window.HorizonWorld = (() => {
       if (!islandId) return null;
       if (islandId === "palm" && wx > 975 && wx < 1645 && wz > 296 && wz < 360) return null;
 
-      // Skip island underpass & subsea tunnel trench holes
       const tHoles = window.HorizonRoads && window.HorizonRoads.ISLAND_TRENCH_HOLES[islandId];
       if (tHoles) {
         for (let i = 0; i < tHoles.length; i++) {
@@ -5896,16 +5903,13 @@ window.HorizonWorld = (() => {
         }
       }
 
-      // Skip all flat roads & highways
       for (let i = 0; i < flatRoadRects.length; i++) {
         const r = flatRoadRects[i];
         if (wx >= r.minX - 1.35 && wx <= r.maxX + 1.35 && wz >= r.minZ - 1.35 && wz <= r.maxZ + 1.35) return null;
       }
 
-      // Skip all curved roads, Touge switchbacks, roundabouts, U-turns, underpasses & diversion ramps
       if (customRoads && customRoads.isPointOnRoad(wx, wz, 1.65, 3.6)) return null;
 
-      // Skip elevated urban skyway & viaduct on-ramps where deck is near ground level (< 3.8m)
       if (wx >= SKYWAY_EW.rampUpStart - 5 && wx <= SKYWAY_EW.rampDownEnd + 5 && Math.abs(wz - SKYWAY_EW.coord) <= SKYWAY_EW.halfW + 2.0) {
         if (evalSkywayDeck(wx, SKYWAY_EW).h < 3.8) return null;
       }
