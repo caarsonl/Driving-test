@@ -663,7 +663,7 @@ window.HorizonRoads = (() => {
         if (cfg.overpassCrossings) {
           for (let k = 0; k < cfg.overpassCrossings.length; k++) {
             const ov = cfg.overpassCrossings[k];
-            if (ov.addDeck && Math.abs(mz - ov.z) <= ov.halfW) {
+            if (Math.abs(mz - ov.z) <= ov.halfW) {
               hasOverpassAbove = true;
               break;
             }

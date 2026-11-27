@@ -15,8 +15,6 @@ body {
   font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   color: #f1f5f9;
   touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
   -webkit-touch-callout: none;
   overscroll-behavior: none;
 }
@@ -30,9 +28,8 @@ body {
   inset: 0;
   width: 100vw;
   height: 100vh;
+  z-index: 1;
   touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 /* Environmental Screen Overlays */
@@ -59,28 +56,52 @@ body {
   opacity: 1;
 }
 
-/* Main HUD Layout */
-#hud {
+/* Center Event Banner */
+#event-banner {
   position: fixed;
-  inset: 0;
+  top: 76px;
+  left: 50%;
+  transform: translate(-50%, -6px);
+  z-index: 16;
   pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 16px 20px;
-  z-index: 10;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 2.2px;
+  color: #fbbf24;
+  text-shadow: 0 2px 14px rgba(251, 191, 36, 0.55);
+  background: rgba(10, 15, 28, 0.68);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(251, 191, 36, 0.32);
+  border-radius: 999px;
+  padding: 5px 18px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-/* Top Bar */
-.hud-top {
+#event-banner.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* =========================================================================
+   TOP HUD BAR
+   ========================================================================= */
+#top-hud {
+  position: fixed;
+  top: 14px;
+  left: 18px;
+  right: 18px;
+  z-index: 15;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 14px;
+  pointer-events: none;
 }
 
-.brand-badge {
-  background: rgba(10, 15, 28, 0.78);
+.brand-card {
+  background: rgba(10, 15, 28, 0.8);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-left: 4px solid #38bdf8;
@@ -91,14 +112,14 @@ body {
   flex-shrink: 0;
 }
 
-.brand-badge .title {
+.brand-title {
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 1.5px;
   color: #f8fafc;
 }
 
-.brand-badge .subtitle {
+.brand-zone {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 1px;
@@ -107,7 +128,7 @@ body {
   text-transform: uppercase;
 }
 
-.brand-badge .car-tag {
+.brand-car {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.9px;
@@ -116,7 +137,7 @@ body {
   opacity: 0.88;
 }
 
-.toolbar {
+.controls-bar {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -160,103 +181,270 @@ body {
   color: #4ade80;
 }
 
-.pad-badge {
-  cursor: default;
-  pointer-events: none;
-  opacity: 0.72;
+.hud-btn.accent-green {
+  border-color: rgba(16, 185, 129, 0.65);
+  background: rgba(6, 78, 59, 0.42);
+  color: #d1fae5;
 }
 
-.pad-badge.connected {
+.hud-btn.accent-green:hover {
+  background: rgba(5, 150, 105, 0.52);
+  border-color: #34d399;
+}
+
+.hud-btn.accent-purple {
+  border-color: rgba(168, 85, 247, 0.6);
+  background: rgba(88, 28, 135, 0.38);
+  color: #f3e8ff;
+}
+
+.hud-btn.accent-purple:hover {
+  background: rgba(126, 34, 206, 0.5);
+  border-color: #c084fc;
+}
+
+#btn-pad {
+  opacity: 0.78;
+  cursor: default;
+}
+
+#btn-pad.connected {
   opacity: 1;
   border-color: rgba(74, 222, 128, 0.7);
   box-shadow: 0 0 12px rgba(74, 222, 128, 0.28);
 }
 
-.pad-badge.connected span {
+#btn-pad.connected span {
   color: #4ade80;
 }
 
-.hud-btn.garage-btn {
-  border-color: rgba(168, 85, 247, 0.6);
-  background: rgba(88, 28, 135, 0.34);
-}
-
-.hud-btn.garage-btn:hover {
-  background: rgba(126, 34, 206, 0.45);
-  border-color: #c084fc;
-}
-
-.hud-btn.garage-btn span {
-  color: #d8b4fe;
-}
-
-.hud-btn.siren-btn.siren-on {
+#btn-siren.siren-on {
   animation: sirenPulse 0.65s infinite alternate;
 }
 
-.hud-btn.siren-btn.siren-on span {
+#btn-siren.siren-on span {
   color: #ffffff;
 }
 
 @keyframes sirenPulse {
   0% {
-    background: rgba(220, 38, 38, 0.55);
+    background: rgba(220, 38, 38, 0.6);
     border-color: #f87171;
     box-shadow: 0 0 14px rgba(239, 68, 68, 0.55);
   }
   100% {
-    background: rgba(37, 99, 235, 0.55);
+    background: rgba(37, 99, 235, 0.6);
     border-color: #60a5fa;
     box-shadow: 0 0 14px rgba(59, 130, 246, 0.55);
   }
 }
 
-.hud-btn.accent {
-  border-color: rgba(249, 115, 22, 0.55);
-  color: #fdba74;
-}
-
-.hud-btn.accent:hover {
-  background: rgba(249, 115, 22, 0.24);
-  border-color: #fb923c;
-}
-
-/* Center Event Banner (stays high above car) */
-.event-banner {
-  align-self: center;
-  margin-bottom: auto;
-  margin-top: 12px;
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: 2.2px;
-  color: #fbbf24;
-  text-shadow: 0 2px 14px rgba(251, 191, 36, 0.55);
-  background: rgba(10, 15, 28, 0.58);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(251, 191, 36, 0.28);
-  border-radius: 999px;
-  padding: 5px 18px;
-  opacity: 0;
-  transform: translateY(-6px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.event-banner.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Bottom Row */
-.hud-bottom {
+/* =========================================================================
+   GPS TURN-BY-TURN BAR
+   ========================================================================= */
+#gps-bar {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  pointer-events: auto;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 14px;
+  align-items: center;
+  gap: 11px;
+  background: rgba(8, 17, 32, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(52, 211, 153, 0.55);
+  border-radius: 12px;
+  padding: 7px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
-/* Minimap */
-.minimap-panel {
-  background: rgba(10, 15, 28, 0.8);
+#gps-arrow {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.22);
+  border: 1px solid rgba(52, 211, 153, 0.6);
+  color: #34d399;
+  font-size: 19px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gps-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+}
+
+#gps-instruction {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.9px;
+  color: #f8fafc;
+}
+
+#gps-dest-name {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  color: #6ee7b7;
+}
+
+#gps-distance {
+  font-size: 14px;
+  font-weight: 900;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #38bdf8;
+  padding-left: 8px;
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.gps-clear-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(30, 41, 59, 0.75);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.gps-clear-btn:hover {
+  background: rgba(239, 68, 68, 0.35);
+  border-color: #f87171;
+  color: #ffffff;
+}
+
+/* =========================================================================
+   GRADE 1 CIRCUIT LAP TIMER HUD
+   ========================================================================= */
+#circuit-hud {
+  position: fixed;
+  left: 18px;
+  top: 100px;
+  z-index: 15;
+  min-width: 248px;
+  background: rgba(10, 14, 24, 0.86);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-left: 4px solid #ef4444;
+  border-radius: 12px;
+  padding: 9px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+.circuit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.circuit-tag {
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.lap-badge {
+  font-size: 10px;
+  font-weight: 900;
+  color: #fbbf24;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.lap-times-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: 8px;
+  padding: 4px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.lap-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.lap-lbl {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #94a3b8;
+}
+
+.lap-val {
+  font-size: 13px;
+  font-weight: 900;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #f8fafc;
+}
+
+#lap-current {
+  font-size: 15px;
+  color: #38bdf8;
+}
+
+.lap-val.best {
+  color: #c084fc;
+}
+
+.sectors-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.sec-pill {
+  text-align: center;
+  font-size: 9.5px;
+  font-weight: 800;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 2px 4px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+}
+
+.sec-pill.sec-purple {
+  background: rgba(168, 85, 247, 0.28);
+  color: #e9d5ff;
+}
+
+.sec-pill.sec-green {
+  background: rgba(34, 197, 94, 0.26);
+  color: #86efac;
+}
+
+.sec-pill.sec-yellow {
+  background: rgba(234, 179, 8, 0.26);
+  color: #fef08a;
+}
+
+/* =========================================================================
+   BOTTOM-LEFT MINIMAP
+   ========================================================================= */
+#minimap-panel {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 15;
+  background: rgba(10, 15, 28, 0.82);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 14px;
@@ -265,6 +453,12 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 5px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+#minimap-panel:hover {
+  border-color: #34d399;
 }
 
 #minimap {
@@ -273,42 +467,22 @@ body {
   display: block;
 }
 
-.minimap-coords {
+#coords-display {
   font-size: 10.5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: #94a3b8;
   letter-spacing: 0.35px;
 }
 
-/* Controls Legend */
-.controls-panel {
-  background: rgba(10, 15, 28, 0.7);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 12px;
-  padding: 9px 15px;
-  font-size: 11px;
-  color: #cbd5e1;
-  line-height: 1.9;
-  text-align: center;
-}
-
-kbd {
-  display: inline-block;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 4px;
-  padding: 1px 5px;
-  margin: 0 2px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
-  font-weight: 700;
-  color: #f8fafc;
-}
-
-/* Telemetry Panel */
-.telemetry-panel {
-  width: 286px;
+/* =========================================================================
+   BOTTOM-RIGHT TELEMETRY PANEL
+   ========================================================================= */
+#telemetry-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 15;
+  width: 288px;
   background: rgba(10, 15, 28, 0.84);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(148, 163, 184, 0.26);
@@ -317,9 +491,10 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  pointer-events: none;
 }
 
-.telemetry-top {
+.surface-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -378,6 +553,12 @@ kbd {
   color: #bfdbfe;
 }
 
+.surface-pill.circuit {
+  background: rgba(239, 68, 68, 0.22);
+  border: 1px solid rgba(248, 113, 113, 0.65);
+  color: #fecaca;
+}
+
 .grip-readout {
   font-size: 10.5px;
   font-weight: 700;
@@ -385,8 +566,7 @@ kbd {
   color: #94a3b8;
 }
 
-/* Speed, Gear & Physics Indicators */
-.speed-row {
+.speed-cluster {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -406,7 +586,7 @@ kbd {
   flex-shrink: 0;
 }
 
-.gear-box .label {
+.gear-lbl {
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 1px;
@@ -420,13 +600,36 @@ kbd {
   line-height: 1.1;
 }
 
-.physics-badges {
+.speed-box {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  flex: 1;
+}
+
+#speed-value {
+  font-size: 40px;
+  font-weight: 900;
+  line-height: 0.95;
+  color: #f8fafc;
+  letter-spacing: -1px;
+}
+
+.speed-unit {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.assist-grid {
   display: grid;
   grid-template-columns: repeat(2, auto);
   gap: 3px;
 }
 
-.phys-tag {
+.assist-badge {
   font-size: 8.5px;
   font-weight: 800;
   letter-spacing: 0.7px;
@@ -439,87 +642,49 @@ kbd {
   transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease;
 }
 
-.phys-tag.active-abs {
+.assist-badge.active-abs {
   background: rgba(239, 68, 68, 0.28);
   border-color: rgba(248, 113, 113, 0.75);
   color: #fca5a5;
 }
 
-.phys-tag.active-drift {
+.assist-badge.active-drift {
   background: rgba(245, 158, 11, 0.28);
   border-color: rgba(251, 191, 36, 0.75);
   color: #fde68a;
 }
 
-.phys-tag.active-tcs {
+.assist-badge.active-tcs {
   background: rgba(56, 189, 248, 0.25);
   border-color: rgba(56, 189, 248, 0.75);
   color: #7dd3fc;
 }
 
-.phys-tag.active-drs {
+.assist-badge.active-drs {
   background: rgba(34, 197, 94, 0.28);
   border-color: rgba(74, 222, 128, 0.8);
   color: #86efac;
 }
 
-.phys-tag.active-airbrk {
+.assist-badge.active-airbrk {
   background: rgba(249, 115, 22, 0.32);
   border-color: rgba(251, 146, 60, 0.85);
   color: #fed7aa;
 }
 
-.phys-tag.active-draft {
+.assist-badge.active-draft {
   background: rgba(168, 85, 247, 0.32);
   border-color: rgba(192, 132, 252, 0.85);
   color: #e9d5ff;
 }
 
-.speed-box {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  margin-left: auto;
-}
-
-#speed-value {
-  font-size: 42px;
-  font-weight: 900;
-  line-height: 0.95;
-  color: #f8fafc;
-  letter-spacing: -1px;
-}
-
-.speed-box .unit {
-  display: block;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  color: #94a3b8;
-  margin-top: 2px;
-}
-
-.aero-readout-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.85px;
-  color: #7dd3fc;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  background: rgba(56, 189, 248, 0.08);
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  border-radius: 6px;
-  padding: 3px 8px;
-}
-
-/* Bars: RPM, Nitro & Dynamic Road Moisture */
-.bar-group {
+.bar-row {
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.bar-header {
+.bar-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -577,89 +742,107 @@ kbd {
   background: linear-gradient(90deg, #64748b 0%, #38bdf8 55%, #0284c7 100%);
 }
 
+.aero-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.85px;
+  color: #7dd3fc;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
 /* =========================================================================
-   VEHICLE GARAGE MODAL (9 VEHICLES)
+   MODALS (VEHICLE GARAGE & 6-CITY GPS MAP)
    ========================================================================= */
-.garage-modal {
+.modal {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 45;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 18px;
+  padding: 16px;
 }
 
-.garage-backdrop {
+.modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(3, 7, 18, 0.72);
+  background: rgba(3, 7, 18, 0.76);
   backdrop-filter: blur(8px);
 }
 
-.garage-card {
+.modal-card {
   position: relative;
+  z-index: 1;
   width: 100%;
-  max-width: 880px;
-  max-height: 92vh;
-  background: rgba(12, 18, 34, 0.94);
+  max-width: 900px;
+  max-height: 93vh;
+  background: rgba(12, 18, 34, 0.96);
   border: 1px solid rgba(148, 163, 184, 0.28);
-  border-top: 3px solid #38bdf8;
   border-radius: 16px;
   padding: 18px 20px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.72);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   overflow: hidden;
 }
 
-.garage-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
+.garage-card {
+  border-top: 3px solid #38bdf8;
 }
 
-.garage-header h2 {
-  font-size: 17px;
+.map-card {
+  border-top: 3px solid #10b981;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-header h2 {
+  font-size: 16px;
   font-weight: 900;
   letter-spacing: 1.4px;
   color: #f8fafc;
 }
 
-.garage-sub {
-  font-size: 12px;
-  color: #94a3b8;
-  margin-top: 3px;
-}
-
-.garage-close-btn {
+.modal-close {
   width: 34px;
   height: 34px;
   border-radius: 8px;
   border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(30, 41, 59, 0.7);
+  background: rgba(30, 41, 59, 0.78);
   color: #e2e8f0;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
 }
 
-.garage-close-btn:hover {
-  background: rgba(239, 68, 68, 0.25);
+.modal-close:hover {
+  background: rgba(239, 68, 68, 0.28);
   border-color: #f87171;
 }
 
-.garage-body {
+/* Garage Modal Body */
+.garage-grid {
   display: grid;
-  grid-template-columns: 1.45fr 1fr;
+  grid-template-columns: 1.35fr 1fr;
   gap: 14px;
   overflow-y: auto;
   padding-right: 4px;
 }
 
-.car-grid {
+.car-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
@@ -668,10 +851,13 @@ kbd {
 
 .car-option {
   text-align: left;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(15, 23, 42, 0.78);
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 10px;
   padding: 9px 11px;
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 800;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -679,66 +865,55 @@ kbd {
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
+.car-option span {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
 .car-option:hover {
-  background: rgba(30, 41, 59, 0.9);
+  background: rgba(30, 41, 59, 0.92);
   border-color: rgba(56, 189, 248, 0.6);
 }
 
 .car-option.selected {
-  background: rgba(14, 116, 144, 0.26);
+  background: rgba(14, 116, 144, 0.28);
   border-color: #38bdf8;
   box-shadow: 0 0 14px rgba(56, 189, 248, 0.22);
 }
 
-.car-class {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: #38bdf8;
+.car-option.selected span {
+  color: #7dd3fc;
 }
 
-.car-title {
-  font-size: 13px;
-  font-weight: 800;
-  color: #f8fafc;
-}
-
-.car-desc {
-  font-size: 10.5px;
-  color: #94a3b8;
-  line-height: 1.3;
-}
-
-.garage-details {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.spec-panel,
-.paint-panel {
+.car-details {
   background: rgba(15, 23, 42, 0.72);
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
-.spec-title {
-  font-size: 14px;
-  font-weight: 800;
+#spec-car-name {
+  font-size: 16px;
+  font-weight: 900;
   color: #f8fafc;
 }
 
-.spec-aero-note {
-  font-size: 10.5px;
+.aero-note {
+  font-size: 11px;
   font-weight: 600;
   color: #7dd3fc;
-  padding-bottom: 6px;
+  padding-bottom: 8px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.spec-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .spec-row {
@@ -769,8 +944,16 @@ kbd {
   transition: width 0.25s ease;
 }
 
-.spec-fill.aero-bar {
+#spec-aero {
   background: linear-gradient(90deg, #22d3ee 0%, #10b981 100%);
+}
+
+.paint-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
 }
 
 .paint-header {
@@ -782,20 +965,20 @@ kbd {
   color: #94a3b8;
 }
 
-.paint-header #paint-name {
+#paint-name {
   color: #f8fafc;
 }
 
 .swatch-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
 }
 
 .swatch {
-  height: 30px;
-  border-radius: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.18);
+  height: 28px;
+  border-radius: 7px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
   transition: transform 0.12s ease, border-color 0.15s ease;
 }
@@ -809,26 +992,13 @@ kbd {
   box-shadow: 0 0 0 2px #38bdf8;
 }
 
-.garage-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding-top: 6px;
-  border-top: 1px solid rgba(148, 163, 184, 0.16);
-}
-
-.garage-hint {
-  font-size: 10.5px;
-  color: #94a3b8;
-}
-
-.garage-drive-btn {
+.primary-action-btn {
+  margin-top: auto;
   background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
   color: #ffffff;
   border: none;
   border-radius: 9px;
-  padding: 10px 22px;
+  padding: 10px 20px;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 1px;
@@ -836,656 +1006,16 @@ kbd {
   box-shadow: 0 6px 20px rgba(14, 165, 233, 0.35);
 }
 
-/* =========================================================================
-   MOBILE MULTI-TOUCH CONTROLS (SLIM CORNER LAYOUT — 100% CLEAR CENTER VIEW!)
-   ========================================================================= */
-.touch-controls {
-  position: fixed;
-  inset: 0;
-  z-index: 22;
-  pointer-events: none;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 10px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+.primary-action-btn:hover {
+  filter: brightness(1.08);
 }
 
-.touch-left,
-.touch-right {
-  pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  touch-action: none;
-}
-
-.touch-aux-row,
-.touch-action-row {
-  display: flex;
-  gap: 7px;
-}
-
-.touch-action-row {
-  justify-content: flex-end;
-}
-
-.touch-chip {
-  background: rgba(10, 15, 28, 0.56);
-  backdrop-filter: blur(6px);
-  color: #e2e8f0;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.8px;
-  touch-action: none;
-}
-
-.touch-chip.pressed {
-  background: rgba(56, 189, 248, 0.4);
-  border-color: #38bdf8;
-  transform: scale(0.95);
-}
-
-.touch-chip.siren.siren-on {
-  animation: sirenPulse 0.65s infinite alternate;
-  color: #ffffff;
-}
-
-.touch-steer-pad {
-  position: relative;
-  width: 178px;
-  height: 76px;
-  border-radius: 16px;
-  background: rgba(10, 15, 28, 0.52);
-  backdrop-filter: blur(8px);
-  border: 1.5px solid rgba(148, 163, 184, 0.34);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 14px;
-  touch-action: none;
-}
-
-.touch-steer-pad.active {
-  border-color: #38bdf8;
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.28);
-}
-
-.steer-arrow {
-  font-size: 17px;
-  color: rgba(226, 232, 240, 0.5);
-  pointer-events: none;
-}
-
-.steer-track {
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 50%;
-  height: 5px;
-  transform: translateY(-50%);
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.22);
-  pointer-events: none;
-}
-
-.steer-thumb {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: radial-gradient(circle at 35% 35%, #7dd3fc, #0284c7);
-  border: 2px solid rgba(255, 255, 255, 0.82);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.45);
-  pointer-events: none;
-}
-
-.touch-action {
-  min-width: 70px;
-  height: 36px;
-  border-radius: 10px;
-  border: 1.5px solid rgba(148, 163, 184, 0.32);
-  background: rgba(10, 15, 28, 0.56);
-  backdrop-filter: blur(6px);
-  color: #f8fafc;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.9px;
-  touch-action: none;
-}
-
-.touch-action.drift {
-  border-color: rgba(251, 191, 36, 0.55);
-  color: #fde68a;
-}
-
-.touch-action.drift.pressed {
-  background: rgba(245, 158, 11, 0.45);
-  border-color: #fbbf24;
-  transform: scale(0.95);
-}
-
-.touch-action.nitro {
-  border-color: rgba(56, 189, 248, 0.6);
-  color: #7dd3fc;
-}
-
-.touch-action.nitro.pressed {
-  background: rgba(14, 165, 233, 0.48);
-  border-color: #38bdf8;
-  transform: scale(0.95);
-}
-
-.touch-pedal-row {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.touch-pedal {
-  width: 72px;
-  height: 88px;
-  border-radius: 14px;
-  border: 1.5px solid rgba(148, 163, 184, 0.32);
-  background: rgba(10, 15, 28, 0.54);
-  backdrop-filter: blur(8px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  color: #f8fafc;
-  touch-action: none;
-}
-
-.touch-pedal .pedal-icon {
-  font-size: 15px;
-}
-
-.touch-pedal .pedal-label {
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.9px;
-}
-
-.touch-pedal.gas {
-  border-color: rgba(34, 197, 94, 0.58);
-  background: linear-gradient(180deg, rgba(22, 163, 74, 0.2), rgba(10, 15, 28, 0.58));
-}
-
-.touch-pedal.gas.pressed {
-  background: rgba(34, 197, 94, 0.48);
-  border-color: #4ade80;
-  transform: scale(0.96);
-}
-
-.touch-pedal.brake {
-  border-color: rgba(239, 68, 68, 0.58);
-  background: linear-gradient(180deg, rgba(220, 38, 38, 0.2), rgba(10, 15, 28, 0.58));
-}
-
-.touch-pedal.brake.pressed {
-  background: rgba(239, 68, 68, 0.48);
-  border-color: #f87171;
-  transform: scale(0.96);
-}
-
-/* =========================================================================
-   MOBILE / TOUCH HUD REFLOW — ZERO CENTER OBSTRUCTION!
-   ========================================================================= */
-body.touch-mode .controls-panel {
-  display: none !important;
-}
-
-body.touch-mode #hud {
-  padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
-}
-
-body.touch-mode .hud-top {
-  align-items: center;
-  gap: 8px;
-}
-
-body.touch-mode .brand-badge {
-  padding: 4px 8px;
-  border-left-width: 3px;
-}
-
-body.touch-mode .brand-badge .title {
-  display: none;
-}
-
-body.touch-mode .brand-badge .subtitle {
-  font-size: 9.5px;
+.primary-action-btn.compact {
   margin-top: 0;
+  padding: 8px 16px;
 }
 
-body.touch-mode .brand-badge .car-tag {
-  font-size: 8.5px;
-  margin-top: 1px;
-}
-
-body.touch-mode .toolbar {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  max-width: calc(100vw - 135px);
-  padding-bottom: 2px;
-  scrollbar-width: none;
-}
-
-body.touch-mode .toolbar::-webkit-scrollbar {
-  display: none;
-}
-
-body.touch-mode .hud-btn {
-  flex-shrink: 0;
-  padding: 5px 8px;
-  font-size: 9.5px;
-}
-
-body.touch-mode .event-banner {
-  margin-top: 6px;
-  font-size: 12px;
-  padding: 3px 12px;
-}
-
-/* Compact Minimap tucked in Top-Left corner (never touches center car!) */
-body.touch-mode .minimap-panel {
-  position: fixed;
-  left: max(10px, env(safe-area-inset-left));
-  top: 48px;
-  padding: 4px;
-  border-radius: 10px;
-  opacity: 0.85;
-  background: rgba(10, 15, 28, 0.56);
-}
-
-body.touch-mode #minimap {
-  width: 92px;
-  height: 92px;
-  border-radius: 7px;
-}
-
-body.touch-mode .minimap-coords {
-  display: none;
-}
-
-/* Ultra-Slim Telemetry Micro-Cluster tucked in Top-Right corner (leaves center 100% CLEAR!) */
-body.touch-mode .telemetry-panel {
-  position: fixed;
-  right: max(10px, env(safe-area-inset-right));
-  top: 48px;
-  width: 148px;
-  padding: 7px 9px;
-  gap: 5px;
-  border-radius: 10px;
-  background: rgba(10, 15, 28, 0.56);
-}
-
-body.touch-mode .telemetry-top {
-  padding-bottom: 3px;
-}
-
-body.touch-mode .surface-pill {
-  font-size: 8px;
-  padding: 2px 5px;
-}
-
-body.touch-mode .grip-readout,
-body.touch-mode .aero-readout-row,
-body.touch-mode .bar-header,
-body.touch-mode .bar-moisture {
-  display: none;
-}
-
-body.touch-mode .gear-box {
-  width: 32px;
-  height: 32px;
-  border-radius: 7px;
-}
-
-body.touch-mode .gear-box .label {
-  display: none;
-}
-
-body.touch-mode #gear-value {
-  font-size: 16px;
-}
-
-body.touch-mode .physics-badges {
-  display: none;
-}
-
-body.touch-mode #speed-value {
-  font-size: 26px;
-}
-
-body.touch-mode .speed-box .unit {
-  font-size: 8px;
-  margin-top: 1px;
-}
-
-body.touch-mode .bar-track {
-  height: 4px;
-}
-
-/* Extra-tight fit on short landscape phone screens */
-@media (max-height: 440px) {
-  body.touch-mode .minimap-panel {
-    display: none;
-  }
-  body.touch-mode .touch-steer-pad {
-    width: 158px;
-    height: 66px;
-  }
-  body.touch-mode .touch-pedal {
-    width: 64px;
-    height: 76px;
-  }
-}
-
-@media (max-width: 1020px) {
-  .controls-panel {
-    display: none;
-  }
-  .garage-body {
-    grid-template-columns: 1fr;
-  }
-  .car-grid {
-    grid-template-columns: 1fr;
-  }
-}
-/* =========================================================================
-   GPS TURN-BY-TURN BAR, INTERACTIVE FULL MAP & FIA GRADE 1 LAP TIMER HUD
-   ========================================================================= */
-.hud-btn.map-btn {
-  border-color: rgba(16, 185, 129, 0.65);
-  background: rgba(6, 78, 59, 0.38);
-}
-
-.hud-btn.map-btn:hover {
-  background: rgba(5, 150, 105, 0.48);
-  border-color: #34d399;
-}
-
-.hud-btn.map-btn span {
-  color: #6ee7b7;
-}
-
-.minimap-panel {
-  pointer-events: auto;
-  cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.12s ease;
-}
-
-.minimap-panel:hover {
-  border-color: #34d399;
-}
-
-.minimap-gps-hint {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.9px;
-  color: #34d399;
-  opacity: 0.9;
-}
-
-/* Turn-by-Turn GPS HUD Bar */
-.gps-bar {
-  align-self: center;
-  margin-top: 8px;
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  background: rgba(8, 17, 32, 0.86);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(52, 211, 153, 0.55);
-  border-radius: 12px;
-  padding: 7px 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
-
-.gps-arrow-box {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: rgba(16, 185, 129, 0.22);
-  border: 1px solid rgba(52, 211, 153, 0.6);
-  color: #34d399;
-  font-size: 19px;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.gps-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 135px;
-}
-
-.gps-instruction {
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.9px;
-  color: #f8fafc;
-}
-
-.gps-sub {
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.7px;
-  color: #6ee7b7;
-}
-
-.gps-dist {
-  font-size: 14px;
-  font-weight: 900;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #38bdf8;
-  padding-left: 6px;
-  border-left: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-.gps-clear-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(30, 41, 59, 0.75);
-  color: #cbd5e1;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.gps-clear-btn:hover {
-  background: rgba(239, 68, 68, 0.35);
-  border-color: #f87171;
-  color: #fff;
-}
-
-/* Grade 1 Circuit Lap Timer Widget */
-.circuit-hud {
-  position: fixed;
-  left: 20px;
-  top: 96px;
-  background: rgba(10, 14, 24, 0.86);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(239, 68, 68, 0.45);
-  border-left: 4px solid #ef4444;
-  border-radius: 12px;
-  padding: 9px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 244px;
-  z-index: 11;
-  pointer-events: none;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
-}
-
-.circuit-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.circuit-badge {
-  background: #dc2626;
-  color: #ffffff;
-  font-size: 8.5px;
-  font-weight: 900;
-  letter-spacing: 0.8px;
-  padding: 2px 5px;
-  border-radius: 4px;
-}
-
-.circuit-title {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.7px;
-  color: #e2e8f0;
-}
-
-.circuit-lap-tag {
-  margin-left: auto;
-  font-size: 9.5px;
-  font-weight: 900;
-  color: #fbbf24;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.circuit-times {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
-  gap: 8px;
-  padding: 4px 0;
-  border-top: 1px solid rgba(148, 163, 184, 0.16);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
-}
-
-.time-cell {
-  display: flex;
-  flex-direction: column;
-}
-
-.time-cell .t-lbl {
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.8px;
-  color: #94a3b8;
-}
-
-.time-cell .t-val {
-  font-size: 13px;
-  font-weight: 900;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #f8fafc;
-}
-
-.time-cell.main .t-val {
-  font-size: 15px;
-  color: #38bdf8;
-}
-
-.time-cell .t-val.best {
-  color: #c084fc;
-}
-
-.circuit-sectors {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
-}
-
-.sec-pill {
-  text-align: center;
-  font-size: 9.5px;
-  font-weight: 800;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  padding: 2px 4px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #94a3b8;
-}
-
-.sec-pill.sec-purple {
-  background: rgba(168, 85, 247, 0.28);
-  color: #e9d5ff;
-}
-
-.sec-pill.sec-green {
-  background: rgba(34, 197, 94, 0.26);
-  color: #86efac;
-}
-
-.sec-pill.sec-yellow {
-  background: rgba(234, 179, 8, 0.26);
-  color: #fef08a;
-}
-
-/* Interactive Full-Screen GPS Map Modal */
-.map-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 45;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-
-.map-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(3, 7, 18, 0.78);
-  backdrop-filter: blur(8px);
-}
-
-.map-card {
-  position: relative;
-  width: 100%;
-  max-width: 900px;
-  max-height: 94vh;
-  background: rgba(10, 16, 30, 0.96);
-  border: 1px solid rgba(52, 211, 153, 0.35);
-  border-top: 3px solid #10b981;
-  border-radius: 16px;
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.72);
-}
-
-.map-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.map-header h2 {
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: 1.4px;
-  color: #f8fafc;
-}
-
-.map-sub {
-  font-size: 11.5px;
-  color: #94a3b8;
-  margin-top: 2px;
-}
-
+/* Map Modal Body */
 .map-quick-row {
   display: flex;
   flex-wrap: wrap;
@@ -1509,28 +1039,14 @@ body.touch-mode .bar-track {
   border-color: #34d399;
 }
 
-.map-chip.gp {
-  border-color: rgba(239, 68, 68, 0.65);
-  background: rgba(153, 27, 27, 0.35);
-  color: #fecaca;
-}
-
-.map-canvas-wrap {
-  width: 100%;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  background: #06253b;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
 #full-map-canvas {
   width: 100%;
-  max-height: 58vh;
+  max-height: 56vh;
   height: auto;
   display: block;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #06253b;
   cursor: crosshair;
 }
 
@@ -1542,69 +1058,257 @@ body.touch-mode .bar-track {
   gap: 10px;
 }
 
-.map-status {
+#map-status-text {
   font-size: 11.5px;
   font-weight: 700;
   color: #6ee7b7;
 }
 
-.map-actions {
+.map-footer-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.surface-pill.circuit {
-  background: rgba(239, 68, 68, 0.22);
-  border: 1px solid rgba(248, 113, 113, 0.65);
-  color: #fecaca;
+/* =========================================================================
+   MOBILE / TABLET MULTI-TOUCH CONTROLS
+   ========================================================================= */
+#touch-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 12px max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
 }
 
-/* Mobile Touch Adjustments for GPS & Circuit Timer */
-body.touch-mode .minimap-gps-hint {
-  display: none;
+.touch-left-pad,
+.touch-right-pad {
+  pointer-events: auto;
+  display: flex;
+  gap: 8px;
+  touch-action: none;
 }
 
-body.touch-mode .gps-bar {
-  margin-top: 4px;
-  padding: 4px 8px;
-  gap: 7px;
+.touch-right-pad {
+  flex-direction: column;
+  align-items: flex-end;
 }
 
-body.touch-mode .gps-arrow-box {
-  width: 26px;
-  height: 26px;
-  font-size: 14px;
+.touch-aux-row,
+.touch-pedal-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
-body.touch-mode .gps-instruction {
+.touch-btn {
+  min-width: 74px;
+  height: 70px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(148, 163, 184, 0.34);
+  background: rgba(10, 15, 28, 0.58);
+  backdrop-filter: blur(8px);
+  color: #f8fafc;
+  font-size: 20px;
+  font-weight: 900;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.touch-btn.pressed {
+  background: rgba(56, 189, 248, 0.45);
+  border-color: #38bdf8;
+  transform: scale(0.95);
+}
+
+.touch-btn.small {
+  min-width: 58px;
+  height: 36px;
+  border-radius: 10px;
   font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
 }
 
-body.touch-mode .gps-sub {
+.touch-btn.nitro {
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #7dd3fc;
+}
+
+.touch-btn.nitro.pressed {
+  background: rgba(14, 165, 233, 0.5);
+}
+
+#touch-siren.siren-on {
+  animation: sirenPulse 0.65s infinite alternate;
+  color: #ffffff;
+}
+
+.touch-btn.pedal {
+  width: 74px;
+  height: 86px;
+  font-size: 11px;
+  letter-spacing: 0.9px;
+}
+
+.touch-btn.pedal.gas {
+  border-color: rgba(34, 197, 94, 0.6);
+  background: linear-gradient(180deg, rgba(22, 163, 74, 0.24), rgba(10, 15, 28, 0.6));
+}
+
+.touch-btn.pedal.gas.pressed {
+  background: rgba(34, 197, 94, 0.5);
+  border-color: #4ade80;
+}
+
+.touch-btn.pedal.brake {
+  border-color: rgba(239, 68, 68, 0.6);
+  background: linear-gradient(180deg, rgba(220, 38, 38, 0.24), rgba(10, 15, 28, 0.6));
+}
+
+.touch-btn.pedal.brake.pressed {
+  background: rgba(239, 68, 68, 0.5);
+  border-color: #f87171;
+}
+
+/* =========================================================================
+   TOUCH-MODE HUD REFLOW (KEEP CENTER VIEW CLEAR)
+   ========================================================================= */
+body.touch-mode #top-hud {
+  top: max(8px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  align-items: center;
+  gap: 8px;
+}
+
+body.touch-mode .brand-card {
+  padding: 4px 8px;
+  border-left-width: 3px;
+}
+
+body.touch-mode .brand-title {
   display: none;
 }
 
-body.touch-mode .gps-dist {
-  font-size: 11px;
+body.touch-mode .brand-zone {
+  font-size: 9.5px;
+  margin-top: 0;
 }
 
-body.touch-mode .circuit-hud {
+body.touch-mode .brand-car {
+  font-size: 8.5px;
+  margin-top: 1px;
+}
+
+body.touch-mode .controls-bar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: calc(100vw - 140px);
+  scrollbar-width: none;
+}
+
+body.touch-mode .controls-bar::-webkit-scrollbar {
+  display: none;
+}
+
+body.touch-mode .hud-btn {
+  flex-shrink: 0;
+  padding: 5px 8px;
+  font-size: 9.5px;
+}
+
+body.touch-mode #minimap-panel {
   left: max(10px, env(safe-area-inset-left));
-  top: 152px;
+  top: 50px;
+  bottom: auto;
+  padding: 4px;
+  border-radius: 10px;
+  opacity: 0.85;
+}
+
+body.touch-mode #minimap {
+  width: 92px;
+  height: 92px;
+  border-radius: 7px;
+}
+
+body.touch-mode #coords-display {
+  display: none;
+}
+
+body.touch-mode #telemetry-panel {
+  right: max(10px, env(safe-area-inset-right));
+  top: 50px;
+  bottom: auto;
+  width: 152px;
+  padding: 7px 9px;
+  gap: 5px;
+  border-radius: 10px;
+  background: rgba(10, 15, 28, 0.62);
+}
+
+body.touch-mode .grip-readout,
+body.touch-mode .assist-grid,
+body.touch-mode .aero-row,
+body.touch-mode .bar-meta {
+  display: none;
+}
+
+body.touch-mode .gear-box {
+  width: 34px;
+  height: 34px;
+}
+
+body.touch-mode .gear-lbl {
+  display: none;
+}
+
+body.touch-mode #gear-value {
+  font-size: 16px;
+}
+
+body.touch-mode #speed-value {
+  font-size: 26px;
+}
+
+body.touch-mode .bar-track {
+  height: 4px;
+}
+
+body.touch-mode #circuit-hud {
+  left: max(10px, env(safe-area-inset-left));
+  top: 154px;
   min-width: 162px;
   padding: 6px 8px;
 }
 
-body.touch-mode .circuit-title,
-body.touch-mode .circuit-sectors {
+body.touch-mode .sectors-row {
   display: none;
 }
 
-body.touch-mode .time-cell.main .t-val {
-  font-size: 12px;
+@media (max-width: 900px) {
+  .garage-grid {
+    grid-template-columns: 1fr;
+  }
+  .car-list {
+    grid-template-columns: 1fr;
+  }
 }
 
-body.touch-mode .time-cell .t-val {
-  font-size: 10.5px;
+@media (max-height: 440px) {
+  body.touch-mode #minimap-panel {
+    display: none;
+  }
+  body.touch-mode .touch-btn {
+    min-width: 62px;
+    height: 58px;
+  }
+  body.touch-mode .touch-btn.pedal {
+    width: 64px;
+    height: 74px;
+  }
 }

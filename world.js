@@ -4515,17 +4515,21 @@ window.HorizonWorld = (() => {
     function sampleSurface(x, z, currentY = 0, heading = 0) {
       const carFX = -Math.sin(heading);
       const carFZ = -Math.cos(heading);
-      const inTunnel = isPointInTunnel(x, z, currentY);
       let groundCustomHit = null;
+      let sunkenCustomHit = null;
 
       // 0) Complex Corridors (Level 4 Overpass, Spiral Flyover, Diversions, Level -1 Underway & Subsea Tunnel)
       if (customRoads) {
         const crHit = customRoads.sampleSurface(x, z, currentY, heading);
         if (crHit) {
-          if (crHit.height > 1.2 || crHit.height < -0.08 || crHit.surfaceType === "TUNNEL") {
+          if (crHit.height > 1.2) {
             return crHit;
           }
-          groundCustomHit = crHit;
+          if (crHit.height < -0.08 || crHit.surfaceType === "TUNNEL") {
+            sunkenCustomHit = crHit;
+          } else {
+            groundCustomHit = crHit;
+          }
         }
       }
 
@@ -4616,7 +4620,12 @@ window.HorizonWorld = (() => {
         }
       }
 
-      // Alpine Ridge Tunnel only (Subsea Tunnel is handled by customRoads without clamping y to 0)
+      // 5B) Sunken Underway & Subsea Tunnel (evaluated only after higher decks)
+      if (sunkenCustomHit) {
+        return sunkenCustomHit;
+      }
+
+      // 6) Alpine Ridge Tunnel
       if (Math.abs(x - TUNNEL.x) <= TUNNEL.halfW + 1.8 && z <= TUNNEL.startZ && z >= TUNNEL.endZ) {
         return { height: 0.0, slopePitch: 0, surfaceType: "TUNNEL", onRoad: true, overWater: false, inTunnel: true, hitWall: false };
       }
@@ -4667,22 +4676,6 @@ window.HorizonWorld = (() => {
         hitWall,
       };
     }
-
-    const CELL = 80;
-    const spatialGrid = new Map();
-    colliders.forEach((c) => {
-      const minCX = Math.floor(c.minX / CELL);
-      const maxCX = Math.floor(c.maxX / CELL);
-      const minCZ = Math.floor(c.minZ / CELL);
-      const maxCZ = Math.floor(c.maxZ / CELL);
-      for (let gx = minCX; gx <= maxCX; gx++) {
-        for (let gz = minCZ; gz <= maxCZ; gz++) {
-          const key = `${gx},${gz}`;
-          if (!spatialGrid.has(key)) spatialGrid.set(key, []);
-          spatialGrid.get(key).push(c);
-        }
-      }
-    });
 
     function getNearbyColliders(x, z) {
       const gx = Math.floor(x / CELL);

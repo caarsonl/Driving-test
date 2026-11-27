@@ -717,7 +717,34 @@
   let policeLightbar = null;
   let activeWingPivot = null;
 
+  const SHARED_CAR_MATS = new Set([
+    bodyMat,
+    secondaryWhiteMat,
+    cabinMat,
+    trimMat,
+    chromeMat,
+    tireMat,
+    headlightMat,
+    evCyanGlowMat,
+    brakeLightMat,
+    softBeamMat,
+    flameMat,
+  ]);
+
   function clearGroup(grp) {
+    grp.traverse((obj) => {
+      if (obj.geometry && typeof obj.geometry.dispose === "function") {
+        obj.geometry.dispose();
+      }
+      if (obj.material) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach((m) => {
+          if (m && !SHARED_CAR_MATS.has(m) && typeof m.dispose === "function") {
+            m.dispose();
+          }
+        });
+      }
+    });
     while (grp.children.length > 0) grp.remove(grp.children[0]);
   }
 
@@ -726,7 +753,10 @@
     activeSpec = VEHICLE_SPECS[carId];
 
     clearGroup(carBodyGroup);
-    wheelPivots.forEach((p) => carGroup.remove(p));
+    wheelPivots.forEach((p) => {
+      clearGroup(p);
+      carGroup.remove(p);
+    });
 
     const sp = activeSpec;
     world.setRoadUniform("uCarHalfW", sp.bodyW * 0.5);
@@ -1939,8 +1969,10 @@
     controls.init({
       unlockAudio: () => audio.unlockAuto(),
       onBanner: (msg) => showBanner(msg),
-      isGarageOpen: () => garageOpen || mapOpen,
+      isGarageOpen: () => garageOpen,
+      isMapOpen: () => mapOpen,
       toggleGarage: (force) => toggleGarage(force),
+      toggleMap: (force) => toggleMap(force),
       stepGarageCar,
       stepGaragePaint,
       cycleCamera,
@@ -4027,8 +4059,20 @@
   if (btnMapWarp) {
     btnMapWarp.addEventListener("click", () => {
       if (!gpsDest) return;
-      const surf = world.sampleSurface(gpsDest.x, gpsDest.z, 38, car.heading);
-      teleportCar(gpsDest.x, Math.max(0.2, surf.height + 0.2), gpsDest.z, car.heading, `ARRIVED: ${gpsDest.name}`);
+      const isSubseaPin =
+        gpsDest.x >= 1515 && gpsDest.x <= 1545 &&
+        gpsDest.z >= -830 && gpsDest.z <= -298;
+      const isUnderwayPin =
+        gpsDest.x >= 155 && gpsDest.x <= 175 &&
+        gpsDest.z >= -168 && gpsDest.z <= 214 &&
+        Math.abs(gpsDest.z) > 14 &&
+        Math.abs(gpsDest.z - 60) > 14 &&
+        Math.abs(gpsDest.z - 120) > 12;
+
+      const probeY = isSubseaPin ? -3.0 : isUnderwayPin ? -2.0 : 38;
+      const surf = world.sampleSurface(gpsDest.x, gpsDest.z, probeY, car.heading);
+      const spawnY = surf.onRoad ? surf.height + 0.2 : Math.max(0.2, surf.height + 0.2);
+      teleportCar(gpsDest.x, spawnY, gpsDest.z, car.heading, `ARRIVED: ${gpsDest.name}`);
       clearGPSDestination(true);
       toggleMap(false);
     });
@@ -4816,13 +4860,14 @@
     }
 
     world.setRoadUniform("uHasTrails", elapsed - lastTrailStampTime < 9.0 ? 1.0 : 0.0);
-    if (rtEnabled && frameCounter % 2 === 0) {
-      renderer.shadowMap.needsUpdate = true;
-    }
 
     const bloomStrength = timePreset.name === "NIGHT" ? 0.78 : timePreset.name === "SUNSET" ? 0.56 : 0.28;
     const speedChroma = usingNitro ? 0.0055 : Math.abs(vLong) > 68 ? ((Math.abs(vLong) - 68) / 50) * 0.0025 : 0;
     const crashChroma = cameraTrauma * cameraTrauma * 0.014;
+
+    if (rtEnabled && frameCounter % 2 === 0) {
+      renderer.shadowMap.needsUpdate = true;
+    }
 
     postProcess.render(scene, camera, {
       bloomStrength,

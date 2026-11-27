@@ -6,10 +6,11 @@ window.HorizonControls = (() => {
     navigator.maxTouchPoints > 0 ||
     (window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
 
-  // Live combined input state returned to game.js each frame
   const touchState = {
     steer: 0,
     steerPointerId: null,
+    left: false,
+    right: false,
     gas: false,
     brake: false,
     drift: false,
@@ -55,6 +56,8 @@ window.HorizonControls = (() => {
   function resetTouchInputs() {
     touchState.steer = 0;
     touchState.steerPointerId = null;
+    touchState.left = false;
+    touchState.right = false;
     touchState.gas = false;
     touchState.brake = false;
     touchState.drift = false;
@@ -66,7 +69,16 @@ window.HorizonControls = (() => {
     if (pad) pad.classList.remove("active");
     if (thumb) thumb.style.left = "50%";
 
-    ["touch-gas", "touch-brake", "touch-drift", "touch-nitro", "touch-horn"].forEach((id) => {
+    [
+      "touch-left",
+      "touch-right",
+      "touch-gas",
+      "touch-brake",
+      "touch-handbrake",
+      "touch-drift",
+      "touch-nitro",
+      "touch-horn",
+    ].forEach((id) => {
       const b = document.getElementById(id);
       if (b) b.classList.remove("pressed");
     });
@@ -79,16 +91,14 @@ window.HorizonControls = (() => {
     if (steerPad && steerThumb) {
       const updateSteerFromClientX = (clientX) => {
         const rect = steerPad.getBoundingClientRect();
-        const rel = ((clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1; // -1 (left) .. +1 (right)
+        const rel = ((clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
         const clamped = Math.max(-1, Math.min(1, rel));
-        // Slight center deadzone + smooth precision curve
         const abs = Math.abs(clamped);
         let curved = 0;
         if (abs > 0.08) {
           const norm = (abs - 0.08) / 0.92;
           curved = Math.sign(clamped) * Math.pow(norm, 1.25);
         }
-        // Game steering convention: +1 = Left, -1 = Right
         touchState.steer = -curved;
         steerThumb.style.left = `${50 + clamped * 40}%`;
       };
@@ -122,7 +132,6 @@ window.HorizonControls = (() => {
       steerPad.addEventListener("pointercancel", endSteer);
     }
 
-    // Holdable Multi-Touch Buttons (Gas, Brake, Drift, Nitro, Horn)
     function bindHoldButton(id, stateKey) {
       const btn = document.getElementById(id);
       if (!btn) return;
@@ -152,13 +161,15 @@ window.HorizonControls = (() => {
       btn.addEventListener("pointercancel", onUp);
     }
 
+    bindHoldButton("touch-left", "left");
+    bindHoldButton("touch-right", "right");
     bindHoldButton("touch-gas", "gas");
     bindHoldButton("touch-brake", "brake");
+    bindHoldButton("touch-handbrake", "drift");
     bindHoldButton("touch-drift", "drift");
     bindHoldButton("touch-nitro", "nitro");
     bindHoldButton("touch-horn", "horn");
 
-    // Touch Police Siren Toggle Button
     const touchSiren = document.getElementById("touch-siren");
     if (touchSiren) {
       touchSiren.addEventListener("pointerdown", (e) => {
@@ -168,7 +179,6 @@ window.HorizonControls = (() => {
       });
     }
 
-    // Top-bar TOUCH toggle button
     const toggleBtn = document.getElementById("btn-touch");
     if (toggleBtn) {
       toggleBtn.addEventListener("click", (e) => {
@@ -177,7 +187,6 @@ window.HorizonControls = (() => {
       });
     }
 
-    // Clear stuck touch inputs if the app loses focus
     window.addEventListener("blur", resetTouchInputs);
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) resetTouchInputs();
@@ -190,7 +199,7 @@ window.HorizonControls = (() => {
   // 2. CONSOLE GAMEPAD ENGINE (XBOX / PLAYSTATION / SWITCH / BLUETOOTH)
   // =========================================================================
   function updatePadBadge(connected, name = "") {
-    const badge = document.getElementById("pad-badge");
+    const badge = document.getElementById("btn-pad") || document.getElementById("pad-badge");
     const label = document.getElementById("pad-label");
     if (!badge || !label) return;
     badge.classList.toggle("connected", connected);
@@ -281,7 +290,6 @@ window.HorizonControls = (() => {
       return cur && !prev;
     };
 
-    // Unlock Web Audio on first controller interaction
     for (let i = 0; i < btns.length; i++) {
       if (isBtnPressed(btns[i])) {
         if (actions.unlockAudio) actions.unlockAudio();
@@ -290,12 +298,21 @@ window.HorizonControls = (() => {
     }
 
     const garageOpen = actions.isGarageOpen ? actions.isGarageOpen() : false;
+    const mapOpen = actions.isMapOpen ? actions.isMapOpen() : false;
 
-    // Start / Options (9) always toggles Garage
     if (justPressed(9) && actions.toggleGarage) {
       actions.toggleGarage();
+    } else if (mapOpen) {
+      if ((justPressed(0) || justPressed(1) || justPressed(8)) && actions.toggleMap) {
+        actions.toggleMap(false);
+      }
+      padState.accel = 0;
+      padState.brake = 0;
+      padState.steer = 0;
+      padState.handbrake = false;
+      padState.nitro = false;
+      padState.horn = false;
     } else if (garageOpen) {
-      // Console Navigation Inside Garage Modal
       const stickX = axes[0] || 0;
       const stickY = axes[1] || 0;
       const stickUp = stickY < -0.6 && padState.prevStickY >= -0.6;
@@ -316,9 +333,7 @@ window.HorizonControls = (() => {
       padState.nitro = false;
       padState.horn = false;
     } else {
-      // Standard Driving Controls
       const rawStickX = axes[0] || 0;
-      // Invert X so Left = +1, Right = -1 (matching game.js steering convention)
       padState.steer = -applyStickDeadzone(rawStickX, 0.12);
 
       const rt = readBtnValue(btns[7]);
@@ -326,21 +341,19 @@ window.HorizonControls = (() => {
       padState.accel = rt > 0.04 ? rt : 0;
       padState.brake = lt > 0.04 ? lt : 0;
 
-      padState.nitro = isBtnPressed(btns[0]);                         // A / Cross
-      padState.handbrake = isBtnPressed(btns[1]) || isBtnPressed(btns[2]); // B / Circle or X / Square
-      padState.horn = isBtnPressed(btns[4]);                          // LB / L1
+      padState.nitro = isBtnPressed(btns[0]);
+      padState.handbrake = isBtnPressed(btns[1]) || isBtnPressed(btns[2]);
+      padState.horn = isBtnPressed(btns[4]);
 
-      // One-Shot Console Shortcuts
-      if (justPressed(3) && actions.cycleCamera) actions.cycleCamera();           // Y / Triangle
-      if (justPressed(5) && actions.toggleSiren) actions.toggleSiren();           // RB / R1
-      if (justPressed(8) && actions.resetCar) actions.resetCar();                 // View / Share
-      if (justPressed(12) && actions.cycleWeather) actions.cycleWeather();        // D-Pad Up
-      if (justPressed(13) && actions.cycleTimeOfDay) actions.cycleTimeOfDay();    // D-Pad Down
-      if (justPressed(14) && actions.cycleWarp) actions.cycleWarp();              // D-Pad Left
-      if (justPressed(15) && actions.toggleRayTracing) actions.toggleRayTracing();// D-Pad Right
+      if (justPressed(3) && actions.cycleCamera) actions.cycleCamera();
+      if (justPressed(5) && actions.toggleSiren) actions.toggleSiren();
+      if (justPressed(8) && actions.resetCar) actions.resetCar();
+      if (justPressed(12) && actions.cycleWeather) actions.cycleWeather();
+      if (justPressed(13) && actions.cycleTimeOfDay) actions.cycleTimeOfDay();
+      if (justPressed(14) && actions.cycleWarp) actions.cycleWarp();
+      if (justPressed(15) && actions.toggleRayTracing) actions.toggleRayTracing();
     }
 
-    // Store previous button & stick states for edge detection next frame
     for (let i = 0; i < btns.length; i++) {
       padState.prevButtons[i] = isBtnPressed(btns[i]);
     }
@@ -348,7 +361,6 @@ window.HorizonControls = (() => {
     padState.prevStickY = axes[1] || 0;
   }
 
-  // Dual-Rumble Haptics (Console Controller + Android Mobile Vibration)
   function rumble(strong = 0.5, weak = 0.4, durationMs = 120) {
     if (padState.rumbleCooldown > 0) return;
     padState.rumbleCooldown = Math.min(0.16, durationMs / 1000);
@@ -380,6 +392,7 @@ window.HorizonControls = (() => {
   function getInput() {
     const touchAccel = touchState.gas ? 1 : 0;
     const touchBrake = touchState.brake ? 1 : 0;
+    const btnSteer = (touchState.left ? 1 : 0) - (touchState.right ? 1 : 0);
 
     let steer = 0;
     let isAnalogSteer = false;
@@ -389,6 +402,9 @@ window.HorizonControls = (() => {
     } else if (Math.abs(touchState.steer) > 0.01) {
       steer = touchState.steer;
       isAnalogSteer = true;
+    } else if (btnSteer !== 0) {
+      steer = btnSteer;
+      isAnalogSteer = false;
     }
 
     return {
