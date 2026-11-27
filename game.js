@@ -5014,6 +5014,7 @@
 
     world.groundGroup.visible = false;
     world.waterGroup.visible = false;
+    world.bridgeUndersideGroup.visible = false
     world.roadGroup.visible = false;
     world.roadShadowGroup.visible = false;
     skidGroup.visible = false;
@@ -5027,6 +5028,7 @@
 
     world.groundGroup.visible = true;
     world.waterGroup.visible = true;
+    world.bridgeUndersideGroup.visible = true;
     world.roadGroup.visible = true;
     world.roadShadowGroup.visible = rtEnabled;
     skidGroup.visible = true;
