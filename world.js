@@ -5577,9 +5577,12 @@ window.HorizonWorld = (() => {
     // =========================================================================
     // 16C. REAL-TIME 128x128 GPU SHALLOW-WATER WAVE SIM + 84x84 3D PUDDLE MESH
     // =========================================================================
+    // =========================================================================
+    // 16C. PHYSICALLY CALIBRATED 128x128 SHALLOW-WATER SIM + 3D PUDDLE SURFACE
+    // =========================================================================
     const SIM_RES = 128;
-    const SIM_TEXEL_WORLD = 0.30;           // 30cm/texel -> crisp per-tire wave detail!
-    const SIM_SIZE = SIM_RES * SIM_TEXEL_WORLD; // 38.4m x 38.4m live wave pool around car
+    const SIM_TEXEL_WORLD = 0.28;               // 28cm/texel for crisp per-tire channels
+    const SIM_SIZE = SIM_RES * SIM_TEXEL_WORLD; // 35.84m x 35.84m live wave pool around car
 
     const simOpts = {
       minFilter: THREE.NearestFilter,
@@ -5602,7 +5605,6 @@ window.HorizonWorld = (() => {
       vertexShader: `void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }`,
       fragmentShader: `
         void main() {
-          // Exact 16-bit zero (32767 -> hi=127, lo=255) in RG (hCur) and BA (hPrev)
           gl_FragColor = vec4(127.0 / 255.0, 1.0, 127.0 / 255.0, 1.0);
         }
       `,
@@ -5614,6 +5616,8 @@ window.HorizonWorld = (() => {
         uSimOrigin: { value: new THREE.Vector2(0, 0) },
         uSimSize: { value: SIM_SIZE },
         uScrollTexels: { value: new THREE.Vector2(0, 0) },
+        uPuddleLevel: { value: 0.0 },
+        uInOcean: { value: 0.0 },
         uCarPos: { value: new THREE.Vector3(0, 0, 45) },
         uCarForward: { value: new THREE.Vector3(0, 0, -1) },
         uCarVel: { value: new THREE.Vector3(0, 0, 0) },
@@ -5621,7 +5625,6 @@ window.HorizonWorld = (() => {
         uWheelZ: { value: 1.38 },
         uCarHalfW: { value: 1.1 },
         uCarHalfL: { value: 2.3 },
-        uSteerAngle: { value: 0.0 },
         uBrakePedal: { value: 0.0 },
         uImpactPulse: { value: 0.0 },
         uRainIntensity: { value: 0.0 },
@@ -5641,6 +5644,8 @@ window.HorizonWorld = (() => {
         uniform vec2 uSimOrigin;
         uniform float uSimSize;
         uniform vec2 uScrollTexels;
+        uniform float uPuddleLevel;
+        uniform float uInOcean;
         uniform vec3 uCarPos;
         uniform vec3 uCarForward;
         uniform vec3 uCarVel;
@@ -5648,7 +5653,6 @@ window.HorizonWorld = (() => {
         uniform float uWheelZ;
         uniform float uCarHalfW;
         uniform float uCarHalfL;
-        uniform float uSteerAngle;
         uniform float uBrakePedal;
         uniform float uImpactPulse;
         uniform float uRainIntensity;
@@ -5671,9 +5675,32 @@ window.HorizonWorld = (() => {
         }
 
         float hash21(vec2 p) {
-          p = fract(p * vec2(127.1, 311.7));
-          p += dot(p, p + 34.5);
+          p = fract(p * vec2(123.34, 456.21));
+          p += dot(p, p + 45.32);
           return fract(p.x * p.y);
+        }
+
+        float noise2D(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(
+            mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+            mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x),
+            f.y
+          );
+        }
+
+        // Exact 1:1 match with road puddle basin mask so waves NEVER exist on dry/damp asphalt!
+        float sampleWaterDomain(vec2 xz) {
+          if (uInOcean > 0.5) return 1.0;
+          if (uPuddleLevel <= 0.02) return 0.0;
+          float p1 = noise2D(xz * 0.032);
+          float p2 = noise2D(xz * 0.075 + vec2(11.3, 7.1));
+          float p3 = noise2D(xz * 0.17 + vec2(3.7, 19.4));
+          float n = clamp((p1 * 0.56 + p2 * 0.30 + p3 * 0.14 - 0.24) / 0.52, 0.0, 1.0);
+          float thresh = 0.84 - uPuddleLevel * 0.44;
+          return smoothstep(thresh - 0.02, thresh + 0.04, n) * smoothstep(0.02, 0.22, uPuddleLevel);
         }
 
         vec2 readState(vec2 uv) {
@@ -5682,42 +5709,50 @@ window.HorizonWorld = (() => {
           return vec2(decode16(s.rg), decode16(s.ba));
         }
 
-        // Physical tire-to-water displacement: carves trench directly under contact patch + pushes bow wave along travel vector
-        float tireWaterImpulse(vec2 worldXZ, vec2 wheelXZ, vec2 velDir, float speed, float driftLat, float isFront) {
+        // Subtle, physically proportional tire contact parting + side meniscus push
+        float tireWaterImpulse(vec2 worldXZ, vec2 wheelXZ, vec2 velDir, vec2 sideDir, float speed, float driftLat, float isFront) {
           vec2 d = worldXZ - wheelXZ;
           float dSq = dot(d, d);
-          if (dSq > 3.2) return 0.0;
+          if (dSq > 1.8) return 0.0;
 
-          float spdFactor = clamp(speed / 22.0, 0.0, 1.35);
-          // 1) Instant depression under tire footprint (parts the water cleanly!)
-          float tread = exp(-dSq * 5.2);
-          float imp = -tread * (0.14 + 0.34 * spdFactor);
+          float spdFactor = clamp(speed / 28.0, 0.0, 1.0);
+          // Narrow, sharp depression right under the ~35cm tire contact patch
+          float tread = exp(-dSq * 10.5);
+          float imp = -tread * (0.055 + 0.11 * spdFactor);
 
-          // 2) Displaced water surging up directly in front/outside of the tire along actual travel direction
-          vec2 pushPos = wheelXZ + velDir * (0.48 + 0.25 * spdFactor);
-          float dPushSq = dot(worldXZ - pushPos, worldXZ - pushPos);
-          imp += exp(-dPushSq * 3.2) * (0.12 + 0.32 * spdFactor);
+          // Mass conservation: displaced water gently lifts just outside the tire shoulders (not a giant boat bow!)
+          float latOff = dot(d, sideDir);
+          float fwdOff = dot(d, velDir);
+          float shoulder = exp(-pow(abs(latOff) - 0.36, 2.0) * 14.0 - fwdOff * fwdOff * 6.5);
+          imp += shoulder * (0.032 + 0.068 * spdFactor);
 
-          // 3) Sideways drift wall surge perpendicular to the car when sliding!
-          if (abs(driftLat) > 1.8) {
-            float driftMag = clamp((abs(driftLat) - 1.8) / 14.0, 0.0, 1.25);
-            vec2 slidePos = wheelXZ + velDir * 0.85;
+          // Sideways drift pushes a subtle asymmetric crest on the leading edge of the slide
+          if (abs(driftLat) > 2.2) {
+            float driftMag = clamp((abs(driftLat) - 2.2) / 14.0, 0.0, 1.0);
+            vec2 slidePos = wheelXZ + velDir * 0.42;
             float dSlideSq = dot(worldXZ - slidePos, worldXZ - slidePos);
-            imp += exp(-dSlideSq * 2.2) * 0.36 * driftMag;
+            imp += exp(-dSlideSq * 4.5) * 0.095 * driftMag;
           }
 
-          // 4) Hard braking forward surge wave ahead of front axle
-          if (isFront > 0.5 && uBrakePedal > 0.25 && speed > 5.0) {
-            vec2 brkPos = wheelXZ + velDir * 0.95;
+          // Hard braking forward ripple ahead of front tires
+          if (isFront > 0.5 && uBrakePedal > 0.35 && speed > 5.0) {
+            vec2 brkPos = wheelXZ + velDir * 0.55;
             float dBrkSq = dot(worldXZ - brkPos, worldXZ - brkPos);
-            imp += exp(-dBrkSq * 2.6) * 0.24 * uBrakePedal * spdFactor;
+            imp += exp(-dBrkSq * 6.0) * 0.065 * uBrakePedal * spdFactor;
           }
 
           return imp;
         }
 
         void main() {
-          // Exact integer-texel world scrolling (zero diffusion, zero lag!)
+          vec2 worldXZ = uSimOrigin + (vUv - 0.5) * uSimSize;
+          float waterDomain = sampleWaterDomain(worldXZ);
+
+          if (waterDomain < 0.01) {
+            gl_FragColor = vec4(127.0 / 255.0, 1.0, 127.0 / 255.0, 1.0);
+            return;
+          }
+
           vec2 oldUv = vUv + uScrollTexels * INV_RES;
           vec2 cState = readState(oldUv);
           float hCur = cState.x;
@@ -5728,27 +5763,28 @@ window.HorizonWorld = (() => {
           float hD = readState(oldUv + vec2(0.0, -INV_RES)).x;
           float hU = readState(oldUv + vec2(0.0,  INV_RES)).x;
 
-          // 2D Shallow-Water Wave Equation (Verlet integration, rock-solid CFL c^2 = 0.24)
+          // Thin-film puddle (slow gravity/capillary speed + asphalt viscous drag) vs. Deep ocean (faster swell)
+          float waveC2 = mix(0.065, 0.22, uInOcean);
+          float damp = mix(0.932, 0.972, uInOcean);
+
           float lap = (hL + hR + hD + hU) - 4.0 * hCur;
-          float hNext = (2.0 * hCur - hPrev) + 0.24 * lap;
+          float hNext = (2.0 * hCur - hPrev) + waveC2 * lap;
 
-          // Gentle natural viscous damping + smooth absorbing boundary at sim edges
           vec2 edgeDist = min(vUv, 1.0 - vUv);
-          float borderDamp = smoothstep(0.0, 0.075, min(edgeDist.x, edgeDist.y));
-          hNext *= 0.974 * borderDamp;
+          float borderDamp = smoothstep(0.0, 0.08, min(edgeDist.x, edgeDist.y));
+          // Gently absorb waves at shallow puddle shorelines
+          float shoreDamp = mix(0.75, 1.0, smoothstep(0.05, 0.45, waterDomain));
+          hNext *= damp * borderDamp * shoreDamp;
 
-          // World XZ of this simulation texel
-          vec2 worldXZ = uSimOrigin + (vUv - 0.5) * uSimSize;
-
-          // Live Instantaneous 4-Wheel + Underbody Physical Water Impulses
           vec2 carV = uCarVel.xz;
           float speed = length(carV);
-          if (uCarPos.y < 1.55) {
+          if (uCarPos.y < 1.35) {
             vec2 cF = normalize(uCarForward.xz + vec2(0.0001));
             vec2 cR = vec2(-cF.y, cF.x);
 
-            if (speed > 0.35) {
+            if (speed > 0.45) {
               vec2 velDir = carV / speed;
+              vec2 sideDir = vec2(-velDir.y, velDir.x);
               float driftLat = dot(carV, cR);
 
               vec2 wFL = uCarPos.xz - cR * uWheelX + cF * uWheelZ;
@@ -5757,42 +5793,40 @@ window.HorizonWorld = (() => {
               vec2 wRR = uCarPos.xz + cR * uWheelX - cF * uWheelZ;
 
               float imp = 0.0;
-              imp += tireWaterImpulse(worldXZ, wFL, velDir, speed, driftLat, 1.0);
-              imp += tireWaterImpulse(worldXZ, wFR, velDir, speed, driftLat, 1.0);
-              imp += tireWaterImpulse(worldXZ, wRL, velDir, speed, driftLat, 0.0);
-              imp += tireWaterImpulse(worldXZ, wRR, velDir, speed, driftLat, 0.0);
+              imp += tireWaterImpulse(worldXZ, wFL, velDir, sideDir, speed, driftLat, 1.0);
+              imp += tireWaterImpulse(worldXZ, wFR, velDir, sideDir, speed, driftLat, 1.0);
+              imp += tireWaterImpulse(worldXZ, wRL, velDir, sideDir, speed, driftLat, 0.0);
+              imp += tireWaterImpulse(worldXZ, wRR, velDir, sideDir, speed, driftLat, 0.0);
 
-              // High-speed underbody pressure trough & bow wave when blasting > 65 km/h or driving in ocean
-              if (speed > 14.0) {
+              // Deep ocean hull bow-wave only when actually submerged in the bay!
+              if (uInOcean > 0.5 && speed > 4.0) {
                 vec2 rel = worldXZ - uCarPos.xz;
                 float lf = dot(rel, cF);
                 float lr = dot(rel, cR);
-                float bow = exp(-pow(lf - uCarHalfL * 0.92, 2.0) * 1.4 - pow(lr / max(0.8, uCarHalfW * 1.1), 2.0));
-                imp += bow * 0.16 * clamp((speed - 14.0) / 30.0, 0.0, 1.0);
+                float bow = exp(-pow(lf - uCarHalfL * 0.85, 2.0) * 1.1 - pow(lr / max(0.8, uCarHalfW * 1.15), 2.0));
+                imp += bow * 0.22 * clamp(speed / 18.0, 0.0, 1.0);
               }
-              hNext += imp;
+              hNext += imp * waterDomain;
             }
 
-            // Jump Landing / Splashdown Crater + Raised Rim Shockwave!
             if (uImpactPulse > 0.01) {
               vec2 rel = worldXZ - uCarPos.xz;
               float d = length(rel);
-              float crater = -exp(-d * d * 0.38) * 0.72 + exp(-pow(d - 2.2, 2.0) * 1.1) * 0.58;
-              hNext += crater * uImpactPulse;
+              float crater = -exp(-d * d * 0.55) * 0.42 + exp(-pow(d - 1.9, 2.0) * 1.4) * 0.30;
+              hNext += crater * uImpactPulse * waterDomain;
             }
           }
 
-          // Subtle physical raindrops dropping right into the same live wave field
           if (uRainIntensity > 0.05) {
             vec2 cell = floor(vUv * 128.0);
-            float tTick = floor(uTime * 24.0);
+            float tTick = floor(uTime * 22.0);
             float rVal = hash21(cell + vec2(tTick * 1.37, tTick * 2.91));
-            if (rVal > 1.0 - 0.0022 * uRainIntensity) {
-              hNext -= 0.16 * uRainIntensity;
+            if (rVal > 1.0 - 0.0024 * uRainIntensity) {
+              hNext -= 0.085 * uRainIntensity * waterDomain;
             }
           }
 
-          hNext = clamp(hNext, -0.98, 0.98);
+          hNext = clamp(hNext, -0.65, 0.65);
           gl_FragColor = vec4(encode16(hNext), encode16(hCur));
         }
       `,
@@ -5801,14 +5835,13 @@ window.HorizonWorld = (() => {
     const simQuad = new THREE.Mesh(simQuadGeo, simClearMat);
     simScene.add(simQuad);
 
-    // Connect live GPU wave simulation texture to the 3D Ocean material immediately
     waterMat.uniforms.uWaveSimMap.value = simTargetRead.texture;
     waterMat.uniforms.uSimSize.value = SIM_SIZE;
 
-    // 84 x 84 High-Detail 3D Displaced Puddle Mesh (0.45m spacing, 1 draw call!)
+    // 84 x 84 3D Displaced Puddle Surface (realistic thin-film 1-5cm relief + glassy RT reflections)
     const PUDDLE_GRID = 84;
-    const PUDDLE_STEP = 0.45;
-    const PUDDLE_SIZE = PUDDLE_GRID * PUDDLE_STEP; // 37.8m x 37.8m (fits cleanly inside 38.4m wave sim)
+    const PUDDLE_STEP = 0.42;
+    const PUDDLE_SIZE = PUDDLE_GRID * PUDDLE_STEP; // 35.28m x 35.28m
     const PUDDLE_VERTS = (PUDDLE_GRID + 1) * (PUDDLE_GRID + 1);
 
     const puddle3DGeo = new THREE.PlaneGeometry(PUDDLE_SIZE, PUDDLE_SIZE, PUDDLE_GRID, PUDDLE_GRID);
@@ -5858,7 +5891,6 @@ window.HorizonWorld = (() => {
         varying vec3 vNormal3D;
         varying float vPuddle;
         varying float vSimH;
-        varying float vWaveSlope;
 
         float decode16(vec2 p) {
           float v = floor(p.x * 255.0 + 0.5) * 256.0 + floor(p.y * 255.0 + 0.5);
@@ -5907,10 +5939,10 @@ window.HorizonWorld = (() => {
           float pNoise = puddleField(wp.xz);
           float thresh = 0.84 - uPuddleLevel * 0.44;
           float puddleVis = smoothstep(0.02, 0.22, uPuddleLevel);
-          float p = smoothstep(thresh - 0.025, thresh + 0.04, pNoise) * puddleVis * aRoadMask;
+          float p = smoothstep(thresh - 0.02, thresh + 0.04, pNoise) * puddleVis * aRoadMask;
 
           vec2 localDist = abs(position.xz);
-          float edgeFade = 1.0 - smoothstep(14.5, 18.6, max(localDist.x, localDist.y));
+          float edgeFade = 1.0 - smoothstep(13.5, 17.4, max(localDist.x, localDist.y));
           vPuddle = p * edgeFade;
 
           if (vPuddle < 0.008) {
@@ -5918,7 +5950,6 @@ window.HorizonWorld = (() => {
             vWorldPos = wp.xyz;
             vNormal3D = vec3(0.0, 1.0, 0.0);
             vSimH = 0.0;
-            vWaveSlope = 0.0;
             gl_Position = projectionMatrix * viewMatrix * wp;
             return;
           }
@@ -5931,20 +5962,18 @@ window.HorizonWorld = (() => {
           float shD = sampleSimH(simUv - vec2(0.0, e));
           float shU = sampleSimH(simUv + vec2(0.0, e));
 
-          // Base 3D surface-tension domed liquid + live GPU simulated 3D waves & parted trenches!
-          float baseDome = (0.020 + 0.050 * pow(p, 0.5)) * edgeFade;
-          float windRipple = (sin(wp.x * 2.1 + wp.z * 1.5 + uTime * 3.0) * 0.008) * vPuddle;
-          float waveDisp = shC * 0.42 * vPuddle;
+          // Physically accurate 1-5cm shallow puddle surface height (never half-meter boat walls!)
+          float baseDome = (0.008 + 0.015 * pow(p, 0.55)) * edgeFade;
+          float windRipple = sin(wp.x * 2.2 + wp.z * 1.6 + uTime * 2.8) * 0.003 * vPuddle;
+          float waveDisp = clamp(shC * 0.065, -0.022, 0.055) * vPuddle;
 
-          // Physical 3D elevation (troughs dip down to expose tarmac; ridges curl high above!)
           float finalY = max(0.002, baseDome + windRipple + waveDisp);
-          wp.y = 0.052 + finalY;
+          wp.y = 0.048 + finalY;
 
-          vec2 grad = vec2(shL - shR, shD - shU) * (1.85 * vPuddle);
-          vNormal3D = normalize(vec3(grad.x, 0.55, grad.y));
+          vec2 grad = vec2(shL - shR, shD - shU) * (1.25 * vPuddle);
+          vNormal3D = normalize(vec3(grad.x, 1.0, grad.y));
           vWorldPos = wp.xyz;
           vSimH = shC * vPuddle;
-          vWaveSlope = length(grad);
 
           gl_Position = projectionMatrix * viewMatrix * wp;
         }
@@ -5973,7 +6002,6 @@ window.HorizonWorld = (() => {
         varying vec3 vNormal3D;
         varying float vPuddle;
         varying float vSimH;
-        varying float vWaveSlope;
 
         float decode16(vec2 p) {
           float v = floor(p.x * 255.0 + 0.5) * 256.0 + floor(p.y * 255.0 + 0.5);
@@ -5999,7 +6027,7 @@ window.HorizonWorld = (() => {
           vec3 V = toCam / max(camDist, 0.0001);
           vec3 L = normalize(uSunDir);
 
-          // Ultra-crisp per-pixel wave normal from the 128x128 GPU simulation
+          // Crisp per-pixel liquid normal from the 128x128 shallow-water sim
           vec2 simUv = (vWorldPos.xz - uSimOrigin) / uSimSize + 0.5;
           float e = 1.0 / 128.0;
           float hC = sampleSimH(simUv);
@@ -6008,63 +6036,71 @@ window.HorizonWorld = (() => {
           float hD = sampleSimH(simUv - vec2(0.0, e));
           float hU = sampleSimH(simUv + vec2(0.0, e));
 
-          vec2 simGrad = vec2(hL - hR, hD - hU) * 2.6;
+          vec2 simGrad = vec2(hL - hR, hD - hU) * 1.95;
+          float gradMag = length(simGrad);
           vec3 N = normalize(normalize(vNormal3D) + vec3(simGrad.x, 0.0, simGrad.y));
 
           float NdotV = max(dot(N, V), 0.0);
-          float fresnel = 0.04 + 0.96 * pow(1.0 - NdotV, 3.4);
+          float fresnel = 0.03 + 0.97 * pow(1.0 - NdotV, 3.8);
 
-          // Deep trough parts the water cleanly to reveal the dark road underneath; raised crests look thick & glassy!
-          float partedMask = 1.0 - smoothstep(-0.22, -0.04, hC);
-          float crestBoost = smoothstep(0.02, 0.24, hC);
+          // Tires physically part the puddle film (revealing dark wet asphalt in the tire tracks)
+          float partedMask = 1.0 - smoothstep(-0.14, -0.025, hC);
+          float rippleActivity = clamp(gradMag * 1.8 + abs(hC) * 2.5, 0.0, 1.0);
 
-          vec3 waterTint = mix(vec3(0.04, 0.08, 0.14), vec3(0.16, 0.28, 0.40), crestBoost);
-          vec3 color = waterTint * (uAmbientColor * 1.45 + uSunColor * 0.48);
+          vec3 waterTint = vec3(0.04, 0.07, 0.11);
+          vec3 color = waterTint * (uAmbientColor * 1.2 + uSunColor * 0.35);
 
           if (uRTEnabled > 0.5) {
             vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
             vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
-            // Physical 3D wave distortion bends skyscraper & car RT reflections dramatically across waves!
-            reflUv = clamp(reflUv + vec2(N.x * 0.11, N.z * 0.16), vec2(0.002), vec2(0.998));
-            vec3 refl = texture2D(uReflMap, reflUv).rgb * (1.16 + crestBoost * 0.28);
-            color = mix(color, refl, clamp(0.32 + fresnel * 0.64, 0.0, 0.96));
+            // Smooth optical bending of building/skyline RT reflections across live ripples
+            reflUv = clamp(reflUv + vec2(N.x * 0.085, N.z * 0.125), vec2(0.002), vec2(0.998));
+            vec3 refl = texture2D(uReflMap, reflUv).rgb * 1.12;
+            color = mix(color, refl, clamp(0.28 + fresnel * 0.66, 0.0, 0.94));
           }
 
-          // Sharp 3D specular highlights catching the sun/moon along live wave ridges
+          // Crisp directional specular highlights catching sun/moon along rippled liquid crests
           vec3 H = normalize(L + V);
-          float ridgeSpec = pow(max(dot(N, H), 0.0), 190.0) * (1.6 + length(simGrad) * 4.5);
+          float ridgeSpec = pow(max(dot(N, H), 0.0), 210.0) * (1.2 + gradMag * 2.4);
           color += uSunColor * ridgeSpec;
 
           vec3 toFrag = vWorldPos - uCarPos;
           float carDist = length(toFrag.xz);
-          if (uHeadlightsOn > 0.5 && carDist < 62.0) {
+          vec3 localLight = uAmbientColor * 1.35 + uSunColor * 0.45;
+
+          if (uHeadlightsOn > 0.5 && carDist < 58.0) {
             vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
             float cone = dot(dir2, normalize(uCarForward.xz));
-            float beam = smoothstep(0.58, 0.95, cone) * (1.0 - smoothstep(2.0, 62.0, carDist));
+            float beam = smoothstep(0.58, 0.95, cone) * (1.0 - smoothstep(2.0, 58.0, carDist));
             vec3 hL = normalize(vec3(uCarPos.x - vWorldPos.x, 0.95, uCarPos.z - vWorldPos.z));
-            float hSpec = pow(max(dot(N, normalize(hL + V)), 0.0), 95.0);
-            color += vec3(1.0, 0.94, 0.82) * beam * (0.20 + hSpec * 2.5);
+            float hSpec = pow(max(dot(N, normalize(hL + V)), 0.0), 90.0);
+            color += vec3(1.0, 0.94, 0.82) * beam * (0.14 + hSpec * 1.85);
+            localLight += vec3(0.95, 0.9, 0.8) * beam * 0.65;
           }
 
           vec3 rearPos = uCarPos - uCarForward * (uCarHalfL + 0.1);
           float rearDist = length(vWorldPos.xz - rearPos.xz);
-          if (rearDist < 15.0) {
-            float tFall = 1.0 - smoothstep(0.5, 15.0, rearDist);
-            color += vec3(1.0, 0.14, 0.10) * tFall * uBrakeIntensity * (0.32 + crestBoost * 1.15);
+          if (rearDist < 14.0) {
+            float tFall = 1.0 - smoothstep(0.5, 14.0, rearDist);
+            vec3 tailCol = vec3(1.0, 0.12, 0.08) * tFall * uBrakeIntensity;
+            color += tailCol * (0.28 + rippleActivity * 0.75);
+            localLight += tailCol * 0.8;
             if (uNitroActive > 0.5) {
-              color += vec3(0.20, 0.86, 1.0) * tFall * (0.45 + crestBoost * 1.35);
+              vec3 nitroCol = vec3(0.18, 0.84, 1.0) * tFall;
+              color += nitroCol * (0.35 + rippleActivity * 0.85);
+              localLight += nitroCol * 0.8;
             }
           }
 
-          // Aerated white breaking-wave foam directly on steep 3D crests & drift surges!
-          float foam = smoothstep(0.06, 0.26, hC + length(simGrad) * 0.24) * 0.88;
-          color = mix(color, vec3(0.90, 0.96, 1.0), clamp(foam, 0.0, 0.88));
+          // Subtle, scene-lit micro-aeration ONLY on sharp breaking crests (never bright white ribbons at night!)
+          float microFoam = smoothstep(0.16, 0.44, hC + gradMag * 0.22) * 0.28;
+          color = mix(color, clamp(localLight * 1.15, vec3(0.08), vec3(0.85)), microFoam);
 
           float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * camDist * camDist);
           color = mix(color, uFogColor, clamp(fogFactor, 0.0, 1.0));
 
-          float baseAlpha = smoothstep(0.025, 0.18, vPuddle) * clamp(0.48 + fresnel * 0.44 + foam * 0.35, 0.0, 0.95);
-          float finalAlpha = baseAlpha * (1.0 - partedMask * 0.65);
+          float baseAlpha = smoothstep(0.025, 0.20, vPuddle) * clamp(0.32 + fresnel * 0.52 + rippleActivity * 0.22, 0.0, 0.86);
+          float finalAlpha = baseAlpha * (1.0 - partedMask * 0.78);
           gl_FragColor = vec4(color, finalAlpha);
           #include <tonemapping_fragment>
         }
@@ -6109,15 +6145,14 @@ window.HorizonWorld = (() => {
       if (!simInitialized) resetWaterSim(renderer, carState.x, carState.z);
 
       const pLvl = puddle3DMat.uniforms.uPuddleLevel.value;
-      const needsSim = pLvl > 0.02 || carState.inWater || carState.y < 1.5;
+      const needsSim = pLvl > 0.025 || carState.inWater;
       if (!needsSim) return;
 
       const nextIX = Math.round(carState.x / SIM_TEXEL_WORLD);
       const nextIZ = Math.round(carState.z / SIM_TEXEL_WORLD);
-      let dIX = nextIX - simSnapIX;
-      let dIZ = nextIZ - simSnapIZ;
+      const dIX = nextIX - simSnapIX;
+      const dIZ = nextIZ - simSnapIZ;
 
-      // If car warped far away, clear cleanly instead of scrolling stale waves
       if (Math.abs(dIX) > 48 || Math.abs(dIZ) > 48) {
         resetWaterSim(renderer, carState.x, carState.z);
         return;
@@ -6134,6 +6169,8 @@ window.HorizonWorld = (() => {
       const fz = -Math.cos(carState.heading);
 
       simStepMat.uniforms.uSimOrigin.value.set(ox, oz);
+      simStepMat.uniforms.uPuddleLevel.value = carState.inTunnel ? 0.0 : pLvl;
+      simStepMat.uniforms.uInOcean.value = carState.inWater ? 1.0 : 0.0;
       simStepMat.uniforms.uCarPos.value.set(carState.x, carState.y, carState.z);
       simStepMat.uniforms.uCarForward.value.set(fx, 0, fz);
       simStepMat.uniforms.uCarVel.value.set(carState.vx, carState.vy, carState.vz);
@@ -6141,7 +6178,6 @@ window.HorizonWorld = (() => {
       simStepMat.uniforms.uWheelZ.value = spec.wheelZ;
       simStepMat.uniforms.uCarHalfW.value = spec.bodyW * 0.5;
       simStepMat.uniforms.uCarHalfL.value = spec.bodyLen * 0.5;
-      simStepMat.uniforms.uSteerAngle.value = carState.steerAngle || 0;
       simStepMat.uniforms.uBrakePedal.value = carState.brakePedal || 0;
       simStepMat.uniforms.uRainIntensity.value = carState.inTunnel ? 0.0 : rainIntensity;
       simStepMat.uniforms.uTime.value = elapsed;
@@ -6194,7 +6230,6 @@ window.HorizonWorld = (() => {
       const minBZ = snapZ - half;
       const maxBZ = snapZ + half;
 
-      // Pre-filter road rectangles intersecting this 37.8m box (cuts checks from 28 -> 1-2!)
       const activeRects = [];
       for (let i = 0; i < flatRoadRects.length; i++) {
         const r = flatRoadRects[i];
@@ -6229,8 +6264,6 @@ window.HorizonWorld = (() => {
       }
       puddleMaskAttr.needsUpdate = true;
     }
-    syncOceanPatch(0, 45);
-    updateGrassField(0, 45);
 
     function updateWeather(dt, weatherPreset, cameraPos, car, inTunnel, onThunder) {
       syncOceanPatch(cameraPos.x, cameraPos.z);

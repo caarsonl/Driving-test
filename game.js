@@ -1382,19 +1382,42 @@
     world.setRoadUniform("uTrailMeta", trailMetaArr);
   }
 
-  // Smoke, Wet Spray, Puddle Water-Fan & Ocean Splash Particle Pool
+  // Soft Feathered Mist, Tire Smoke & Fine Puddle Spray Sprites (zero hard circle outlines!)
+  const mistTexture = (() => {
+    const c = document.createElement("canvas");
+    c.width = 64;
+    c.height = 64;
+    const ctx = c.getContext("2d");
+    const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+    g.addColorStop(0.0, "rgba(255, 255, 255, 0.85)");
+    g.addColorStop(0.35, "rgba(240, 248, 255, 0.42)");
+    g.addColorStop(0.7, "rgba(220, 236, 255, 0.10)");
+    g.addColorStop(1.0, "rgba(220, 236, 255, 0.0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  })();
+
   const particlePool = [];
-  const particleGeo = new THREE.SphereGeometry(0.36, 6, 6);
   for (let i = 0; i < 120; i++) {
-    const m = new THREE.Mesh(
-      particleGeo,
-      new THREE.MeshBasicMaterial({ color: 0xe2e8f0, transparent: true, opacity: 0.45, depthWrite: false })
-    );
-    m.visible = false;
-    scene.add(m);
-    particlePool.push({ mesh: m, life: 0, maxLife: 0.6, vx: 0, vy: 0, vz: 0, gravity: 0, grow: 1.8 });
+    const mat = new THREE.SpriteMaterial({
+      map: mistTexture,
+      color: 0xcbd5e1,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+    });
+    const sp = new THREE.Sprite(mat);
+    sp.visible = false;
+    scene.add(sp);
+    particlePool.push({ mesh: sp, life: 0, maxLife: 0.5, vx: 0, vy: 0, vz: 0, gravity: 0, grow: 1.6, baseAlpha: 0.35 });
   }
   let particleIdx = 0;
+
+  function getMistTint(baseHex) {
+    const isNight = TIME_PRESETS[timeIndex] && TIME_PRESETS[timeIndex].name === "NIGHT";
+    return isNight ? 0x64748b : baseHex;
+  }
 
   function spawnParticle(x, y, z, mode) {
     const p = particlePool[particleIdx];
@@ -1403,36 +1426,36 @@
     p.mesh.visible = true;
 
     if (mode === "splash") {
-      p.mesh.material.color.setHex(0xdbeafe);
-      p.mesh.material.opacity = 0.72;
-      p.mesh.scale.setScalar(0.52);
-      p.maxLife = 0.55;
+      p.mesh.material.color.setHex(getMistTint(0xdbeafe));
+      p.baseAlpha = 0.42;
+      p.mesh.scale.setScalar(0.95);
+      p.maxLife = 0.46;
       p.life = p.maxLife;
-      p.vx = (Math.random() - 0.5) * 6.5;
-      p.vy = 3.2 + Math.random() * 4.2;
-      p.vz = (Math.random() - 0.5) * 6.5;
-      p.gravity = 16.0;
-      p.grow = 1.2;
+      p.vx = (Math.random() - 0.5) * 5.2;
+      p.vy = 2.6 + Math.random() * 3.4;
+      p.vz = (Math.random() - 0.5) * 5.2;
+      p.gravity = 15.0;
+      p.grow = 1.1;
     } else if (mode === "spray") {
-      p.mesh.material.color.setHex(0xcbd5e1);
-      p.mesh.material.opacity = 0.34;
-      p.mesh.scale.setScalar(0.46);
-      p.maxLife = 0.42;
+      p.mesh.material.color.setHex(getMistTint(0xcbd5e1));
+      p.baseAlpha = 0.22;
+      p.mesh.scale.setScalar(0.85);
+      p.maxLife = 0.36;
       p.life = p.maxLife;
-      p.vx = (Math.random() - 0.5) * 2.2;
-      p.vy = 1.5 + Math.random() * 1.4;
-      p.vz = (Math.random() - 0.5) * 2.2;
-      p.gravity = 5.2;
-      p.grow = 1.4;
+      p.vx = (Math.random() - 0.5) * 1.6;
+      p.vy = 0.9 + Math.random() * 0.9;
+      p.vz = (Math.random() - 0.5) * 1.6;
+      p.gravity = 4.2;
+      p.grow = 1.45;
     } else {
-      p.mesh.material.color.setHex(0xe2e8f0);
-      p.mesh.material.opacity = 0.44;
-      p.mesh.scale.setScalar(0.6);
-      p.maxLife = 0.68;
+      p.mesh.material.color.setHex(getMistTint(0xe2e8f0));
+      p.baseAlpha = 0.34;
+      p.mesh.scale.setScalar(1.0);
+      p.maxLife = 0.62;
       p.life = p.maxLife;
-      p.vx = (Math.random() - 0.5) * 1.4;
-      p.vy = 1.25 + Math.random() * 1.1;
-      p.vz = (Math.random() - 0.5) * 1.4;
+      p.vx = (Math.random() - 0.5) * 1.2;
+      p.vy = 1.0 + Math.random() * 0.9;
+      p.vz = (Math.random() - 0.5) * 1.2;
       p.gravity = 0.0;
       p.grow = 1.9;
     }
@@ -1443,17 +1466,17 @@
     particleIdx = (particleIdx + 1) % particlePool.length;
     p.mesh.position.set(x, y + 0.14, z);
     p.mesh.visible = true;
-    p.mesh.material.color.setHex(0xe0f2fe);
-    p.mesh.material.opacity = 0.58;
-    p.mesh.scale.setScalar(0.42);
-    p.maxLife = 0.38 + Math.random() * 0.24;
+    p.mesh.material.color.setHex(getMistTint(0xdbeafe));
+    p.baseAlpha = 0.28;
+    p.mesh.scale.setScalar(0.65);
+    p.maxLife = 0.30 + Math.random() * 0.18;
     p.life = p.maxLife;
-    const fanPush = 2.4 + Math.min(8.5, speed * 0.24) * (0.7 + Math.random() * 0.6);
-    p.vx = carVx * 0.38 + outX * fanPush + (Math.random() - 0.5) * 1.5;
-    p.vy = 1.9 + Math.min(4.8, speed * 0.14) * (0.75 + Math.random() * 0.5);
-    p.vz = carVz * 0.38 + outZ * fanPush + (Math.random() - 0.5) * 1.5;
-    p.gravity = 13.5;
-    p.grow = 1.55;
+    const fanPush = 1.6 + Math.min(4.8, speed * 0.14) * (0.7 + Math.random() * 0.5);
+    p.vx = carVx * 0.32 + outX * fanPush + (Math.random() - 0.5) * 1.0;
+    p.vy = 1.1 + Math.min(2.6, speed * 0.08) * (0.7 + Math.random() * 0.4);
+    p.vz = carVz * 0.32 + outZ * fanPush + (Math.random() - 0.5) * 1.0;
+    p.gravity = 11.5;
+    p.grow = 1.35;
   }
   // =========================================================================
   // 2B. 4-MODE 3D CAR-WATER ANIMATION SYSTEM (WINGS, DRIFT WAVE, CROWNS, STEAM)
@@ -4165,8 +4188,8 @@
         p.mesh.position.y += p.vy * dt;
         p.mesh.position.z += p.vz * dt;
         const ratio = Math.max(0, p.life / p.maxLife);
-        p.mesh.scale.setScalar(0.45 + (1 - ratio) * (p.grow || 1.5));
-        p.mesh.material.opacity = ratio * (p.gravity > 0 ? 0.56 : 0.42);
+        p.mesh.scale.setScalar(0.75 + (1 - ratio) * (p.grow || 1.4));
+        p.mesh.material.opacity = ratio * (p.baseAlpha || 0.3);
         if (p.life <= 0) p.mesh.visible = false;
       }
     }
