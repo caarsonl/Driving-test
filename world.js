@@ -815,6 +815,9 @@ window.HorizonWorld = (() => {
   // =========================================================================
   // 5A. ENHANCED PROCEDURAL GRASS SHADER (SEAMLESS TURF, WIND WAVES & DEW SHEEN)
   // =========================================================================
+  // =========================================================================
+  // 5A. ENHANCED PROCEDURAL GRASS SHADER (FIBROUS TURF, WIND WAVES & DEW SHEEN)
+  // =========================================================================
   function createRealisticGrassMaterial(lushHex, warmHex, soilHex) {
     return new THREE.ShaderMaterial({
       uniforms: {
@@ -888,53 +891,63 @@ window.HorizonWorld = (() => {
           vec3 V = toCam / max(camDist, 0.0001);
           vec3 L = normalize(uSunDir);
 
-          // Multi-scale seamless organic meadow & turf variation (zero repeating grid!)
-          float macro = noise2D(vWorldPos.xz * 0.016);
-          float med = noise2D(vWorldPos.xz * 0.078 + vec2(9.2, 4.1));
-          float clover = noise2D(vWorldPos.xz * 0.36 + vec2(3.7, 17.3));
+          // Multi-scale organic meadow patches (zero tiling seams)
+          float macro = noise2D(vWorldPos.xz * 0.015);
+          float med = noise2D(vWorldPos.xz * 0.072 + vec2(9.2, 4.1));
+          float tuftMacro = noise2D(vWorldPos.xz * 0.34 + vec2(3.7, 17.3));
 
-          // Animated wind gusts rolling gently across the turf
-          float windWave = sin(vWorldPos.x * 0.075 + vWorldPos.z * 0.052 - uTime * 1.85 + macro * 3.5);
-          float windSheen = smoothstep(-0.2, 0.9, windWave) * (0.45 + 0.55 * med);
+          // Rolling wind gusts across the grass canopy
+          float windWave = sin(vWorldPos.x * 0.08 + vWorldPos.z * 0.055 - uTime * 1.9 + macro * 3.5);
+          float windSheen = smoothstep(-0.15, 0.9, windWave) * (0.45 + 0.55 * med);
 
-          // Crisp near-field grass blade fibrous relief (attenuates cleanly at distance to avoid shimmer)
-          float nearMask = 1.0 - smoothstep(18.0, 145.0, camDist);
-          float bladeA = noise2D(vWorldPos.xz * 2.8 + vec2(windWave * 0.14, 0.0));
-          float bladeB = noise2D(vWorldPos.xz * 6.4 - vec2(0.0, windWave * 0.12));
-          float bladeDetail = (bladeA * 0.62 + bladeB * 0.38 - 0.5) * nearMask;
+          // Crisp near-field parallax-shifted fibrous grass tuft relief
+          float nearMask = 1.0 - smoothstep(22.0, 165.0, camDist);
+          vec2 pXZ = vWorldPos.xz - (V.xz / max(V.y, 0.35)) * (tuftMacro * 0.08 * nearMask);
 
-          // Blend lush meadow, sunlit warm tips, and organic soil pockets
-          vec3 baseCol = mix(uLushColor, uWarmColor, smoothstep(0.28, 0.78, macro * 0.65 + med * 0.35));
-          baseCol = mix(baseCol, uSoilColor, smoothstep(0.72, 0.95, (1.0 - macro) * 0.55 + clover * 0.45) * 0.38);
-          baseCol *= 0.90 + bladeDetail * 0.28 + windSheen * 0.09;
+          float e = 0.09;
+          float b0 = noise2D(pXZ * 2.9 + vec2(windWave * 0.14, 0.0)) * 0.58 + noise2D(pXZ * 7.8) * 0.42;
+          float bX = noise2D((pXZ + vec2(e, 0.0)) * 2.9 + vec2(windWave * 0.14, 0.0)) * 0.58 + noise2D((pXZ + vec2(e, 0.0)) * 7.8) * 0.42;
+          float bZ = noise2D((pXZ + vec2(0.0, e)) * 2.9 + vec2(windWave * 0.14, 0.0)) * 0.58 + noise2D((pXZ + vec2(0.0, e)) * 7.8) * 0.42;
 
-          // Subtle manicured stripe mowing effect inside the Apexia Grand Prix Circuit infield!
+          // Rich sunlit turf palette + clover patches + subtle soil root depth
+          vec3 baseCol = mix(uLushColor, uWarmColor, smoothstep(0.24, 0.78, macro * 0.62 + med * 0.38));
+          baseCol = mix(baseCol, uSoilColor, smoothstep(0.68, 0.94, (1.0 - macro) * 0.52 + (1.0 - tuftMacro) * 0.48) * 0.42);
+          // Deep root shadow in troughs, brighter blades on tuft peaks
+          baseCol *= 0.80 + b0 * 0.44 + windSheen * 0.11;
+
+          // Subtle manicured stripe mowing inside the Apexia Grand Prix Circuit infield
           float inCircuitPark = step(420.0, vWorldPos.x) * step(vWorldPos.x, 1595.0) * step(720.0, vWorldPos.z) * step(vWorldPos.z, 1455.0);
           if (inCircuitPark > 0.5) {
-            float mowStripe = 0.5 + 0.5 * sin(vWorldPos.x * 0.32);
-            baseCol *= 0.94 + mowStripe * 0.10;
+            float mowStripe = 0.5 + 0.5 * sin(vWorldPos.x * 0.30);
+            baseCol *= 0.92 + mowStripe * 0.14;
+          } else if (nearMask > 0.05) {
+            // Delicate distant wildflower flecks matching the 3D grass field
+            float fl = hash21(floor(vWorldPos.xz * 2.4));
+            float flMask = smoothstep(0.986, 0.998, fl) * nearMask * smoothstep(0.35, 0.75, med);
+            vec3 flCol = fl > 0.993 ? vec3(0.98, 0.96, 0.84) : vec3(0.96, 0.82, 0.24);
+            baseCol = mix(baseCol, flCol, flMask * 0.65);
           }
 
-          // Rain dampness enriches & darkens the grass slightly
-          baseCol *= 1.0 - uRoadMoisture * 0.22;
+          baseCol *= 1.0 - uRoadMoisture * 0.20;
 
-          // Procedural blade micro-normal tilted slightly by wind waves
+          // Steep fibrous micro-normal for crisp directional shading
           vec3 N = normalize(vec3(
-            (bladeA - 0.5) * 0.42 * nearMask + windWave * 0.09,
+            (b0 - bX) * 2.6 * nearMask + windWave * 0.11,
             1.0,
-            (bladeB - 0.5) * 0.42 * nearMask - windWave * 0.06
+            (b0 - bZ) * 2.6 * nearMask - windWave * 0.08
           ));
 
           float NdotL = max(dot(N, L), 0.0);
           vec3 H = normalize(L + V);
-          // Soft velvety backlit grass translucency + wet dew specular
-          float rimVelvet = pow(1.0 - max(dot(N, V), 0.0), 3.0) * (0.14 + uRoadMoisture * 0.26);
-          float dewSpec = pow(max(dot(N, H), 0.0), mix(26.0, 84.0, uRoadMoisture)) * (0.08 + uRoadMoisture * 0.36);
+          // Velvety backlit grass glow at grazing sunset/daylight angles
+          float rimVelvet = pow(1.0 - max(dot(N, V), 0.0), 2.8) * (0.22 + uRoadMoisture * 0.26);
+          float dewSpec = pow(max(dot(N, H), 0.0), mix(24.0, 78.0, uRoadMoisture)) * (0.09 + uRoadMoisture * 0.42);
 
-          vec3 color = baseCol * (uAmbientColor * 1.15 + uSunColor * (NdotL * 0.95 + rimVelvet))
-                     + uSunColor * (dewSpec + windSheen * 0.045);
+          vec3 ambBounce = max(uAmbientColor * 1.38, vec3(0.14, 0.18, 0.16));
+          vec3 color = baseCol * (ambBounce + uSunColor * (NdotL * 1.05 + rimVelvet))
+                     + uSunColor * (dewSpec + windSheen * 0.06);
 
-          // Grounded Under-Car Contact AO on grass too
+          // Grounded Under-Car Contact AO
           vec3 toFrag = vWorldPos - uCarPos;
           float carDist = length(toFrag.xz);
           if (carDist < 5.5 && toFrag.y < 0.8 && toFrag.y > -4.5) {
@@ -944,14 +957,14 @@ window.HorizonWorld = (() => {
             float lz = abs(dot(toFrag.xz, carF)) / max(1.6, uCarHalfL * 1.1);
             float footprint = (1.0 - smoothstep(0.62, 1.18, max(lx, lz))) * (1.0 - smoothstep(0.7, 1.38, length(vec2(lx, lz))));
             float heightFade = 1.0 - smoothstep(0.0, 3.2, max(0.0, uCarPos.y - vWorldPos.y));
-            color *= 1.0 - footprint * heightFade * 0.65;
+            color *= 1.0 - footprint * heightFade * 0.68;
           }
 
-          if (uHeadlightsOn > 0.5 && carDist < 70.0 && abs(toFrag.y) < 6.0) {
+          if (uHeadlightsOn > 0.5 && carDist < 72.0 && abs(toFrag.y) < 6.0) {
             vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
             float cone = dot(dir2, normalize(uCarForward.xz));
-            float beam = smoothstep(0.62, 0.96, cone) * (1.0 - smoothstep(2.5, 70.0, carDist));
-            color += vec3(1.0, 0.94, 0.82) * beam * 0.34;
+            float beam = smoothstep(0.62, 0.96, cone) * (1.0 - smoothstep(2.5, 72.0, carDist));
+            color += vec3(1.0, 0.94, 0.82) * beam * (0.30 + b0 * 0.18);
           }
 
           if (uSparkIntensity > 0.02) {
@@ -3739,27 +3752,79 @@ window.HorizonWorld = (() => {
     buildInstanced(unitConeGeo, pitchedRoofMat, pitchedRoofBatch);
     neonBatches.forEach((b, idx) => buildInstanced(sharedUnitBox, neonMaterials[idx], b, false, false));
 
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9 });
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0x1e5c2e, roughness: 0.85 });
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x56361f, roughness: 0.92 });
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82 });
+    const bushMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86 });
+
     if (treeBatch.length) {
-      const trunkInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.45, 0.65, 4, 6), trunkMat, treeBatch.length);
-      const crownInst = new THREE.InstancedMesh(new THREE.ConeGeometry(2.8, 7.2, 6), leafMat, treeBatch.length);
+      const nTrees = treeBatch.length;
+      const trunkInst = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.36, 0.58, 3.8, 7), trunkMat, nTrees);
+      const lowTierInst = new THREE.InstancedMesh(new THREE.ConeGeometry(3.15, 4.4, 8), leafMat, nTrees);
+      const midTierInst = new THREE.InstancedMesh(new THREE.ConeGeometry(2.45, 4.2, 8), leafMat, nTrees);
+      const topTierInst = new THREE.InstancedMesh(new THREE.ConeGeometry(1.55, 3.6, 7), leafMat, nTrees);
+      const bushInst = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1.15, 1), bushMat, nTrees * 2);
+
       trunkInst.castShadow = true;
-      crownInst.castShadow = true;
+      lowTierInst.castShadow = true;
+      midTierInst.castShadow = true;
+      topTierInst.castShadow = true;
+      bushInst.castShadow = true;
+
+      const foliagePalette = [0x1f5c2b, 0x2a6e33, 0x357a36, 0x22542d, 0x3f8034];
+      const cCol = new THREE.Color();
+
       treeBatch.forEach((t, i) => {
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.set(t.s, t.s, t.s);
-        dummy.position.set(t.x, 2 * t.s, t.z);
+        const s = t.s;
+        const rot = hash21JS(t.x, t.z) * Math.PI * 2;
+        const shadeHex = foliagePalette[i % foliagePalette.length];
+
+        dummy.scale.set(s, s, s);
+        dummy.rotation.set(0, rot, 0);
+        dummy.position.set(t.x, 1.9 * s, t.z);
         dummy.updateMatrix();
         trunkInst.setMatrixAt(i, dummy.matrix);
-        dummy.position.set(t.x, 6.5 * t.s, t.z);
+
+        dummy.position.set(t.x, 4.5 * s, t.z);
         dummy.updateMatrix();
-        crownInst.setMatrixAt(i, dummy.matrix);
+        lowTierInst.setMatrixAt(i, dummy.matrix);
+
+        dummy.rotation.set(0, rot + 0.55, 0);
+        dummy.position.set(t.x, 6.9 * s, t.z);
+        dummy.updateMatrix();
+        midTierInst.setMatrixAt(i, dummy.matrix);
+
+        dummy.rotation.set(0, rot + 1.1, 0);
+        dummy.position.set(t.x, 9.1 * s, t.z);
+        dummy.updateMatrix();
+        topTierInst.setMatrixAt(i, dummy.matrix);
+
+        cCol.setHex(shadeHex).multiplyScalar(0.86);
+        lowTierInst.setColorAt(i, cCol);
+        cCol.setHex(shadeHex);
+        midTierInst.setColorAt(i, cCol);
+        cCol.setHex(shadeHex).multiplyScalar(1.14);
+        topTierInst.setColorAt(i, cCol);
+
+        // Two organic 3D leafy shrubs tucked around each tree base
+        for (let b = 0; b < 2; b++) {
+          const ang = rot + b * 2.65 + 0.4;
+          const dist = (1.6 + b * 0.9) * s;
+          const bs = (0.65 + hash21JS(t.x + b * 7, t.z - b * 5) * 0.55) * s;
+          dummy.position.set(t.x + Math.cos(ang) * dist, 0.52 * bs, t.z + Math.sin(ang) * dist);
+          dummy.rotation.set(0, ang, 0);
+          dummy.scale.set(bs * 1.25, bs * 0.72, bs * 1.15);
+          dummy.updateMatrix();
+          bushInst.setMatrixAt(i * 2 + b, dummy.matrix);
+          cCol.setHex(foliagePalette[(i + b + 2) % foliagePalette.length]).multiplyScalar(0.95 + b * 0.12);
+          bushInst.setColorAt(i * 2 + b, cCol);
+        }
       });
-      trunkInst.instanceMatrix.needsUpdate = true;
-      crownInst.instanceMatrix.needsUpdate = true;
-      scene.add(trunkInst);
-      scene.add(crownInst);
+
+      [trunkInst, lowTierInst, midTierInst, topTierInst, bushInst].forEach((inst) => {
+        inst.instanceMatrix.needsUpdate = true;
+        if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+        scene.add(inst);
+      });
     }
 
     // --- 3D Wind-Swaying Instanced Grass Tufts (1 GPU Draw Call, Skipped in Mirror RT Pass!) ---
@@ -5046,10 +5111,764 @@ window.HorizonWorld = (() => {
     let lightningFlash = 0;
     let nextLightningTimer = 3.8;
 
+    // =========================================================================
+    // 16B. TOROIDAL 1-DRAW-CALL 3D GRASS BLADE FIELD (~24,500 LIVE 3D BLADES)
+    // =========================================================================
+    const GRASS_GRID = 64;                  // 64 x 64 = 4,096 6-blade tufts = 24,576 blades
+    const GRASS_HALF = GRASS_GRID >> 1;
+    const GRASS_STEP = 1.65;                // Covers 105m x 105m seamlessly around camera
+    const GRASS_COUNT = GRASS_GRID * GRASS_GRID;
+
+    function createGrassTuftGeometry() {
+      const positions = [];
+      const uvs = [];
+      const bladeMeta = []; // (leanDirX, leanDirZ, bladeRandom)
+      const indices = [];
+      const bladesPerTuft = 6;
+
+      for (let b = 0; b < bladesPerTuft; b++) {
+        const ang = (b / bladesPerTuft) * Math.PI * 2 + (b % 2) * 0.28;
+        const c = Math.cos(ang);
+        const s = Math.sin(ang);
+        const radOff = 0.08 + (b % 3) * 0.14;
+        const bx = c * radOff;
+        const bz = s * radOff;
+
+        // Blade width perpendicular to outward direction
+        const w = 0.085 + (b % 2) * 0.025;
+        const px = -s * w;
+        const pz = c * w;
+
+        const h = 0.72 + ((b * 37) % 10) * 0.045;
+        const leanMid = 0.11 + (b % 3) * 0.04;
+        const leanTop = 0.28 + (b % 3) * 0.08;
+        const bRand = ((b * 53 + 17) % 100) / 100;
+        const baseV = b * 5;
+
+        // 5-vertex curved tapered blade (root L/R -> mid L/R -> sharp tip)
+        positions.push(
+          bx - px, 0.0, bz - pz,
+          bx + px, 0.0, bz + pz,
+          bx - px * 0.56 + c * leanMid, h * 0.52, bz - pz * 0.56 + s * leanMid,
+          bx + px * 0.56 + c * leanMid, h * 0.52, bz + pz * 0.56 + s * leanMid,
+          bx + c * leanTop, h, bz + s * leanTop
+        );
+
+        uvs.push(
+          0.0, 0.0,
+          1.0, 0.0,
+          0.15, 0.52,
+          0.85, 0.52,
+          0.5, 1.0
+        );
+
+        for (let k = 0; k < 5; k++) {
+          bladeMeta.push(c, s, bRand);
+        }
+
+        indices.push(
+          baseV, baseV + 1, baseV + 2,
+          baseV + 1, baseV + 3, baseV + 2,
+          baseV + 2, baseV + 3, baseV + 4
+        );
+      }
+
+      const instGeo = new THREE.InstancedBufferGeometry();
+      instGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+      instGeo.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(uvs), 2));
+      instGeo.setAttribute("aBladeMeta", new THREE.BufferAttribute(new Float32Array(bladeMeta), 3));
+      instGeo.setIndex(indices);
+      instGeo.instanceCount = GRASS_COUNT;
+      return instGeo;
+    }
+
+    const grassInstGeo = createGrassTuftGeometry();
+    const grassPosArr = new Float32Array(GRASS_COUNT * 4);    // (worldX, heightScale, worldZ, rotY)
+    const grassStyleArr = new Float32Array(GRASS_COUNT * 4);  // (tintR, tintG, tintB, flowerCode)
+    const grassPosAttr = new THREE.InstancedBufferAttribute(grassPosArr, 4);
+    const grassStyleAttr = new THREE.InstancedBufferAttribute(grassStyleArr, 4);
+    grassInstGeo.setAttribute("aInstPos", grassPosAttr);
+    grassInstGeo.setAttribute("aInstStyle", grassStyleAttr);
+
+    const grassBladesMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0.0 },
+        uRoadMoisture: { value: 0.0 },
+        uSunDir: { value: new THREE.Vector3(-0.6, 0.3, -0.5).normalize() },
+        uSunColor: { value: new THREE.Color(0xffa45b) },
+        uAmbientColor: { value: new THREE.Color(0x523c46) },
+        uFogColor: { value: new THREE.Color(0xb85247) },
+        uFogDensity: { value: 0.00064 },
+        uCarPos: { value: new THREE.Vector3(0, 0, 45) },
+        uCarForward: { value: new THREE.Vector3(0, 0, -1) },
+        uCarHalfW: { value: 1.15 },
+        uCarHalfL: { value: 2.35 },
+        uHeadlightsOn: { value: 1.0 },
+        uSparkPos: { value: new THREE.Vector3(0, -100, 0) },
+        uSparkIntensity: { value: 0.0 },
+      },
+      side: THREE.DoubleSide,
+      vertexShader: `
+        attribute vec3 aBladeMeta;
+        attribute vec4 aInstPos;
+        attribute vec4 aInstStyle;
+
+        uniform float uTime;
+        uniform vec3 uCarPos;
+        uniform vec3 uCarForward;
+        uniform float uCarHalfW;
+        uniform float uCarHalfL;
+
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+        varying vec3 vTint;
+        varying float vFlower;
+        varying float vBladeRand;
+        varying float vWind;
+
+        void main() {
+          vUv = uv;
+          vTint = aInstStyle.rgb;
+          vFlower = aInstStyle.a;
+          vBladeRand = aBladeMeta.z;
+
+          float hScale = aInstPos.y;
+          vec2 baseXZ = aInstPos.xz;
+
+          // Smooth distance scale-out so grass emerges organically with zero popping
+          float camDist = length(baseXZ - cameraPosition.xz);
+          float distScale = 1.0 - smoothstep(34.0, 51.0, camDist);
+          float finalScale = hScale * distScale;
+
+          if (finalScale < 0.005) {
+            vWorldPos = vec3(baseXZ.x, -50.0, baseXZ.y);
+            vWind = 0.0;
+            gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+            return;
+          }
+
+          float cR = cos(aInstPos.w);
+          float sR = sin(aInstPos.w);
+          vec3 lp = position * vec3(0.85 + hScale * 0.45, finalScale, 0.85 + hScale * 0.45);
+          vec3 rotPos = vec3(lp.x * cR - lp.z * sR, lp.y, lp.x * sR + lp.z * cR);
+
+          // Multi-frequency traveling wind gusts bend tips while locking roots to y = 0
+          float bendW = uv.y * uv.y;
+          float gust = sin(baseXZ.x * 0.08 + baseXZ.y * 0.055 - uTime * 1.9 + aBladeMeta.z * 2.5);
+          float flutter = sin(uTime * 3.8 + baseXZ.x * 0.7 + aBladeMeta.z * 12.0) * 0.04;
+          rotPos.x += (gust * 0.20 + flutter) * bendW * finalScale;
+          rotPos.z += (gust * 0.13 - flutter * 0.7) * bendW * finalScale;
+          vWind = gust;
+
+          // Interactive Car Grass Flattening & Outward Parting when driving off-road!
+          vec2 relCar = baseXZ - uCarPos.xz;
+          float carDistSq = dot(relCar, relCar);
+          if (carDistSq < 18.0 && uCarPos.y < 1.8) {
+            vec2 carF = normalize(uCarForward.xz + vec2(0.0001));
+            vec2 carR = vec2(-carF.y, carF.x);
+            float lx = abs(dot(relCar, carR)) / max(0.8, uCarHalfW + 0.32);
+            float lz = abs(dot(relCar, carF)) / max(1.6, uCarHalfL + 0.35);
+            float foot = (1.0 - smoothstep(0.65, 1.48, max(lx, lz))) * (1.0 - smoothstep(0.0, 1.8, max(0.0, uCarPos.y)));
+            if (foot > 0.01) {
+              vec2 pushDir = normalize(relCar + vec2(0.001));
+              rotPos.xz += pushDir * foot * bendW * 0.55;
+              rotPos.y *= mix(1.0, 0.14, foot);
+            }
+          }
+
+          vec3 wp = vec3(baseXZ.x + rotPos.x, rotPos.y, baseXZ.y + rotPos.z);
+          vWorldPos = wp;
+          gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uRoadMoisture;
+        uniform vec3 uSunDir;
+        uniform vec3 uSunColor;
+        uniform vec3 uAmbientColor;
+        uniform vec3 uFogColor;
+        uniform float uFogDensity;
+        uniform vec3 uCarPos;
+        uniform vec3 uCarForward;
+        uniform float uHeadlightsOn;
+        uniform vec3 uSparkPos;
+        uniform float uSparkIntensity;
+
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+        varying vec3 vTint;
+        varying float vFlower;
+        varying float vBladeRand;
+        varying float vWind;
+
+        void main() {
+          vec3 toCam = cameraPosition - vWorldPos;
+          float camDist = length(toCam);
+          vec3 V = toCam / max(camDist, 0.0001);
+          vec3 L = normalize(uSunDir);
+
+          // Rich root-to-tip shading (deep earthy root AO -> lush body -> bright sunlit tip)
+          float h = vUv.y;
+          vec3 rootCol = vTint * vec3(0.46, 0.50, 0.42);
+          vec3 tipCol = vTint * vec3(1.26, 1.34, 0.94);
+          vec3 albedo = mix(rootCol, tipCol, smoothstep(0.0, 0.92, h));
+          albedo *= 0.88 + vBladeRand * 0.24;
+
+          // Subtle wildflowers on tips of ~14% of meadow clumps (1 blade per tuft)
+          if (vFlower > 0.5 && vBladeRand > 0.72 && h > 0.76) {
+            vec3 flowerCol = vFlower < 1.5
+              ? vec3(1.0, 0.84, 0.22)     // Golden meadow buttercup
+              : (vFlower < 2.5 ? vec3(0.98, 0.97, 0.92) : vec3(0.76, 0.66, 0.98)); // White daisy / soft lavender
+            albedo = mix(albedo, flowerCol, smoothstep(0.76, 0.94, h));
+          }
+
+          albedo *= 1.0 - uRoadMoisture * 0.16;
+
+          // Stylized botanical lighting + warm backlit sun translucency through blade tips
+          float wrapDiffuse = clamp(dot(vec3(0.0, 1.0, 0.0), L) * 0.6 + 0.45, 0.0, 1.0);
+          float backLight = pow(max(dot(V, -L), 0.0), 3.0) * h * 0.78;
+          float dewGlint = pow(max(dot(normalize(L + V), vec3(0.0, 1.0, 0.0)), 0.0), 42.0) * uRoadMoisture * h * 0.45;
+
+          vec3 ambBounce = max(uAmbientColor * 1.42, vec3(0.14, 0.18, 0.16));
+          vec3 color = albedo * (ambBounce * (0.58 + 0.52 * h) + uSunColor * (wrapDiffuse * 0.95 + backLight))
+                     + uSunColor * (dewGlint + max(0.0, vWind) * h * 0.06);
+
+          // Headlight illumination on individual 3D grass blades at Sunset/Night!
+          vec3 toFrag = vWorldPos - uCarPos;
+          float carDist = length(toFrag.xz);
+          if (uHeadlightsOn > 0.5 && carDist < 68.0 && abs(toFrag.y) < 5.0) {
+            vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
+            float cone = dot(dir2, normalize(uCarForward.xz));
+            float beam = smoothstep(0.60, 0.95, cone) * (1.0 - smoothstep(2.0, 68.0, carDist));
+            color += vec3(1.0, 0.94, 0.82) * beam * (0.28 + h * 0.42);
+          }
+
+          if (uSparkIntensity > 0.02) {
+            float sDist = length(vWorldPos - uSparkPos);
+            if (sDist < 12.0) {
+              float sFall = 1.0 - smoothstep(0.4, 12.0, sDist);
+              color += vec3(1.0, 0.58, 0.14) * sFall * sFall * uSparkIntensity * 0.65;
+            }
+          }
+
+          float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * camDist * camDist);
+          color = mix(color, uFogColor, clamp(fogFactor, 0.0, 1.0));
+
+          gl_FragColor = vec4(color, 1.0);
+          #include <tonemapping_fragment>
+        }
+      `,
+    });
+
+    // Register 3D grass blades with allGrassMats so lighting, time, moisture, car & spark uniforms sync automatically!
+    allGrassMats.push(grassBladesMat);
+
+    const grassBladesMesh = new THREE.Mesh(grassInstGeo, grassBladesMat);
+    grassBladesMesh.frustumCulled = false;
+    groundGroup.add(grassBladesMesh);
+
+    const grassCellX = new Int32Array(GRASS_COUNT).fill(999999);
+    const grassCellZ = new Int32Array(GRASS_COUNT).fill(999999);
+    let lastGrassCX = 999999;
+    let lastGrassCZ = 999999;
+
+    const biomeRGB = {
+      metro: [0.22, 0.44, 0.18],
+      palm: [0.30, 0.52, 0.22],
+      pinecrest: [0.16, 0.38, 0.18],
+      apexia: [0.20, 0.44, 0.20],
+    };
+
+    function classifyGrassPoint(wx, wz) {
+      if (isPointInTunnel(wx, wz)) return null;
+
+      // Must sit inside one of the 4 islands (and outside Palm lagoon + sandy beach)
+      let islandId = null;
+      for (let i = 0; i < ISLANDS.length; i++) {
+        const isl = ISLANDS[i];
+        if (wx >= isl.minX + 2.5 && wx <= isl.maxX - 2.5 && wz >= isl.minZ + 2.5 && wz <= isl.maxZ - 2.5) {
+          if (isl.hole && wx > isl.hole.minX - 2.5 && wx < isl.hole.maxX + 2.5 && wz > isl.hole.minZ - 2.5 && wz < isl.hole.maxZ + 2.5) {
+            return null;
+          }
+          islandId = isl.id;
+          break;
+        }
+      }
+      if (!islandId) return null;
+
+      // Skip Palm Island sandy beach strip
+      if (islandId === "palm" && wx > 975 && wx < 1645 && wz > 296 && wz < 360) return null;
+
+      // Skip paved city roads & highways (with clean 1.15m shoulder curb clearance)
+      for (let i = 0; i < flatRoadRects.length; i++) {
+        const r = flatRoadRects[i];
+        if (wx >= r.minX - 1.15 && wx <= r.maxX + 1.15 && wz >= r.minZ - 1.15 && wz <= r.maxZ + 1.15) {
+          return null;
+        }
+      }
+
+      // Skip Apexia Grand Prix Circuit tarmac & red/white kerbs (keep lush trimmed infield grass!)
+      let inCircuitInfield = false;
+      if (islandId === "apexia" && wx >= 425 && wx <= 1585 && wz >= 720 && wz <= 1455) {
+        const tp = circuitData.getTrackProgress(wx, wz);
+        if (tp.distToCenter < CIRCUIT_HALF_W + 2.15) return null;
+        inCircuitInfield = true;
+      }
+
+      // Skip stunt ramps
+      for (let i = 0; i < ramps.length; i++) {
+        if (Math.abs(wx - ramps[i].x) < 16 && Math.abs(wz - ramps[i].z) < 16) return null;
+      }
+
+      // Skip building & monument footprints via fast spatial collider hash
+      const nearby = getNearbyColliders(wx, wz);
+      for (let i = 0; i < nearby.length; i++) {
+        const c = nearby[i];
+        if (c.minY > 1.5) continue;
+        if (wx >= c.minX - 0.8 && wx <= c.maxX + 0.8 && wz >= c.minZ - 0.8 && wz <= c.maxZ + 0.8) {
+          return null;
+        }
+      }
+
+      return { islandId, inCircuitInfield };
+    }
+
+    function updateGrassField(camX, camZ) {
+      const cIX = Math.floor(camX / GRASS_STEP);
+      const cIZ = Math.floor(camZ / GRASS_STEP);
+      if (cIX === lastGrassCX && cIZ === lastGrassCZ) return;
+      lastGrassCX = cIX;
+      lastGrassCZ = cIZ;
+
+      let dirty = false;
+      for (let dz = -GRASS_HALF; dz < GRASS_HALF; dz++) {
+        const iz = cIZ + dz;
+        const sz = ((iz % GRASS_GRID) + GRASS_GRID) % GRASS_GRID;
+        const rowOff = sz * GRASS_GRID;
+
+        for (let dx = -GRASS_HALF; dx < GRASS_HALF; dx++) {
+          const ix = cIX + dx;
+          const sx = ((ix % GRASS_GRID) + GRASS_GRID) % GRASS_GRID;
+          const slot = rowOff + sx;
+
+          if (grassCellX[slot] === ix && grassCellZ[slot] === iz) continue;
+          grassCellX[slot] = ix;
+          grassCellZ[slot] = iz;
+          dirty = true;
+
+          const jx = hash21JS(ix * 1.13, iz * 1.71);
+          const jz = hash21JS(ix * 2.31 + 13.7, iz * 0.91 + 7.3);
+          const wx = (ix + 0.1 + jx * 0.8) * GRASS_STEP;
+          const wz = (iz + 0.1 + jz * 0.8) * GRASS_STEP;
+
+          const pIdx = slot * 4;
+          const info = classifyGrassPoint(wx, wz);
+
+          if (!info) {
+            grassPosArr[pIdx] = wx;
+            grassPosArr[pIdx + 1] = 0.0;
+            grassPosArr[pIdx + 2] = wz;
+            grassPosArr[pIdx + 3] = 0.0;
+            continue;
+          }
+
+          const meadowNoise = noise2DJS(wx * 0.06, wz * 0.06);
+          const hScale = info.inCircuitInfield
+            ? 0.34 + meadowNoise * 0.24
+            : 0.48 + meadowNoise * 0.56 + jx * 0.16;
+
+          grassPosArr[pIdx] = wx;
+          grassPosArr[pIdx + 1] = hScale;
+          grassPosArr[pIdx + 2] = wz;
+          grassPosArr[pIdx + 3] = jz * Math.PI * 2;
+
+          const base = biomeRGB[info.islandId] || biomeRGB.metro;
+          const warmth = 0.85 + meadowNoise * 0.34;
+          grassStyleArr[pIdx] = base[0] * warmth;
+          grassStyleArr[pIdx + 1] = base[1] * (0.9 + jx * 0.22);
+          grassStyleArr[pIdx + 2] = base[2] * (0.85 + jz * 0.24);
+
+          const flRoll = hash21JS(ix + 31.4, iz - 19.2);
+          grassStyleArr[pIdx + 3] = !info.inCircuitInfield && flRoll > 0.86
+            ? (flRoll > 0.95 ? 3.0 : flRoll > 0.91 ? 2.0 : 1.0)
+            : 0.0;
+        }
+      }
+
+      if (dirty) {
+        grassPosAttr.needsUpdate = true;
+        grassStyleAttr.needsUpdate = true;
+      }
+    }
+    // =========================================================================
+    // 16C. REAL 3D DISPLACED PUDDLE GEOMETRY (3D MENISCUS, BOW WAVES & V-WAKES)
+    // =========================================================================
+    const PUDDLE_GRID = 52;       // 52 x 52 = 2,704 vertices, 1 draw call
+    const PUDDLE_STEP = 0.8;      // Covers 41.6m x 41.6m around the car
+    const PUDDLE_SIZE = PUDDLE_GRID * PUDDLE_STEP;
+    const PUDDLE_VERTS = (PUDDLE_GRID + 1) * (PUDDLE_GRID + 1);
+
+    const puddle3DGeo = new THREE.PlaneGeometry(PUDDLE_SIZE, PUDDLE_SIZE, PUDDLE_GRID, PUDDLE_GRID);
+    puddle3DGeo.rotateX(-Math.PI / 2);
+    const puddleMaskArr = new Float32Array(PUDDLE_VERTS);
+    const puddleMaskAttr = new THREE.BufferAttribute(puddleMaskArr, 1);
+    puddle3DGeo.setAttribute("aRoadMask", puddleMaskAttr);
+
+    const emptyPuddleTrails = Array.from({ length: 14 }, () => new THREE.Vector4(0, 0, 0, -999));
+    const emptyPuddleMeta = Array.from({ length: 14 }, () => new THREE.Vector4(1.0, 1.4, 0, 0));
+
+    const puddle3DMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uReflMap: { value: reflTarget.texture },
+        uResolution: { value: drawingBufferSize.clone() },
+        uTime: { value: 0.0 },
+        uRTEnabled: { value: 1.0 },
+        uPuddleLevel: { value: 0.0 },
+        uRainIntensity: { value: 0.0 },
+        uHasTrails: { value: 0.0 },
+        uSunDir: { value: new THREE.Vector3(-0.6, 0.3, -0.5).normalize() },
+        uSunColor: { value: new THREE.Color(0xffa45b) },
+        uAmbientColor: { value: new THREE.Color(0x523c46) },
+        uFogColor: { value: new THREE.Color(0xb85247) },
+        uFogDensity: { value: 0.00064 },
+        uCarPos: { value: new THREE.Vector3(0, 0, 45) },
+        uCarForward: { value: new THREE.Vector3(0, 0, -1) },
+        uCarHalfW: { value: 1.15 },
+        uCarHalfL: { value: 2.35 },
+        uCarSpeed: { value: 0.0 },
+        uCarLatVel: { value: 0.0 },
+        uHeadlightsOn: { value: 1.0 },
+        uBrakeIntensity: { value: 0.45 },
+        uNitroActive: { value: 0.0 },
+        uTrailPos: { value: emptyPuddleTrails },
+        uTrailMeta: { value: emptyPuddleMeta },
+      },
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+      vertexShader: `
+        attribute float aRoadMask;
+
+        uniform float uTime;
+        uniform float uPuddleLevel;
+        uniform float uRainIntensity;
+        uniform float uHasTrails;
+        uniform vec3 uCarPos;
+        uniform vec3 uCarForward;
+        uniform float uCarHalfW;
+        uniform float uCarHalfL;
+        uniform float uCarSpeed;
+        uniform float uCarLatVel;
+        uniform vec4 uTrailPos[14];
+        uniform vec4 uTrailMeta[14];
+
+        varying vec3 vWorldPos;
+        varying vec3 vNormal3D;
+        varying float vPuddle;
+        varying float vCrestFoam;
+        varying float vWaveHeight;
+
+        float hash21(vec2 p) {
+          p = fract(p * vec2(123.34, 456.21));
+          p += dot(p, p + 45.32);
+          return fract(p.x * p.y);
+        }
+
+        float noise2D(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(
+            mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+            mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x),
+            f.y
+          );
+        }
+
+        float puddleField(vec2 p) {
+          float p1 = noise2D(p * 0.032);
+          float p2 = noise2D(p * 0.075 + vec2(11.3, 7.1));
+          float p3 = noise2D(p * 0.17 + vec2(3.7, 19.4));
+          float raw = p1 * 0.56 + p2 * 0.30 + p3 * 0.14;
+          return clamp((raw - 0.24) / 0.52, 0.0, 1.0);
+        }
+
+        // Evaluates physical 3D liquid surface elevation + foam energy at world XZ
+        vec2 evalWaterHeight(vec2 xz, float mask) {
+          if (mask < 0.02 || uPuddleLevel <= 0.02) return vec2(-0.5, 0.0);
+
+          float pNoise = puddleField(xz);
+          float thresh = 0.84 - uPuddleLevel * 0.44;
+          float puddleVis = smoothstep(0.02, 0.22, uPuddleLevel);
+          float p = smoothstep(thresh - 0.025, thresh + 0.04, pNoise) * puddleVis * mask;
+          if (p < 0.01) return vec2(-0.4, 0.0);
+
+          // Base 3D surface-tension domed liquid thickness (+2cm to +7cm)
+          float h = 0.018 + 0.055 * pow(p, 0.52);
+          float foam = 0.0;
+
+          // Subtle living 3D wind ripples across the standing puddle surface
+          h += (sin(xz.x * 1.9 + xz.y * 1.4 + uTime * 3.1) * 0.010
+              + cos(xz.x * -2.3 + xz.y * 2.1 - uTime * 3.7) * 0.008) * p;
+
+          // Raindrop vertical surface chop
+          if (uRainIntensity > 0.05) {
+            float chop = sin(xz.x * 4.5 + uTime * 11.0) * cos(xz.y * 4.2 - uTime * 9.5);
+            h += chop * 0.014 * uRainIntensity * p;
+          }
+
+          // Live 3D Bow Wave, Side Plough Ridges & Drift Wave Surge around the car!
+          vec2 relCar = xz - uCarPos.xz;
+          if (dot(relCar, relCar) < 90.0 && uCarPos.y < 1.6 && uCarSpeed > 1.2) {
+            vec2 cF = normalize(uCarForward.xz + vec2(0.0001));
+            vec2 cR = vec2(-cF.y, cF.x);
+            float lf = dot(relCar, cF);
+            float lr = dot(relCar, cR);
+            float spdFactor = clamp(uCarSpeed / 26.0, 0.0, 1.45);
+
+            // Physical displaced trough right under the wheels
+            float underX = 1.0 - smoothstep(uCarHalfW * 0.55, uCarHalfW * 1.15, abs(lr));
+            float underZ = 1.0 - smoothstep(uCarHalfL * 0.75, uCarHalfL * 1.25, abs(lf));
+            h -= underX * underZ * 0.048 * spdFactor * p;
+
+            // 3D V-shaped Bow Wave & Side Wake Walls curling up beside the car
+            float sideDist = abs(lr) - (uCarHalfW + 0.25 + max(0.0, -lf) * 0.32);
+            float wakeBand = exp(-sideDist * sideDist * 1.15) * smoothstep(-8.5, 1.8, lf) * (1.0 - smoothstep(1.2, uCarHalfL + 2.2, lf));
+            // Drift boosts the outer-side 3D wave ridge dramatically!
+            float driftSide = clamp(sign(lr) * uCarLatVel * 0.16, -0.35, 1.15);
+            float crestH = (0.14 + 0.16 * max(0.0, driftSide)) * spdFactor * wakeBand * p;
+            h += crestH;
+            foam += wakeBand * (0.45 + max(0.0, driftSide) * 0.6) * spdFactor;
+          }
+
+          // Physical 3D Expanding Wake Ridges left behind the car's trail stamps
+          if (uHasTrails > 0.5 && dot(relCar, relCar) < 1200.0) {
+            for (int i = 0; i < 14; i++) {
+              vec4 tp = uTrailPos[i];
+              float age = uTime - tp.w;
+              if (age < 0.0 || age > 4.2) continue;
+
+              vec2 rel = xz - tp.xy;
+              if (dot(rel, rel) > 26.0) continue;
+
+              vec4 tm = uTrailMeta[i];
+              if (tm.z < 0.02) continue;
+
+              float cH = cos(tp.z);
+              float sH = sin(tp.z);
+              float lr = rel.x * cH - rel.y * sH;
+              float lf = -rel.x * sH - rel.y * cH;
+              float df = max(0.0, abs(lf) - tm.y);
+              float dtire = length(vec2(abs(lr) - tm.x, df));
+
+              float wakeFade = exp(-age * 0.92) * tm.z;
+              // Tire trench dips downward
+              h -= (1.0 - smoothstep(0.1, 0.55, dtire)) * 0.042 * wakeFade * p;
+
+              // Expanding 3D wave crest traveling outward
+              float waveR = 0.35 + age * 2.15;
+              float ringEnv = exp(-abs(dtire - waveR) * 1.9) * (1.0 - smoothstep(0.15, 4.6, dtire));
+              float wave = sin((dtire - waveR) * 9.5) * ringEnv * wakeFade;
+              h += wave * 0.11 * p;
+              foam += max(0.0, wave) * 0.85;
+            }
+          }
+
+          return vec2(h, clamp(foam, 0.0, 1.35));
+        }
+
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+
+          float pNoise = puddleField(wp.xz);
+          float thresh = 0.84 - uPuddleLevel * 0.44;
+          float puddleVis = smoothstep(0.02, 0.22, uPuddleLevel);
+          float p = smoothstep(thresh - 0.025, thresh + 0.04, pNoise) * puddleVis * aRoadMask;
+
+          // Fade cleanly near patch edge so there is never a hard square seam
+          vec2 localDist = abs(position.xz);
+          float edgeFade = 1.0 - smoothstep(16.0, 20.4, max(localDist.x, localDist.y));
+          vPuddle = p * edgeFade;
+
+          if (vPuddle < 0.008) {
+            wp.y = -2.0;
+            vWorldPos = wp.xyz;
+            vNormal3D = vec3(0.0, 1.0, 0.0);
+            vCrestFoam = 0.0;
+            vWaveHeight = 0.0;
+            gl_Position = projectionMatrix * viewMatrix * wp;
+            return;
+          }
+
+          vec2 hf = evalWaterHeight(wp.xz, aRoadMask);
+          float eps = 0.45;
+          float hX = evalWaterHeight(wp.xz + vec2(eps, 0.0), aRoadMask).x;
+          float hZ = evalWaterHeight(wp.xz + vec2(0.0, eps), aRoadMask).x;
+
+          float finalH = max(0.0, hf.x) * edgeFade;
+          wp.y = 0.055 + finalH;
+
+          vWorldPos = wp.xyz;
+          vWaveHeight = finalH;
+          vCrestFoam = hf.y * edgeFade;
+          vNormal3D = normalize(vec3((hf.x - hX) * 3.2, eps, (hf.x - hZ) * 3.2));
+
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D uReflMap;
+        uniform vec2 uResolution;
+        uniform float uTime;
+        uniform float uRTEnabled;
+        uniform vec3 uSunDir;
+        uniform vec3 uSunColor;
+        uniform vec3 uAmbientColor;
+        uniform vec3 uFogColor;
+        uniform float uFogDensity;
+        uniform vec3 uCarPos;
+        uniform vec3 uCarForward;
+        uniform float uCarHalfL;
+        uniform float uHeadlightsOn;
+        uniform float uBrakeIntensity;
+        uniform float uNitroActive;
+
+        varying vec3 vWorldPos;
+        varying vec3 vNormal3D;
+        varying float vPuddle;
+        varying float vCrestFoam;
+        varying float vWaveHeight;
+
+        void main() {
+          if (vPuddle < 0.03) discard;
+
+          vec3 toCam = cameraPosition - vWorldPos;
+          float camDist = length(toCam);
+          vec3 V = toCam / max(camDist, 0.0001);
+          vec3 L = normalize(uSunDir);
+
+          // Add fine capillary surface ripples on top of the 3D displaced geometric normal
+          vec2 cap = vec2(
+            cos(vWorldPos.x * 5.2 + vWorldPos.z * 3.4 + uTime * 5.2),
+            sin(vWorldPos.x * -4.1 + vWorldPos.z * 5.8 - uTime * 4.7)
+          ) * (0.04 + vCrestFoam * 0.14);
+          vec3 N = normalize(normalize(vNormal3D) + vec3(cap.x, 0.0, cap.y));
+
+          float NdotV = max(dot(N, V), 0.0);
+          float fresnel = 0.04 + 0.96 * pow(1.0 - NdotV, 3.6);
+
+          vec3 waterTint = mix(vec3(0.05, 0.10, 0.16), vec3(0.14, 0.24, 0.34), clamp(vWaveHeight * 5.0, 0.0, 1.0));
+          vec3 color = waterTint * (uAmbientColor * 1.4 + uSunColor * 0.45);
+
+          if (uRTEnabled > 0.5) {
+            vec2 screenUv = gl_FragCoord.xy / max(uResolution, vec2(1.0));
+            vec2 reflUv = vec2(screenUv.x, 1.0 - screenUv.y);
+            // Physical 3D wave slope curves & distorts building/skyline RT reflections!
+            reflUv = clamp(reflUv + vec2(N.x * 0.095, N.z * 0.145), vec2(0.002), vec2(0.998));
+            vec3 refl = texture2D(uReflMap, reflUv).rgb * 1.18;
+            color = mix(color, refl, clamp(0.28 + fresnel * 0.68, 0.0, 0.94));
+          }
+
+          // Crisp directional sun/moon & headlight glints along the 3D displaced wave ridges
+          vec3 H = normalize(L + V);
+          color += uSunColor * pow(max(dot(N, H), 0.0), 220.0) * (1.8 + vWaveHeight * 12.0);
+
+          vec3 toFrag = vWorldPos - uCarPos;
+          float carDist = length(toFrag.xz);
+          if (uHeadlightsOn > 0.5 && carDist < 60.0) {
+            vec2 dir2 = normalize(toFrag.xz + vec2(0.0001));
+            float cone = dot(dir2, normalize(uCarForward.xz));
+            float beam = smoothstep(0.60, 0.95, cone) * (1.0 - smoothstep(2.0, 60.0, carDist));
+            vec3 hL = normalize(vec3(uCarPos.x - vWorldPos.x, 0.95, uCarPos.z - vWorldPos.z));
+            float hSpec = pow(max(dot(N, normalize(hL + V)), 0.0), 110.0);
+            color += vec3(1.0, 0.94, 0.82) * beam * (0.22 + hSpec * 2.2);
+          }
+
+          // Taillight & Nitro glow illuminating the 3D displaced wake crests!
+          vec3 rearPos = uCarPos - uCarForward * (uCarHalfL + 0.1);
+          float rearDist = length(vWorldPos.xz - rearPos.xz);
+          if (rearDist < 15.0) {
+            float tFall = 1.0 - smoothstep(0.5, 15.0, rearDist);
+            color += vec3(1.0, 0.14, 0.10) * tFall * uBrakeIntensity * (0.35 + vCrestFoam * 0.9);
+            if (uNitroActive > 0.5) {
+              color += vec3(0.20, 0.86, 1.0) * tFall * (0.45 + vCrestFoam * 1.1);
+            }
+          }
+
+          // Aerated white crest foam on raised 3D bow-waves and wake ridges
+          float foamVis = clamp(vCrestFoam * 0.72 + smoothstep(0.09, 0.22, vWaveHeight) * 0.55, 0.0, 0.88);
+          color = mix(color, vec3(0.86, 0.94, 1.0), foamVis);
+
+          float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * camDist * camDist);
+          color = mix(color, uFogColor, clamp(fogFactor, 0.0, 1.0));
+
+          float alpha = smoothstep(0.03, 0.22, vPuddle) * clamp(0.42 + fresnel * 0.44 + foamVis * 0.35, 0.0, 0.92);
+          gl_FragColor = vec4(color, alpha);
+          #include <tonemapping_fragment>
+        }
+      `,
+    });
+
+    const puddle3DMesh = new THREE.Mesh(puddle3DGeo, puddle3DMat);
+    puddle3DMesh.frustumCulled = false;
+    puddle3DMesh.visible = false;
+    waterGroup.add(puddle3DMesh);
+
+    let lastPuddleSnapX = 999999;
+    let lastPuddleSnapZ = 999999;
+
+    function isOnPuddleRoad(wx, wz) {
+      if (isPointInTunnel(wx, wz)) return false;
+      for (let i = 0; i < flatRoadRects.length; i++) {
+        const r = flatRoadRects[i];
+        if (wx >= r.minX + 0.35 && wx <= r.maxX - 0.35 && wz >= r.minZ + 0.35 && wz <= r.maxZ - 0.35) {
+          return true;
+        }
+      }
+      if (wx >= 425 && wx <= 1585 && wz >= 720 && wz <= 1455) {
+        const tp = circuitData.getTrackProgress(wx, wz);
+        if (tp.distToCenter <= CIRCUIT_HALF_W - 0.2) return true;
+      }
+      return false;
+    }
+
+    function syncPuddle3DMesh(carX, carZ, carY) {
+      const pLvl = puddle3DMat.uniforms.uPuddleLevel.value;
+      if (pLvl <= 0.025 || carY > 2.2) {
+        puddle3DMesh.visible = false;
+        return;
+      }
+      puddle3DMesh.visible = true;
+
+      const snapX = Math.round(carX / PUDDLE_STEP) * PUDDLE_STEP;
+      const snapZ = Math.round(carZ / PUDDLE_STEP) * PUDDLE_STEP;
+      if (snapX === lastPuddleSnapX && snapZ === lastPuddleSnapZ) return;
+      lastPuddleSnapX = snapX;
+      lastPuddleSnapZ = snapZ;
+
+      puddle3DMesh.position.set(snapX, 0, snapZ);
+
+      const half = PUDDLE_SIZE * 0.5;
+      const cols = PUDDLE_GRID + 1;
+      for (let r = 0; r < cols; r++) {
+        const wz = snapZ - half + r * PUDDLE_STEP;
+        const rowOff = r * cols;
+        for (let c = 0; c < cols; c++) {
+          const wx = snapX - half + c * PUDDLE_STEP;
+          puddleMaskArr[rowOff + c] = isOnPuddleRoad(wx, wz) ? 1.0 : 0.0;
+        }
+      }
+      puddleMaskAttr.needsUpdate = true;
+    }
     syncOceanPatch(0, 45);
+    updateGrassField(0, 45);
 
     function updateWeather(dt, weatherPreset, cameraPos, car, inTunnel, onThunder) {
       syncOceanPatch(cameraPos.x, cameraPos.z);
+      updateGrassField(cameraPos.x, cameraPos.z);
+      syncPuddle3DMesh(car.x, car.z, car.y);
 
       if (weatherPreset.rainCount > 0 && !inTunnel) {
         rainLines.visible = true;
@@ -5225,7 +6044,7 @@ window.HorizonWorld = (() => {
       return "GOLDEN BAY STRAIT";
     }
 
-    const allRoadMats = [roadMatCity, roadMatHighway, roadMatBridge, roadMatCircuit, roadMatInter];
+    const allRoadMats = [roadMatCity, roadMatHighway, roadMatBridge, roadMatCircuit, roadMatInter, puddle3DMat];
 
     function setGrassUniform(name, val) {
       for (let i = 0; i < allGrassMats.length; i++) {
