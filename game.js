@@ -31,6 +31,8 @@
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.14;
   container.appendChild(renderer.domElement);
@@ -399,7 +401,7 @@
       suspDamping: 14.5,
       suspTravel: 0.11,
       rollMult: 0.34,
-      soundType: "f1",
+      soundType: "gp",
       enginePitch: 1.72,
       engineHarmonic: 0.18,
       wheelRadius: 0.38,
@@ -415,7 +417,7 @@
     },
     lmp: {
       id: "lmp",
-      name: "Solstice LMP-1",
+      name: "Helios Proto-X",
       defaultColor: "#f8fafc",
       aeroNote: "Endurance Prototype · Dorsal Fin, Venturi Tunnels & DRS (CdA 0.56)",
       stats: { speed: 98, accel: 97, grip: 98, aero: 97, drift: 58 },
@@ -441,9 +443,9 @@
     },
     gt3: {
       id: "gt3",
-      name: "Stratos GT3-R",
+      name: "Cinder GT-R3",
       defaultColor: "#10b981",
-      aeroNote: "FIA GT3 Package · Dive-Plane Canards & Swan-Neck Wing (CdA 0.72)",
+      aeroNote: "GT Track Package · Dive-Plane Canards & Swan-Neck Wing (CdA 0.72)",
       stats: { speed: 91, accel: 90, grip: 96, aero: 90, drift: 70 },
       topSpeed: 85,
       nitroTopSpeed: 104,
@@ -545,9 +547,9 @@
     },
     buggy: {
       id: "buggy",
-      name: "DuneValkyrie X",
+      name: "SandRunner X",
       defaultColor: "#f59e0b",
-      aeroNote: "Open Tubular Exocar · Featherweight Baja Jump Chassis (CdA 1.08)",
+      aeroNote: "Open Tubular Exocar · Featherweight Desert Jump Chassis (CdA 1.08)",
       stats: { speed: 74, accel: 92, grip: 86, aero: 44, drift: 96 },
       topSpeed: 69,
       nitroTopSpeed: 88,
@@ -805,17 +807,20 @@
     m.visible = true;
   }
 
-  // Live Car-to-Puddle Wake & Wet Tire Track Shader Trail Ring Buffer
-  const MAX_WATER_TRAILS = 20;
+  // Live 14-Slot Car-to-Puddle Wake & Wet Tire Track Shader Trail Ring Buffer
+  const MAX_WATER_TRAILS = 14;
   const trailPosArr = Array.from({ length: MAX_WATER_TRAILS }, () => new THREE.Vector4(0, 0, 0, -999));
   const trailMetaArr = Array.from({ length: MAX_WATER_TRAILS }, () => new THREE.Vector4(1.0, 1.4, 0, 0));
   let trailCursor = 0;
   let trailDistAccum = 0;
+  let lastTrailStampTime = -999;
 
   function stampWaterTrail(x, z, heading, trackHalfW, stampHalfL, wakeStrength, wetTrackStrength, timeSec) {
     trailPosArr[trailCursor].set(x, z, heading, timeSec);
     trailMetaArr[trailCursor].set(trackHalfW, stampHalfL, wakeStrength, wetTrackStrength);
     trailCursor = (trailCursor + 1) % MAX_WATER_TRAILS;
+    lastTrailStampTime = timeSec;
+    world.setRoadUniform("uHasTrails", 1.0);
     world.setRoadUniform("uTrailPos", trailPosArr);
     world.setRoadUniform("uTrailMeta", trailMetaArr);
   }
@@ -826,11 +831,13 @@
       trailMetaArr[i].set(1.0, 1.4, 0, 0);
     }
     trailDistAccum = 0;
+    lastTrailStampTime = -999;
+    world.setRoadUniform("uHasTrails", 0.0);
     world.setRoadUniform("uTrailPos", trailPosArr);
     world.setRoadUniform("uTrailMeta", trailMetaArr);
   }
 
-  // Soft Feathered Mist, Tire Smoke & Fine Puddle Spray Sprites (zero hard circle outlines!)
+  // Soft Feathered Mist, Tire Smoke & Fine Puddle Spray Sprites
   const mistTexture = (() => {
     const c = document.createElement("canvas");
     c.width = 64;
@@ -926,10 +933,9 @@
     p.gravity = 11.5;
     p.grow = 1.35;
   }
-  // =========================================================================
-  // 2B. 4-MODE 3D CAR-WATER ANIMATION SYSTEM (WINGS, DRIFT WAVE, CROWNS, STEAM)
-  // =========================================================================
+
   let pendingWaterImpact = 0;
+
   // --- 3D Bouncing Metallic Collision Sparks + Flickering Contact Flash Light ---
   const MAX_SPARKS = 110;
   const sparkGroup = new THREE.Group();
@@ -1303,7 +1309,7 @@
         const baseFreq = (34 + normRpm * 92 + (usingNitro ? 14 : 0)) * activeSpec.enginePitch;
         this.oscSub.frequency.setTargetAtTime(baseFreq, now, 0.035);
         this.oscMain.frequency.setTargetAtTime(baseFreq * 2.0, now, 0.035);
-        this.oscHarm.frequency.setTargetAtTime(baseFreq * (activeSpec.soundType === "f1" ? 3.5 : 3.01), now, 0.035);
+        this.oscHarm.frequency.setTargetAtTime(baseFreq * (activeSpec.soundType === "gp" ? 3.5 : 3.01), now, 0.035);
         this.harmGain.gain.setTargetAtTime(activeSpec.engineHarmonic, now, 0.06);
 
         const cutoff = 220 + normRpm * 1350 * activeSpec.enginePitch + (throttle > 0 ? 350 : 0) + (usingNitro ? 500 : 0);
@@ -1331,7 +1337,7 @@
       this.rainGain.gain.setTargetAtTime(inTunnel ? rainAudio * 0.12 : rainAudio, now, 0.25);
 
       this.nitroNoiseGain.gain.setTargetAtTime(usingNitro ? 0.19 : 0, now, 0.06);
-      const isTurboCar = activeSpec.soundType === "turbo" || activeSpec.soundType === "f1";
+      const isTurboCar = activeSpec.soundType === "turbo" || activeSpec.soundType === "gp";
       this.turboOsc.frequency.setTargetAtTime(2200 + normRpm * 2600, now, 0.06);
       this.turboGain.gain.setTargetAtTime(
         usingNitro ? 0.045 : isTurboCar && normRpm > 0.35 ? 0.026 * normRpm : normRpm > 0.65 ? 0.012 : 0,
@@ -2296,6 +2302,7 @@
 
   const camPosCurrent = new THREE.Vector3(0, 5.5, 56);
   const camLookCurrent = new THREE.Vector3(0, 1.4, 38);
+  const _fwdVec = new THREE.Vector3();
 
   const car = {
     x: WARP_POINTS[0].x,
@@ -2383,6 +2390,7 @@
     clearWaterTrails();
     if (world.resetWaterSim) world.resetWaterSim(renderer, x, z);
     pendingWaterImpact = 0;
+
     const fx = -Math.sin(car.heading);
     const fz = -Math.cos(car.heading);
     camPosCurrent.set(car.x - fx * 11, car.y + 4.4, car.z - fz * 11);
@@ -2994,7 +3002,7 @@
       rollingCoeff = 0.015 + effWet * 0.018;
 
       if (surfStart.surfaceType === "CIRCUIT") {
-        car.surfaceLabel = puddlePeak > 0.28 ? "WET GP TARMAC" : roadMoisture > 0.2 ? "DAMP GP TARMAC" : "FIA GP TARMAC";
+        car.surfaceLabel = puddlePeak > 0.28 ? "WET GP TARMAC" : roadMoisture > 0.2 ? "DAMP GP TARMAC" : "GP RACING TARMAC";
         car.surfaceClass = puddlePeak > 0.28 ? "wet" : "circuit";
       } else if (surfStart.surfaceType === "BRIDGE") {
         car.surfaceLabel = puddlePeak > 0.32 ? "BRIDGE PUDDLE" : roadMoisture > 0.4 ? "WET BRIDGE DECK" : "BRIDGE DECK";
@@ -3360,7 +3368,7 @@
       car.y += car.vy * subDt;
 
       const wasInWater = car.inWater;
-      const snapMargin = car.grounded && latestSurf.surfaceType === "BRIDGE" ? 0.55 : 0.08;
+      const snapMargin = car.grounded && car.vy <= 1.2 && latestSurf.onRoad ? 0.55 : 0.08;
 
       if (car.y <= latestSurf.height + snapMargin) {
         if (!car.grounded) {
@@ -3461,14 +3469,12 @@
         }
       }
     }
-    // Sync 3D Puddle Bow-Wave / Drift-Surge Uniforms & Update 4-Mode 3D Car-Water Animations
-    const curLatVel = car.vx * nrx + car.vz * nrz;
-    world.setRoadUniform("uCarSpeed", absSpeed);
-    world.setRoadUniform("uCarLatVel", curLatVel);
+
     if (world.stepWaterSim) {
-    world.stepWaterSim(renderer, dt, elapsed, car, sp, weather.rainIntensity, pendingWaterImpact);
+      world.stepWaterSim(renderer, dt, elapsed, car, sp, weather.rainIntensity, pendingWaterImpact);
     }
     pendingWaterImpact = 0;
+
     if (controls && ext.gamepadConnected && car.grounded) {
       if (scrapeIntensity > 0.15) controls.rumble(0.25, 0.55 * scrapeIntensity, 80);
       else if (puddleHitPeak > 0.25 && absSpeed > 12) controls.rumble(0.14, 0.34, 75);
@@ -3586,7 +3592,7 @@
 
     const brakingVisual = car.brakePedal > 0.08 || handbrake;
     const preset = TIME_PRESETS[timeIndex];
-    const headlightsOn = preset.headlights || weather.forceHeadlights || car.inTunnel;
+    const headlightsOn = preset.headlights || weather.forceHeadlights || car.inTunnel || car.y < -1.5;
 
     headlightMat.emissiveIntensity = headlightsOn ? 3.4 : 0.45;
     if (headSpot) headSpot.intensity = rtEnabled && headlightsOn ? 3.4 : headlightsOn ? 1.4 : 0;
@@ -3617,14 +3623,14 @@
       }
     }
 
-    const fwdVec = new THREE.Vector3(nfx, 0, nfz);
+    _fwdVec.set(nfx, 0, nfz);
     world.setRoadUniform("uCarPos", carGroup.position);
-    world.setRoadUniform("uCarForward", fwdVec);
+    world.setRoadUniform("uCarForward", _fwdVec);
     world.setRoadUniform("uBrakeIntensity", brakingVisual ? 1.5 : 0.48);
     world.setRoadUniform("uNitroActive", usingNitro ? 1.0 : 0.0);
 
     world.setWaterUniform("uCarPos", carGroup.position);
-    world.setWaterUniform("uCarForward", fwdVec);
+    world.setWaterUniform("uCarForward", _fwdVec);
     world.setWaterUniform("uNitroActive", usingNitro ? 1.0 : 0.0);
 
     for (let i = 0; i < particlePool.length; i++) {
@@ -3681,7 +3687,7 @@
   }
 
   // =========================================================================
-  // 6. INTERACTIVE CLICK-TO-NAVIGATE GPS MAP + 3D ROAD CHEVRONS & BEACON
+  // 6. INTERACTIVE CLICK-TO-NAVIGATE 6-CITY GPS MAP + 3D ROAD CHEVRONS
   // =========================================================================
   const mapModal = document.getElementById("map-modal");
   const fullMapCanvas = document.getElementById("full-map-canvas");
@@ -3695,11 +3701,10 @@
   const gpsDestNameEl = document.getElementById("gps-dest-name");
   const gpsDistEl = document.getElementById("gps-distance");
 
-  let gpsDest = null; // { x, z, name }
-  let gpsPath = [];   // [{ x, z }, ...]
+  let gpsDest = null;
+  let gpsPath = [];
   let gpsRerouteTimer = 0;
 
-  // 3D Floating Emerald GPS Route Chevrons + Tall Destination Beacon
   const MAX_GPS_CHEVRONS = 24;
   const gpsChevronGroup = new THREE.Group();
   scene.add(gpsChevronGroup);
@@ -3794,7 +3799,7 @@
     if (mapOpen) drawFullMap();
   }
 
-  // Full-Screen Map Projection (fits all 4 islands cleanly inside 840x580 canvas)
+  // Full-Screen Map Projection (fits all 6 cities & skyways cleanly inside 840x580 canvas)
   const MAP_VIEW = { minX: -1240, maxX: 1960, minZ: -1540, maxZ: 1580 };
 
   function worldToFullMap(wx, wz) {
@@ -3835,10 +3840,9 @@
     fullMapCtx.fillStyle = "#06263d";
     fullMapCtx.fillRect(0, 0, cw, ch);
 
-    // Subtle ocean coordinate grid
     fullMapCtx.strokeStyle = "rgba(56, 189, 248, 0.08)";
     fullMapCtx.lineWidth = 1;
-    for (let gx = -400; gx <= 1600; gx += 400) {
+    for (let gx = -1200; gx <= 2000; gx += 400) {
       const p = worldToFullMap(gx, 0);
       fullMapCtx.beginPath();
       fullMapCtx.moveTo(p.cx, 0);
@@ -3853,7 +3857,7 @@
       fullMapCtx.stroke();
     }
 
-    // 1) 4 City Islands + Palm Lagoon Cutout
+    // 1) 6 City Islands + Palm Lagoon Cutout
     for (let i = 0; i < ISLANDS.length; i++) {
       const isl = ISLANDS[i];
       const p1 = worldToFullMap(isl.minX, isl.minZ);
@@ -3884,7 +3888,7 @@
     fullMapCtx.fillStyle = "rgba(71, 85, 105, 0.5)";
     fullMapCtx.fillRect(m1.cx, m1.cy, m2.cx - m1.cx, m2.cy - m1.cy);
 
-    // 3) All Roads, Highways, Bridges, Viaduct & FIA Grade 1 Circuit
+    // 3) All Roads, Highways, Bridges, Skyways, Tunnels, Underways & Grade 1 Circuit
     fullMapCtx.lineCap = "round";
     for (let i = 0; i < world.roadSegments.length; i++) {
       const s = world.roadSegments[i];
@@ -3897,6 +3901,8 @@
           ? "#f97316"
           : s.kind === "viaduct"
           ? "#38bdf8"
+          : s.kind === "tunnel" || s.kind === "underpass"
+          ? "#a855f7"
           : s.kind === "highway"
           ? "#94a3b8"
           : "#475569";
@@ -3915,15 +3921,17 @@
       fullMapCtx.fillRect(p1.cx, p1.cy, Math.max(1.5, b.w * scale), Math.max(1.5, b.d * scale));
     }
 
-    // 5) City & Landmark Labels
+    // 5) 6-City & Landmark Labels
     fullMapCtx.font = "bold 11px Segoe UI, sans-serif";
     fullMapCtx.textAlign = "center";
-    fullMapCtx.fillStyle = "rgba(226, 232, 240, 0.86)";
+    fullMapCtx.fillStyle = "rgba(226, 232, 240, 0.88)";
     [
       { x: 0, z: -1180, text: "PINECREST ALPINE" },
       { x: -40, z: 30, text: "METRO BAY CITY" },
       { x: 1280, z: -140, text: "PALM ISLAND MARINA" },
       { x: -40, z: 1060, text: "APEXIA METROPOLIS" },
+      { x: -860, z: 320, text: "KUROSHIO NEON" },
+      { x: 1560, z: -1120, text: "SOLARA MESA" },
     ].forEach((lbl) => {
       const p = worldToFullMap(lbl.x, lbl.z);
       fullMapCtx.fillText(lbl.text, p.cx, p.cy);
@@ -4035,19 +4043,16 @@
       return;
     }
 
-    // Pop reached intermediate waypoints
     while (gpsPath.length > 1 && Math.hypot(gpsPath[0].x - car.x, gpsPath[0].z - car.z) < 24.0) {
       gpsPath.shift();
     }
 
-    // Periodically recompute A* route if player takes a detour
     gpsRerouteTimer -= dt;
     if (gpsRerouteTimer <= 0) {
       gpsRerouteTimer = 1.6;
       gpsPath = world.computeGPSRoute(car.x, car.z, gpsDest.x, gpsDest.z);
     }
 
-    // Calculate total remaining route distance + turn-by-turn arrow relative to player's heading
     let totalRouteDist = 0;
     let prevX = car.x;
     let prevZ = car.z;
@@ -4069,7 +4074,6 @@
     const dotFwd = fx * toWpX + fz * toWpZ;
     const dotRight = rx * toWpX + rz * toWpZ;
 
-    // Look ahead to next segment bend if close to waypoint
     let turnDotRight = dotRight;
     let turnDotFwd = dotFwd;
     if (gpsPath.length >= 2 && distToTurn < 55) {
@@ -4108,7 +4112,6 @@
       gpsDistEl.textContent = totalRouteDist >= 1000 ? `${(totalRouteDist / 1000).toFixed(2)} km` : `${Math.round(totalRouteDist)} m`;
     }
 
-    // Place animated 3D emerald chevrons along the route ahead of the car
     const spacing = 14.0;
     const flowOffset = (elapsed * 18.0) % spacing;
     let chevIdx = 0;
@@ -4145,7 +4148,6 @@
       gpsChevrons[i].visible = false;
     }
 
-    // Update pulsing destination sky-beacon & ring
     const destSurf = world.sampleSurface(gpsDest.x, gpsDest.z, 25, 0);
     destBeaconGroup.visible = true;
     destBeaconGroup.position.set(gpsDest.x, Math.max(0, destSurf.height), gpsDest.z);
@@ -4154,7 +4156,7 @@
   }
 
   // =========================================================================
-  // 7. FIA GRADE 1 CIRCUIT LIVE LAP & 3-SECTOR TIMING ENGINE
+  // 7. GRADE 1 GRAND PRIX CIRCUIT LIVE LAP & 3-SECTOR TIMING ENGINE
   // =========================================================================
   const circuitHud = document.getElementById("circuit-hud");
   const lapNumEl = document.getElementById("lap-num");
@@ -4169,13 +4171,13 @@
 
   const circuitState = {
     active: false,
-    lapNumber: 0,       // 0 = OUT LAP, >= 1 = Timed Hot Lap
+    lapNumber: 0,
     lapTime: 0,
     sectorStartTime: 0,
-    sectorIdx: 0,       // 0 = S1, 1 = S2, 2 = S3
+    sectorIdx: 0,
     prevRelDist: null,
     lastLap: null,
-    bestLapsByCar: {},  // Best lap saved per vehicle class!
+    bestLapsByCar: {},
     bestSectorsByCar: {},
   };
 
@@ -4238,7 +4240,7 @@
       if (lapBestEl) lapBestEl.textContent = formatLapTime(circuitState.bestLapsByCar[activeCarId]);
       if (lapLastEl) lapLastEl.textContent = formatLapTime(circuitState.lastLap);
       resetSectorPills();
-      showBanner("APEXIA GRAND PRIX CIRCUIT · FIA GRADE 1");
+      showBanner("APEXIA GRAND PRIX CIRCUIT · GRADE 1");
     }
 
     const totalLen = cd.totalLength;
@@ -4253,10 +4255,8 @@
     if (circuitState.prevRelDist !== null) {
       const prev = circuitState.prevRelDist;
 
-      // 1) Crossed Start / Finish Line moving forward
       if (prev > totalLen * 0.8 && relDist < totalLen * 0.2) {
         if (circuitState.lapNumber >= 1 && circuitState.lapTime > 12.0) {
-          // Record Sector 3
           const s3Time = circuitState.lapTime - circuitState.sectorStartTime;
           const bestSecs = circuitState.bestSectorsByCar[activeCarId] || [Infinity, Infinity, Infinity];
           const isBestS3 = s3Time < bestSecs[2];
@@ -4267,7 +4267,6 @@
             secEls[2].className = `sec-pill ${isBestS3 ? "sec-purple" : "sec-green"}`;
           }
 
-          // Record Completed Lap
           const completed = circuitState.lapTime;
           circuitState.lastLap = completed;
           if (lapLastEl) lapLastEl.textContent = formatLapTime(completed);
@@ -4297,7 +4296,6 @@
         }, 1800);
       }
 
-      // 2) Crossed Sector 1 Timing Beam
       if (circuitState.lapNumber >= 1 && circuitState.sectorIdx === 0 && prev < relS1 && relDist >= relS1) {
         const s1Time = circuitState.lapTime - circuitState.sectorStartTime;
         circuitState.sectorStartTime = circuitState.lapTime;
@@ -4314,7 +4312,6 @@
         }
       }
 
-      // 3) Crossed Sector 2 Timing Beam
       if (circuitState.lapNumber >= 1 && circuitState.sectorIdx === 1 && prev < relS2 && relDist >= relS2) {
         const s2Time = circuitState.lapTime - circuitState.sectorStartTime;
         circuitState.sectorStartTime = circuitState.lapTime;
@@ -4341,6 +4338,19 @@
   // =========================================================================
   // 8. TRAUMA-SHAKE TUNNEL-SAFE CAMERA & LIVE 512px RT REFLECTION PASSES
   // =========================================================================
+  function clampTunnelCam(desiredPos) {
+    if (world.isPointInTunnel(desiredPos.x, desiredPos.z, car.y)) {
+      if (Math.abs(desiredPos.x) < 25) {
+        desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -9.8, 9.8);
+        desiredPos.y = Math.min(desiredPos.y, 8.8);
+      } else {
+        desiredPos.y = Math.min(desiredPos.y, car.y + 4.8);
+      }
+    } else if (car.y < -1.5) {
+      desiredPos.y = Math.min(desiredPos.y, car.y + 4.6);
+    }
+  }
+
   function updateCamera(dt, speed, usingNitro, elapsed) {
     if (garageOpen) {
       const orbitR = activeSpec.isSixWheel ? 10.6 : 7.8;
@@ -4399,10 +4409,7 @@
         car.z + camDirZ * 7.2
       );
 
-      if (world.isPointInTunnel(desiredPos.x, desiredPos.z)) {
-        desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -9.8, 9.8);
-        desiredPos.y = Math.min(desiredPos.y, 8.8);
-      }
+      clampTunnelCam(desiredPos);
 
       camPosCurrent.lerp(desiredPos, 1 - Math.exp(-8.5 * dt));
       camLookCurrent.lerp(desiredLook, 1 - Math.exp(-11.5 * dt));
@@ -4418,12 +4425,10 @@
       camera.position.copy(camPosCurrent);
       camera.lookAt(camLookCurrent);
     } else {
-      const orbitH = car.inTunnel ? 8.4 : activeSpec.isSixWheel ? 29 : 26;
+      const orbitH = car.inTunnel ? 6.5 : activeSpec.isSixWheel ? 29 : 26;
       const orbitD = car.inTunnel ? 11 : activeSpec.isSixWheel ? 25 : 21;
       const desiredPos = new THREE.Vector3(car.x - fx * orbitD, car.y + orbitH, car.z - fz * orbitD);
-      if (world.isPointInTunnel(desiredPos.x, desiredPos.z)) {
-        desiredPos.x = THREE.MathUtils.clamp(desiredPos.x, -9.5, 9.5);
-      }
+      clampTunnelCam(desiredPos);
       camPosCurrent.lerp(desiredPos, 1 - Math.exp(-5 * dt));
       camLookCurrent.set(car.x, car.y + 1.1, car.z);
       camera.position.copy(camPosCurrent);
@@ -4461,7 +4466,7 @@
 
     world.groundGroup.visible = false;
     world.waterGroup.visible = false;
-    world.bridgeUndersideGroup.visible = false
+    world.bridgeUndersideGroup.visible = false;
     world.roadGroup.visible = false;
     world.roadShadowGroup.visible = false;
     skidGroup.visible = false;
@@ -4496,7 +4501,7 @@
   }
 
   // =========================================================================
-  // 9. HUD TELEMETRY & 4-CITY MINIMAP (WITH GP CIRCUIT & LIVE GPS ROUTE)
+  // 9. HUD TELEMETRY & 6-CITY MINIMAP (WITH GP CIRCUIT, TUNNELS & GPS ROUTE)
   // =========================================================================
   const speedEl = document.getElementById("speed-value");
   const gearEl = document.getElementById("gear-value");
@@ -4541,11 +4546,11 @@
       const isl = ISLANDS[i];
       mapCtx.fillStyle =
         isl.id === "palm" ? "#1e3a2f"
-        : isl.id === "pinecrest" ? "#152a24"
-        : isl.id === "kuroshio" ? "#1a1430"
-        : isl.id === "solara" ? "#262a20"
-        : isl.id === "apexia" ? "#111c33"
-        : "#0f172a";
+          : isl.id === "pinecrest" ? "#152a24"
+          : isl.id === "kuroshio" ? "#1a1430"
+          : isl.id === "solara" ? "#262a20"
+          : isl.id === "apexia" ? "#111c33"
+          : "#0f172a";
       mapCtx.fillRect(
         (isl.minX - car.x) * scale,
         (isl.minZ - car.z) * scale,
@@ -4576,6 +4581,8 @@
           ? "#f97316"
           : s.kind === "viaduct"
           ? "#38bdf8"
+          : s.kind === "tunnel" || s.kind === "underpass"
+          ? "#a855f7"
           : s.kind === "highway"
           ? "#64748b"
           : "#334155";
@@ -4637,7 +4644,6 @@
       }
     }
 
-    // Active GPS Route Line + Destination Dot on Minimap
     if (gpsDest && gpsPath.length > 0) {
       mapCtx.strokeStyle = "#10b981";
       mapCtx.lineWidth = 3.2;
@@ -4705,7 +4711,7 @@
     if (badgeDraft) badgeDraft.classList.toggle("active-draft", car.drafting);
     if (aeroDfText) aeroDfText.textContent = `${car.downforceKg} kg`;
 
-    coordsEl.textContent = `X: ${Math.round(car.x)} | Z: ${Math.round(car.z)} | ALT: ${Math.max(0, Math.round(car.y))}m`;
+    coordsEl.textContent = `X: ${Math.round(car.x)} | Z: ${Math.round(car.z)} | ALT: ${Math.round(car.y)}m`;
 
     surfacePill.textContent = car.surfaceLabel;
     surfacePill.className = `surface-pill ${car.surfaceClass}`;
@@ -4713,7 +4719,7 @@
 
     zoneEl.textContent = world.getZoneName(car.x, car.z, car.y);
 
-    drawMinimap();
+    if (frameCounter % 3 === 0) drawMinimap();
     if (mapOpen && frameCounter % 3 === 0) drawFullMap();
   }
 
@@ -4797,6 +4803,11 @@
     if (bannerTimer > 0) {
       bannerTimer -= dt;
       if (bannerTimer <= 0) eventBanner.classList.remove("visible");
+    }
+
+    world.setRoadUniform("uHasTrails", elapsed - lastTrailStampTime < 9.0 ? 1.0 : 0.0);
+    if (rtEnabled && frameCounter % 2 === 0) {
+      renderer.shadowMap.needsUpdate = true;
     }
 
     const bloomStrength = timePreset.name === "NIGHT" ? 0.78 : timePreset.name === "SUNSET" ? 0.56 : 0.28;
