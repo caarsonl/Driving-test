@@ -1458,323 +1458,7 @@
   // =========================================================================
   // 2B. 4-MODE 3D CAR-WATER ANIMATION SYSTEM (WINGS, DRIFT WAVE, CROWNS, STEAM)
   // =========================================================================
-  const waterFX = (() => {
-    const fxGroup = new THREE.Group();
-    scene.add(fxGroup);
-
-    // 1) Curved 3D Translucent Water-Wing Sheet Geometry (erupts from wheel arches!)
-    function createWaterWingGeometry() {
-      const geo = new THREE.PlaneGeometry(1.0, 1.0, 10, 8);
-      const pos = geo.attributes.position;
-      for (let i = 0; i < pos.count; i++) {
-        const u = pos.getX(i) + 0.5; // 0 = tire contact -> 1 = outer curling spray tip
-        const v = pos.getY(i) + 0.5; // 0 = front of wheel -> 1 = swept back behind wheel
-        const x = u * 1.85;
-        const y = Math.sin(u * Math.PI * 0.78) * 1.15 * (0.4 + 0.6 * v) - u * u * 0.18;
-        const z = (v - 0.18) * (1.25 + u * 2.1);
-        pos.setXYZ(i, x, Math.max(0.02, y), z);
-      }
-      geo.computeVertexNormals();
-      return geo;
-    }
-
-    const wingGeo = createWaterWingGeometry();
-
-    function makeWingMaterial() {
-      return new THREE.ShaderMaterial({
-        uniforms: {
-          uTime: { value: 0.0 },
-          uIntensity: { value: 0.0 },
-          uColor: { value: new THREE.Color(0xdbeafe) },
-          uTint: { value: new THREE.Color(0xffffff) },
-        },
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        blending: THREE.NormalBlending,
-        vertexShader: `
-          uniform float uTime;
-          uniform float uIntensity;
-          varying vec2 vUv;
-          void main() {
-            vUv = uv;
-            vec3 p = position;
-            // Live turbulent flutter along the outer curling edge of the 3D water sheet
-            float wave = sin(uv.y * 12.0 - uTime * 22.0 + uv.x * 6.0) * 0.12 * uv.x * uIntensity;
-            p.y += wave;
-            p.x += wave * 0.6;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform float uTime;
-          uniform float uIntensity;
-          uniform vec3 uColor;
-          uniform vec3 uTint;
-          varying vec2 vUv;
-
-          float hash21(vec2 p) {
-            p = fract(p * vec2(127.1, 311.7));
-            p += dot(p, p + 34.5);
-            return fract(p.x * p.y);
-          }
-
-          float noise2D(vec2 p) {
-            vec2 i = floor(p);
-            vec2 f = fract(p);
-            f = f * f * (3.0 - 2.0 * f);
-            return mix(
-              mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
-              mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x),
-              f.y
-            );
-          }
-
-          void main() {
-            // Fast outward-streaming liquid streaks & breaking droplets
-            float s1 = noise2D(vec2(vUv.x * 5.0 - uTime * 9.5, vUv.y * 9.0 - uTime * 6.0));
-            float s2 = noise2D(vec2(vUv.x * 11.0 - uTime * 15.0, vUv.y * 16.0));
-            float sheet = smoothstep(0.18, 0.78, s1 * 0.65 + s2 * 0.35 + (1.0 - vUv.x) * 0.35);
-
-            // Feather root, outer crest & front/rear edges into broken water droplets
-            float edgeFade = smoothstep(0.0, 0.16, vUv.x) * (1.0 - smoothstep(0.58, 1.0, vUv.x))
-                           * smoothstep(0.0, 0.22, vUv.y) * (1.0 - smoothstep(0.68, 1.0, vUv.y));
-            float alpha = sheet * edgeFade * uIntensity * 0.85;
-            if (alpha < 0.02) discard;
-
-            vec3 col = mix(uColor, vec3(1.0), smoothstep(0.55, 0.92, s1 + s2 * 0.4)) * uTint;
-            gl_FragColor = vec4(col, alpha);
-          }
-        `,
-      });
-    }
-
-    const carRig = new THREE.Group();
-    fxGroup.add(carRig);
-
-    // 4 Independent 3D Wheel Water Wings: FL, FR, RL, RR
-    const wings = [
-      { side: -1, isRear: false, mat: makeWingMaterial(), curInt: 0 },
-      { side: 1, isRear: false, mat: makeWingMaterial(), curInt: 0 },
-      { side: -1, isRear: true, mat: makeWingMaterial(), curInt: 0 },
-      { side: 1, isRear: true, mat: makeWingMaterial(), curInt: 0 },
-    ].map((w) => {
-      const m = new THREE.Mesh(wingGeo, w.mat);
-      m.visible = false;
-      carRig.add(m);
-      return { ...w, mesh: m };
-    });
-
-    // 2) Pooled 3D Expanding Splash-Crown Geysers (for Jump Landings & Deep-Water Plunges)
-    const crownGeo = new THREE.CylinderGeometry(1.15, 0.42, 1.25, 18, 3, true);
-    crownGeo.translate(0, 0.62, 0);
-    const cPos = crownGeo.attributes.position;
-    for (let i = 0; i < cPos.count; i++) {
-      const y = cPos.getY(i);
-      if (y > 0.9) {
-        const ang = Math.atan2(cPos.getZ(i), cPos.getX(i));
-        const spike = 1.0 + 0.38 * Math.abs(Math.sin(ang * 5.0));
-        cPos.setY(i, y * spike);
-      }
-    }
-    crownGeo.computeVertexNormals();
-
-    const crownPool = [];
-    for (let i = 0; i < 6; i++) {
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0xdbeafe,
-        transparent: true,
-        opacity: 0.72,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      });
-      const mesh = new THREE.Mesh(crownGeo, mat);
-      mesh.visible = false;
-      fxGroup.add(mesh);
-      crownPool.push({ mesh, life: 0, maxLife: 0.55, power: 1.0 });
-    }
-    let crownCursor = 0;
-
-    // 3) Pooled 3D Slow-Roll Concentric Ripple Rings (for gentle 5-40 km/h puddle cruising)
-    const ringGeo = new THREE.RingGeometry(0.45, 0.72, 24);
-    ringGeo.rotateX(-Math.PI / 2);
-    const ringPool = [];
-    for (let i = 0; i < 18; i++) {
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0xe0f2fe,
-        transparent: true,
-        opacity: 0.55,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      });
-      const mesh = new THREE.Mesh(ringGeo, mat);
-      mesh.visible = false;
-      fxGroup.add(mesh);
-      ringPool.push({ mesh, life: 0, maxLife: 0.95, grow: 4.5 });
-    }
-    let ringCursor = 0;
-    let slowRingCooldown = 0;
-
-    function spawnSplashCrown(x, y, z, power = 1.0) {
-      const c = crownPool[crownCursor];
-      crownCursor = (crownCursor + 1) % crownPool.length;
-      c.mesh.position.set(x, y + 0.04, z);
-      c.mesh.rotation.y = Math.random() * Math.PI * 2;
-      c.mesh.visible = true;
-      c.maxLife = 0.48 + Math.min(0.32, power * 0.14);
-      c.life = c.maxLife;
-      c.power = THREE.MathUtils.clamp(power, 0.6, 2.4);
-    }
-
-    function spawnSlowRing(x, y, z, grow = 4.2) {
-      const r = ringPool[ringCursor];
-      ringCursor = (ringCursor + 1) % ringPool.length;
-      r.mesh.position.set(x, y + 0.085, z);
-      r.mesh.visible = true;
-      r.maxLife = 0.85 + Math.random() * 0.35;
-      r.life = r.maxLife;
-      r.grow = grow;
-    }
-
-    // Rooster-tail & Nitro Steam Plume Particles (reuses existing particlePool with specialized velocity/color!)
-    function spawnRoosterOrSteam(x, y, z, fx, fz, speed, isNitroSteam, isBraking) {
-      const p = particlePool[particleIdx];
-      particleIdx = (particleIdx + 1) % particlePool.length;
-      p.mesh.position.set(x + (Math.random() - 0.5) * 0.5, y + 0.28, z + (Math.random() - 0.5) * 0.5);
-      p.mesh.visible = true;
-
-      if (isNitroSteam) {
-        p.mesh.material.color.setHex(0x7dd3fc);
-        p.mesh.material.opacity = 0.62;
-        p.mesh.scale.setScalar(0.65);
-        p.maxLife = 0.62 + Math.random() * 0.25;
-        p.life = p.maxLife;
-        p.vx = -fx * (4.5 + speed * 0.14) + (Math.random() - 0.5) * 2.4;
-        p.vy = 2.6 + Math.random() * 2.2;
-        p.vz = -fz * (4.5 + speed * 0.14) + (Math.random() - 0.5) * 2.4;
-        p.gravity = -1.2; // Hot steam rises!
-        p.grow = 2.8;
-      } else {
-        p.mesh.material.color.setHex(isBraking ? 0xfecaca : 0xe2e8f0);
-        p.mesh.material.opacity = 0.48;
-        p.mesh.scale.setScalar(0.55);
-        p.maxLife = 0.45 + Math.random() * 0.2;
-        p.life = p.maxLife;
-        p.vx = -fx * (speed * 0.12) + (Math.random() - 0.5) * 1.8;
-        p.vy = 2.4 + Math.min(4.8, speed * 0.12) * (0.75 + Math.random() * 0.4);
-        p.vz = -fz * (speed * 0.12) + (Math.random() - 0.5) * 1.8;
-        p.gravity = 9.8;
-        p.grow = 2.3;
-      }
-    }
-
-    function update(dt, elapsed, carState, spec, leftWater, rightWater, speed, latVel, usingNitro, isBraking, isNight) {
-      slowRingCooldown = Math.max(0, slowRingCooldown - dt);
-
-      carRig.position.set(carState.x, carState.y, carState.z);
-      carRig.rotation.set(carState.slopePitch, carState.heading, 0, "YXZ");
-
-      const nfx = -Math.sin(carState.heading);
-      const nfz = -Math.cos(carState.heading);
-      const nrx = Math.cos(carState.heading);
-      const nrz = -Math.sin(carState.heading);
-
-      const inOcean = carState.inWater;
-      const effLeft = inOcean ? 1.0 : leftWater;
-      const effRight = inOcean ? 1.0 : rightWater;
-      const maxWater = Math.max(effLeft, effRight);
-
-      // Update 4 Independent 3D Wheel Water Wings (Mode 2: High-Speed Hydroplane & Mode 3: Drift Wave Sweep)
-      const speedNorm = THREE.MathUtils.clamp((speed - 8.0) / 26.0, 0.0, 1.35);
-      const driftActive = carState.drifting && maxWater > 0.12;
-
-      for (let i = 0; i < wings.length; i++) {
-        const w = wings[i];
-        const sideWater = w.side < 0 ? effLeft : effRight;
-        // Outside wheel during a drift gets a massive sweeping lateral wave sheet!
-        const isOutsideDrift = driftActive && ((w.side > 0 && latVel > 1.5) || (w.side < 0 && latVel < -1.5));
-        const targetInt =
-          carState.grounded && sideWater > 0.14 && speed > 7.5
-            ? Math.min(1.0, sideWater * (0.35 + speedNorm * 0.72) * (isOutsideDrift ? 1.45 : 1.0))
-            : 0.0;
-
-        w.curInt = THREE.MathUtils.lerp(w.curInt, targetInt, 1 - Math.exp(-14 * dt));
-        w.mesh.visible = w.curInt > 0.025;
-
-        if (w.mesh.visible) {
-          w.mat.uniforms.uTime.value = elapsed;
-          w.mat.uniforms.uIntensity.value = w.curInt;
-          // Night headlights/taillights softly tint the water sheets!
-          if (w.isRear && usingNitro) w.mat.uniforms.uTint.value.setHex(0x7dd3fc);
-          else if (w.isRear && isBraking) w.mat.uniforms.uTint.value.setHex(0xffb4b4);
-          else w.mat.uniforms.uTint.value.setHex(isNight ? 0xb8d4f4 : 0xffffff);
-
-          const wx = w.side * (spec.wheelX + 0.12);
-          const wz = w.isRear ? spec.wheelZ : -spec.wheelZ;
-          w.mesh.position.set(wx, 0.06, wz);
-
-          const widthScale = (0.65 + speedNorm * 0.85) * (isOutsideDrift ? 1.85 : 1.0);
-          const heightScale = (0.55 + speedNorm * 0.95) * (w.isRear ? 1.18 : 0.88) * (isOutsideDrift ? 1.25 : 1.0);
-          const lenScale = 0.75 + speedNorm * 0.75;
-          w.mesh.scale.set(w.side * widthScale, heightScale, lenScale);
-          w.mesh.rotation.y = isOutsideDrift ? -w.side * 0.34 : 0.0;
-        }
-      }
-
-      // Mode 1: Slow-Roll Concentric 3D Ripple Rings (5 - 42 km/h)
-      if (carState.grounded && maxWater > 0.16 && speed > 1.4 && speed < 12.5 && slowRingCooldown <= 0) {
-        slowRingCooldown = 0.24;
-        if (effLeft > 0.16) {
-          spawnSlowRing(carState.x - nrx * spec.wheelX, carState.y, carState.z - nrz * spec.wheelX, 3.4 + speed * 0.2);
-        }
-        if (effRight > 0.16) {
-          spawnSlowRing(carState.x + nrx * spec.wheelX, carState.y, carState.z + nrz * spec.wheelX, 3.4 + speed * 0.2);
-        }
-      }
-
-      // Mode 4: High-Speed Rooster-Tail Plume (> 85 km/h) & Nitro Pressurized Steam Plume!
-      if (carState.grounded && maxWater > 0.16 && (speed > 22.0 || (usingNitro && speed > 8.0))) {
-        const rearX = carState.x - nfx * (spec.wheelZ + 0.65);
-        const rearZ = carState.z - nfz * (spec.wheelZ + 0.65);
-        if (usingNitro && Math.random() < 0.85) {
-          spawnRoosterOrSteam(rearX, carState.y, rearZ, nfx, nfz, speed, true, isBraking);
-        } else if (speed > 22.0 && Math.random() < Math.min(0.85, (speed - 20) * 0.03)) {
-          if (effLeft > 0.16) spawnRoosterOrSteam(rearX - nrx * spec.wheelX, carState.y, rearZ - nrz * spec.wheelX, nfx, nfz, speed, false, isBraking);
-          if (effRight > 0.16) spawnRoosterOrSteam(rearX + nrx * spec.wheelX, carState.y, rearZ + nrz * spec.wheelX, nfx, nfz, speed, false, isBraking);
-        }
-      }
-
-      // Animate Pooled 3D Splash Crowns
-      for (let i = 0; i < crownPool.length; i++) {
-        const c = crownPool[i];
-        if (c.life > 0) {
-          c.life -= dt;
-          const prog = 1.0 - Math.max(0, c.life / c.maxLife);
-          const rad = (0.7 + prog * 2.8) * c.power;
-          const height = Math.sin(prog * Math.PI) * 1.75 * c.power;
-          c.mesh.scale.set(rad, Math.max(0.05, height), rad);
-          c.mesh.material.opacity = (1.0 - prog) * 0.72;
-          if (c.life <= 0) c.mesh.visible = false;
-        }
-      }
-
-      // Animate Pooled 3D Slow-Roll Ripple Rings
-      for (let i = 0; i < ringPool.length; i++) {
-        const r = ringPool[i];
-        if (r.life > 0) {
-          r.life -= dt;
-          const prog = 1.0 - Math.max(0, r.life / r.maxLife);
-          const s = 0.65 + prog * r.grow;
-          r.mesh.scale.set(s, s, 1);
-          r.mesh.material.opacity = (1.0 - prog) * 0.52;
-          if (r.life <= 0) r.mesh.visible = false;
-        }
-      }
-    }
-
-    return { update, spawnSplashCrown };
-  })();
+  let pendingWaterImpact = 0;
   // --- 3D Bouncing Metallic Collision Sparks + Flickering Contact Flash Light ---
   const MAX_SPARKS = 110;
   const sparkGroup = new THREE.Group();
@@ -3226,7 +2910,8 @@
     cameraTrauma = 0;
     scrapeIntensity = 0;
     clearWaterTrails();
-
+    if (world.resetWaterSim) world.resetWaterSim(renderer, x, z);
+    pendingWaterImpact = 0;
     const fx = -Math.sin(car.heading);
     const fz = -Math.cos(car.heading);
     camPosCurrent.set(car.x - fx * 11, car.y + 4.4, car.z - fz * 11);
@@ -4222,11 +3907,11 @@
           }
           if (latestSurf.overWater) {
             audio.playWaterSplash(impactVy + Math.abs(vLong));
-            waterFX.spawnSplashCrown(car.x, 0.0, car.z, Math.min(2.3, 0.8 + impactVy * 0.14));
+            pendingWaterImpact = Math.max(pendingWaterImpact, Math.min(1.4, 0.45 + impactVy * 0.09));
             showBanner("WATER SPLASH!");
           } else {
-            if (puddleAvg > 0.18 && impactVy > 3.5) {
-              waterFX.spawnSplashCrown(car.x, car.y, car.z, Math.min(1.9, 0.7 + impactVy * 0.12));
+            if (puddleAvg > 0.15 && impactVy > 3.0) {
+              pendingWaterImpact = Math.max(pendingWaterImpact, Math.min(1.2, 0.35 + impactVy * 0.08));
               audio.playPuddleWhoosh(impactVy * 3.0);
             }
             if (impactVy > 7.5) audio.playImpact(impactVy * 1.1);
@@ -4246,7 +3931,7 @@
 
       if (car.inWater && !wasInWater && splashCooldown <= 0) {
         audio.playWaterSplash(Math.abs(vLong) + 8);
-        waterFX.spawnSplashCrown(car.x, 0.0, car.z, Math.min(2.2, 0.9 + Math.abs(vLong) * 0.04));
+        pendingWaterImpact = Math.max(pendingWaterImpact, Math.min(1.3, 0.5 + Math.abs(vLong) * 0.03));
         if (controls) controls.rumble(0.5, 0.7, 160);
         splashCooldown = 0.6;
         for (let s = 0; s < 12; s++) {
@@ -4309,19 +3994,10 @@
     const curLatVel = car.vx * nrx + car.vz * nrz;
     world.setRoadUniform("uCarSpeed", absSpeed);
     world.setRoadUniform("uCarLatVel", curLatVel);
-    waterFX.update(
-      dt,
-      elapsed,
-      car,
-      sp,
-      leftPuddle,
-      rightPuddle,
-      absSpeed,
-      curLatVel,
-      usingNitro,
-      car.brakePedal > 0.08 || handbrake,
-      TIME_PRESETS[timeIndex].name === "NIGHT"
-    );
+    if (world.stepWaterSim) {
+    world.stepWaterSim(renderer, dt, elapsed, car, sp, weather.rainIntensity, pendingWaterImpact);
+    }
+    pendingWaterImpact = 0;
     if (controls && ext.gamepadConnected && car.grounded) {
       if (scrapeIntensity > 0.15) controls.rumble(0.25, 0.55 * scrapeIntensity, 80);
       else if (puddleHitPeak > 0.25 && absSpeed > 12) controls.rumble(0.14, 0.34, 75);
