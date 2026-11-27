@@ -20,7 +20,7 @@
   const container = document.getElementById("canvas-container");
   const scene = new THREE.Scene();
 
-  const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.2, 3600);
+  const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.2, 4600);
   const mirrorCamera = camera.clone();
 
   const renderer = new THREE.WebGLRenderer({
@@ -725,593 +725,41 @@
 
     clearGroup(carBodyGroup);
     wheelPivots.forEach((p) => carGroup.remove(p));
-    wheelPivots = [];
-    wheelMeshes = [];
-    wheelIsRear = [];
-    frontWheelPivots = [];
-    volumetricBeams = [];
-    flames = [];
-    policeLightbar = null;
-    activeWingPivot = null;
 
     const sp = activeSpec;
-    const halfL = sp.bodyLen * 0.5;
-    const baseY = sp.wheelRadius;
-
     world.setRoadUniform("uCarHalfW", sp.bodyW * 0.5);
-    world.setRoadUniform("uCarHalfL", halfL);
-
-    if (carId === "formula") {
-      const tub = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.42, 3.6), bodyMat);
-      tub.position.set(0, baseY + 0.08, 0.15);
-      tub.castShadow = true;
-      carBodyGroup.add(tub);
-
-      const nose = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.24, 1.55), bodyMat);
-      nose.position.set(0, baseY - 0.02, -1.78);
-      nose.rotation.x = 0.08;
-      carBodyGroup.add(nose);
-
-      const frontWing = new THREE.Mesh(new THREE.BoxGeometry(2.14, 0.09, 0.55), trimMat);
-      frontWing.position.set(0, baseY - 0.16, -halfL + 0.26);
-      carBodyGroup.add(frontWing);
-      [-1.06, 1.06].forEach((ex) => {
-        const ep = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.62), bodyMat);
-        ep.position.set(ex, baseY - 0.08, -halfL + 0.26);
-        carBodyGroup.add(ep);
-      });
-
-      const floor = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.07, 3.0), trimMat);
-      floor.position.set(0, baseY - 0.14, 0.25);
-      carBodyGroup.add(floor);
-      [-0.68, 0.68].forEach((sx) => {
-        const pod = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.4, 2.05), bodyMat);
-        pod.position.set(sx, baseY + 0.06, 0.35);
-        pod.castShadow = true;
-        carBodyGroup.add(pod);
-      });
-
-      const airbox = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.55, 1.25), bodyMat);
-      airbox.position.set(0, baseY + 0.52, 0.68);
-      carBodyGroup.add(airbox);
-      const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 12), secondaryWhiteMat);
-      helmet.position.set(0, baseY + 0.45, 0.02);
-      carBodyGroup.add(helmet);
-      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.045, 6, 14, Math.PI), trimMat);
-      halo.rotation.x = Math.PI / 2;
-      halo.position.set(0, baseY + 0.54, -0.05);
-      carBodyGroup.add(halo);
-
-      [-0.78, 0.78].forEach((ex) => {
-        const ep = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.78, 0.65), trimMat);
-        ep.position.set(ex, baseY + 0.52, halfL - 0.34);
-        carBodyGroup.add(ep);
-      });
-      const mainPlane = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.07, 0.34), bodyMat);
-      mainPlane.position.set(0, baseY + 0.68, halfL - 0.32);
-      carBodyGroup.add(mainPlane);
-
-      activeWingPivot = new THREE.Group();
-      activeWingPivot.position.set(0, baseY + 0.84, halfL - 0.24);
-      const drsFlap = new THREE.Mesh(new THREE.BoxGeometry(1.54, 0.07, 0.28), trimMat);
-      drsFlap.position.set(0, 0, -0.08);
-      activeWingPivot.add(drsFlap);
-      carBodyGroup.add(activeWingPivot);
-    } else if (carId === "lmp") {
-      // SOLSTICE LMP-1 — Closed-Cockpit Endurance Prototype with Shark Fin & Active DRS Wing
-      const floor = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.1, sp.bodyLen), trimMat);
-      floor.position.set(0, baseY - 0.08, 0);
-      carBodyGroup.add(floor);
-
-      const centerDeck = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.34, sp.bodyLen - 0.2), bodyMat);
-      centerDeck.position.set(0, baseY + 0.12, 0.05);
-      centerDeck.castShadow = true;
-      carBodyGroup.add(centerDeck);
-
-      // Sculpted Front & Rear LMP Wheel Arch Fenders
-      [-0.86, 0.86].forEach((fx) => {
-        const frontPod = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.46, 1.55), bodyMat);
-        frontPod.position.set(fx, baseY + 0.18, -halfL + 0.92);
-        frontPod.castShadow = true;
-        carBodyGroup.add(frontPod);
-
-        const rearPod = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.44, 1.75), bodyMat);
-        rearPod.position.set(fx, baseY + 0.17, halfL - 0.92);
-        rearPod.castShadow = true;
-        carBodyGroup.add(rearPod);
-      });
-
-      // Narrow Teardrop Prototype Canopy
-      const bubble = new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.46, 1.78), cabinMat);
-      bubble.position.set(0, baseY + 0.52, -0.15);
-      bubble.castShadow = true;
-      carBodyGroup.add(bubble);
-
-      // Iconic LMP Dorsal Shark Fin connecting cockpit to rear wing
-      const sharkFin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.44, 1.75), bodyMat);
-      sharkFin.position.set(0, baseY + 0.52, 1.32);
-      carBodyGroup.add(sharkFin);
-
-      [-0.98, 0.98].forEach((ex) => {
-        const ep = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.62, 0.68), trimMat);
-        ep.position.set(ex, baseY + 0.58, halfL - 0.22);
-        carBodyGroup.add(ep);
-      });
-
-      activeWingPivot = new THREE.Group();
-      activeWingPivot.position.set(0, baseY + 0.78, halfL - 0.24);
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(1.98, 0.08, 0.48), trimMat);
-      wing.castShadow = true;
-      activeWingPivot.add(wing);
-      carBodyGroup.add(activeWingPivot);
-    } else if (carId === "gt3") {
-      // STRATOS GT3-R — Widebody FIA GT3 Track Car with Canards, Vent Hood & Swan-Neck Wing
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.54, sp.bodyLen), bodyMat);
-      chassis.position.y = baseY + 0.19;
-      chassis.castShadow = true;
-      carBodyGroup.add(chassis);
-
-      const splitter = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.16, 0.08, 0.62), trimMat);
-      splitter.position.set(0, baseY - 0.08, -halfL - 0.02);
-      carBodyGroup.add(splitter);
-
-      // Front Aero Dive-Plane Canards
-      [-1, 1].forEach((s) => {
-        const canard = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.42), trimMat);
-        canard.position.set(s * (sp.bodyW * 0.5 + 0.05), baseY + 0.14, -halfL + 0.36);
-        canard.rotation.z = s * 0.22;
-        carBodyGroup.add(canard);
-      });
-
-      const hoodVent = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.06, 0.72), trimMat);
-      hoodVent.position.set(0, baseY + 0.48, -1.18);
-      carBodyGroup.add(hoodVent);
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.5, 2.08), cabinMat);
-      cabin.position.set(0, baseY + 0.68, 0.16);
-      cabin.castShadow = true;
-      carBodyGroup.add(cabin);
-
-      // Swan-Neck Track Wing Struts + Endplates
-      [-0.58, 0.58].forEach((sx) => {
-        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.58, 0.28), trimMat);
-        strut.position.set(sx, baseY + 0.72, halfL - 0.18);
-        carBodyGroup.add(strut);
-      });
-
-      activeWingPivot = new THREE.Group();
-      activeWingPivot.position.set(0, baseY + 0.96, halfL - 0.16);
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.08, 0.08, 0.46), trimMat);
-      wing.castShadow = true;
-      activeWingPivot.add(wing);
-      [-sp.bodyW * 0.5 - 0.04, sp.bodyW * 0.5 + 0.04].forEach((ex) => {
-        const ep = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.34, 0.52), bodyMat);
-        ep.position.set(ex, -0.04, 0);
-        activeWingPivot.add(ep);
-      });
-      carBodyGroup.add(activeWingPivot);
-    } else if (carId === "drift") {
-      // KITSUNE S-DRIFT — Sleek Widebody JDM-Inspired Pro-Drift Coupe
-      const body = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.54, sp.bodyLen), bodyMat);
-      body.position.y = baseY + 0.2;
-      body.castShadow = true;
-      carBodyGroup.add(body);
-
-      const intercooler = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.28, 0.14), chromeMat);
-      intercooler.position.set(0, baseY + 0.08, -halfL - 0.02);
-      carBodyGroup.add(intercooler);
-
-      const frontLip = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.08, 0.08, 0.44), trimMat);
-      frontLip.position.set(0, baseY - 0.08, -halfL + 0.05);
-      carBodyGroup.add(frontLip);
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.48, 2.02), cabinMat);
-      cabin.position.set(0, baseY + 0.68, 0.18);
-      cabin.castShadow = true;
-      carBodyGroup.add(cabin);
-
-      // Tall Drift Chassis-Mount GT Wing
-      [-0.78, 0.78].forEach((sx) => {
-        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.56, 0.22), trimMat);
-        strut.position.set(sx, baseY + 0.72, halfL - 0.15);
-        carBodyGroup.add(strut);
-      });
-      const driftWing = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.12, 0.08, 0.42), trimMat);
-      driftWing.position.set(0, baseY + 0.98, halfL - 0.15);
-      driftWing.rotation.x = -0.14;
-      carBodyGroup.add(driftWing);
-    } else if (carId === "buggy") {
-      // DUNEVALKYRIE X — Lightweight Open Tubular Baja Exocar
-      const skid = new THREE.Mesh(new THREE.BoxGeometry(1.56, 0.34, sp.bodyLen - 0.4), bodyMat);
-      skid.position.set(0, baseY + 0.12, 0.05);
-      skid.castShadow = true;
-      carBodyGroup.add(skid);
-
-      const nose = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.28, 1.15), bodyMat);
-      nose.position.set(0, baseY + 0.26, -1.28);
-      nose.rotation.x = 0.14;
-      carBodyGroup.add(nose);
-
-      // Open Tubular Roll-Cage Pillars & Roof Frame
-      [[-0.68, -0.55], [0.68, -0.55], [-0.68, 0.95], [0.68, 0.95]].forEach(([px, pz]) => {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.92, 6), trimMat);
-        post.position.set(px, baseY + 0.68, pz);
-        carBodyGroup.add(post);
-      });
-      const roofRack = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.09, 1.56), trimMat);
-      roofRack.position.set(0, baseY + 1.12, 0.2);
-      carBodyGroup.add(roofRack);
-
-      const ledBar = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.12, 0.14), headlightMat);
-      ledBar.position.set(0, baseY + 1.2, -0.56);
-      carBodyGroup.add(ledBar);
-
-      // Twin Bucket Seats & Rear Exposed Engine Bay
-      [-0.32, 0.32].forEach((sx) => {
-        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.56, 0.42), trimMat);
-        seat.position.set(sx, baseY + 0.45, 0.18);
-        carBodyGroup.add(seat);
-      });
-      const engineBlock = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.48, 0.88), chromeMat);
-      engineBlock.position.set(0, baseY + 0.42, 1.38);
-      carBodyGroup.add(engineBlock);
-    } else if (carId === "supercar") {
-      const lower = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.44, sp.bodyLen), bodyMat);
-      lower.position.y = baseY + 0.16;
-      lower.castShadow = true;
-      carBodyGroup.add(lower);
-
-      const nose = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW * 0.94, 0.24, 1.35), bodyMat);
-      nose.position.set(0, baseY + 0.28, -halfL + 0.72);
-      nose.rotation.x = 0.12;
-      carBodyGroup.add(nose);
-
-      const splitter = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.08, 0.08, 0.55), trimMat);
-      splitter.position.set(0, baseY - 0.06, -halfL + 0.15);
-      carBodyGroup.add(splitter);
-
-      const cockpit = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.44, 2.0), cabinMat);
-      cockpit.position.set(0, baseY + 0.56, 0.12);
-      cockpit.castShadow = true;
-      carBodyGroup.add(cockpit);
-
-      const engineCover = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.22, 1.45), trimMat);
-      engineCover.position.set(0, baseY + 0.48, 1.45);
-      carBodyGroup.add(engineCover);
-
-      [-0.68, 0.68].forEach((sx) => {
-        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.28), trimMat);
-        strut.position.set(sx, baseY + 0.56, halfL - 0.28);
-        carBodyGroup.add(strut);
-      });
-
-      activeWingPivot = new THREE.Group();
-      activeWingPivot.position.set(0, baseY + 0.78, halfL - 0.28);
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.08, 0.5), trimMat);
-      wing.castShadow = true;
-      activeWingPivot.add(wing);
-      carBodyGroup.add(activeWingPivot);
-    } else if (carId === "muscle") {
-      const body = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.64, sp.bodyLen), bodyMat);
-      body.position.y = baseY + 0.24;
-      body.castShadow = true;
-      carBodyGroup.add(body);
-
-      const blower = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.34, 0.85), chromeMat);
-      blower.position.set(0, baseY + 0.66, -1.08);
-      carBodyGroup.add(blower);
-      const intake = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.16, 0.35), trimMat);
-      intake.position.set(0, baseY + 0.86, -1.22);
-      carBodyGroup.add(intake);
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.54, 1.98), cabinMat);
-      cabin.position.set(0, baseY + 0.78, 0.36);
-      cabin.castShadow = true;
-      carBodyGroup.add(cabin);
-
-      const ducktail = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW - 0.06, 0.22, 0.32), trimMat);
-      ducktail.position.set(0, baseY + 0.64, halfL - 0.18);
-      ducktail.rotation.x = -0.35;
-      carBodyGroup.add(ducktail);
-
-      const chin = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.04, 0.14, 0.38), trimMat);
-      chin.position.set(0, baseY - 0.04, -halfL + 0.08);
-      carBodyGroup.add(chin);
-    } else if (carId === "rally") {
-      const body = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.64, sp.bodyLen), bodyMat);
-      body.position.y = baseY + 0.26;
-      body.castShadow = true;
-      carBodyGroup.add(body);
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.62, 2.2), cabinMat);
-      cabin.position.set(0, baseY + 0.86, 0.32);
-      cabin.castShadow = true;
-      carBodyGroup.add(cabin);
-
-      const roofScoop = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.18, 0.62), trimMat);
-      roofScoop.position.set(0, baseY + 1.22, -0.05);
-      carBodyGroup.add(roofScoop);
-
-      const hoodScoop = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.14, 0.52), trimMat);
-      hoodScoop.position.set(0, baseY + 0.62, -1.02);
-      carBodyGroup.add(hoodScoop);
-
-      [-0.45, -0.15, 0.15, 0.45].forEach((lx) => {
-        const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.14, 8), headlightMat);
-        pod.rotation.x = Math.PI / 2;
-        pod.position.set(lx, baseY + 0.42, -halfL - 0.07);
-        carBodyGroup.add(pod);
-      });
-
-      [-0.86, 0.86].forEach((ex) => {
-        const ep = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.55, 0.56), bodyMat);
-        ep.position.set(ex, baseY + 1.18, halfL - 0.28);
-        carBodyGroup.add(ep);
-      });
-      const topWing = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.08, 0.46), trimMat);
-      topWing.position.set(0, baseY + 1.4, halfL - 0.28);
-      topWing.rotation.x = -0.18;
-      carBodyGroup.add(topWing);
-    } else if (carId === "ev") {
-      const body = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.54, sp.bodyLen), bodyMat);
-      body.position.y = baseY + 0.2;
-      body.castShadow = true;
-      carBodyGroup.add(body);
-
-      const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.82, 0.5, 2.55), cabinMat);
-      canopy.position.set(0, baseY + 0.68, 0.08);
-      canopy.castShadow = true;
-      carBodyGroup.add(canopy);
-
-      const frontStrip = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW - 0.16, 0.09, 0.08), evCyanGlowMat);
-      frontStrip.position.set(0, baseY + 0.3, -halfL - 0.03);
-      carBodyGroup.add(frontStrip);
-
-      const rearStrip = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW - 0.16, 0.1, 0.08), brakeLightMat);
-      rearStrip.position.set(0, baseY + 0.34, halfL + 0.03);
-      carBodyGroup.add(rearStrip);
-
-      activeWingPivot = new THREE.Group();
-      activeWingPivot.position.set(0, baseY + 0.52, halfL - 0.26);
-      const aeroLip = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW - 0.14, 0.07, 0.36), trimMat);
-      activeWingPivot.add(aeroLip);
-      carBodyGroup.add(activeWingPivot);
-    } else if (carId === "suv") {
-      const lower = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.78, sp.bodyLen), bodyMat);
-      lower.position.y = baseY + 0.36;
-      lower.castShadow = true;
-      carBodyGroup.add(lower);
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.04, 0.76, 3.05), cabinMat);
-      cabin.position.set(0, baseY + 1.08, 0.35);
-      cabin.castShadow = true;
-      carBodyGroup.add(cabin);
-
-      const roofCap = new THREE.Mesh(new THREE.BoxGeometry(2.08, 0.14, 3.08), bodyMat);
-      roofCap.position.set(0, baseY + 1.48, 0.35);
-      carBodyGroup.add(roofCap);
-
-      [-0.86, 0.86].forEach((rx) => {
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 2.7), trimMat);
-        rail.position.set(rx, baseY + 1.62, 0.35);
-        carBodyGroup.add(rail);
-      });
-      const ledBar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 0.14), headlightMat);
-      ledBar.position.set(0, baseY + 1.62, -1.05);
-      carBodyGroup.add(ledBar);
-
-      const bullbar = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.42, 0.24), trimMat);
-      bullbar.position.set(0, baseY + 0.32, -halfL - 0.14);
-      carBodyGroup.add(bullbar);
-
-      const spareGeo = new THREE.CylinderGeometry(0.46, 0.46, 0.28, 14);
-      spareGeo.rotateX(Math.PI / 2);
-      const spare = new THREE.Mesh(spareGeo, tireMat);
-      spare.position.set(0, baseY + 0.65, halfL + 0.15);
-      carBodyGroup.add(spare);
-    } else if (carId === "police") {
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.62, sp.bodyLen), bodyMat);
-      chassis.position.y = baseY + 0.24;
-      chassis.castShadow = true;
-      carBodyGroup.add(chassis);
-
-      const whiteDoors = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.04, 0.56, 2.15), secondaryWhiteMat);
-      whiteDoors.position.set(0, baseY + 0.24, 0.1);
-      carBodyGroup.add(whiteDoors);
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.56, 2.2), cabinMat);
-      cabin.position.set(0, baseY + 0.78, 0.12);
-      cabin.castShadow = true;
-      carBodyGroup.add(cabin);
-
-      const roofWhite = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.1, 2.05), secondaryWhiteMat);
-      roofWhite.position.set(0, baseY + 1.07, 0.12);
-      carBodyGroup.add(roofWhite);
-
-      const pushBar = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.46, 0.22), trimMat);
-      pushBar.position.set(0, baseY + 0.26, -halfL - 0.12);
-      carBodyGroup.add(pushBar);
-
-      const barBase = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.1, 0.34), trimMat);
-      barBase.position.set(0, baseY + 1.15, 0.05);
-      carBodyGroup.add(barBase);
-
-      const redMat = new THREE.MeshStandardMaterial({ color: 0xff2222, emissive: 0xff1111, emissiveIntensity: 0.4 });
-      const blueMat = new THREE.MeshStandardMaterial({ color: 0x2266ff, emissive: 0x1155ff, emissiveIntensity: 0.4 });
-
-      const redPod = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.16, 0.32), redMat);
-      redPod.position.set(-0.38, baseY + 1.24, 0.05);
-      carBodyGroup.add(redPod);
-
-      const bluePod = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.16, 0.32), blueMat);
-      bluePod.position.set(0.38, baseY + 1.24, 0.05);
-      carBodyGroup.add(bluePod);
-
-      const redLight = new THREE.PointLight(0xff1e1e, 0, 24, 2);
-      redLight.position.set(-0.6, baseY + 1.7, 0.05);
-      carBodyGroup.add(redLight);
-
-      const blueLight = new THREE.PointLight(0x2563eb, 0, 24, 2);
-      blueLight.position.set(0.6, baseY + 1.7, 0.05);
-      carBodyGroup.add(blueLight);
-
-      policeLightbar = { redMat, blueMat, redLight, blueLight };
-    } else if (carId === "truck") {
-      const frame = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.45, sp.bodyLen), trimMat);
-      frame.position.set(0, baseY + 0.18, 0);
-      carBodyGroup.add(frame);
-
-      const hood = new THREE.Mesh(new THREE.BoxGeometry(2.08, 1.15, 2.05), bodyMat);
-      hood.position.set(0, baseY + 0.92, -halfL + 1.18);
-      hood.castShadow = true;
-      carBodyGroup.add(hood);
-
-      const grille = new THREE.Mesh(new THREE.BoxGeometry(1.75, 1.0, 0.12), chromeMat);
-      grille.position.set(0, baseY + 0.88, -halfL + 0.12);
-      carBodyGroup.add(grille);
-
-      const bumper = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.42, 0.28), chromeMat);
-      bumper.position.set(0, baseY + 0.18, -halfL - 0.06);
-      carBodyGroup.add(bumper);
-
-      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.38, 2.15, 2.35), bodyMat);
-      cab.position.set(0, baseY + 1.68, -0.2);
-      cab.castShadow = true;
-      carBodyGroup.add(cab);
-
-      const windshield = new THREE.Mesh(new THREE.BoxGeometry(2.16, 0.72, 0.14), cabinMat);
-      windshield.position.set(0, baseY + 2.05, -1.36);
-      carBodyGroup.add(windshield);
-
-      const roofFairing = new THREE.Mesh(new THREE.BoxGeometry(2.26, 0.55, 1.35), bodyMat);
-      roofFairing.position.set(0, baseY + 2.95, 0.12);
-      roofFairing.rotation.x = 0.28;
-      carBodyGroup.add(roofFairing);
-
-      [-1.18, 1.18].forEach((sx) => {
-        const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 2.95, 8), chromeMat);
-        stack.position.set(sx, baseY + 1.95, 0.85);
-        carBodyGroup.add(stack);
-      });
-
-      const hitch = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.18, 12), trimMat);
-      hitch.position.set(0, baseY + 0.48, 2.0);
-      carBodyGroup.add(hitch);
-    } else {
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW, 0.58, sp.bodyLen), bodyMat);
-      chassis.position.y = baseY + 0.2;
-      chassis.castShadow = true;
-      carBodyGroup.add(chassis);
-
-      const splitter = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW + 0.06, 0.1, 0.46), trimMat);
-      splitter.position.set(0, baseY - 0.08, -halfL + 0.02);
-      carBodyGroup.add(splitter);
-
-      const diffuser = new THREE.Mesh(new THREE.BoxGeometry(sp.bodyW - 0.08, 0.18, 0.28), trimMat);
-      diffuser.position.set(0, baseY - 0.04, halfL - 0.02);
-      carBodyGroup.add(diffuser);
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.74, 0.54, 2.15), cabinMat);
-      cabin.position.set(0, baseY + 0.71, 0.18);
-      cabin.castShadow = true;
-      carBodyGroup.add(cabin);
-
-      [-0.72, 0.72].forEach((sx) => {
-        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.34, 0.24), trimMat);
-        strut.position.set(sx, baseY + 0.62, halfL - 0.22);
-        carBodyGroup.add(strut);
-      });
-
-      activeWingPivot = new THREE.Group();
-      activeWingPivot.position.set(0, baseY + 0.82, halfL - 0.22);
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(2.12, 0.09, 0.44), trimMat);
-      wing.castShadow = true;
-      activeWingPivot.add(wing);
-      carBodyGroup.add(activeWingPivot);
-    }
-
-    const lightY = carId === "truck" ? baseY + 0.62 : carId === "suv" ? baseY + 0.48 : carId === "formula" || carId === "lmp" ? baseY + 0.14 : baseY + 0.26;
-    const beamGeo = new THREE.ConeGeometry(1.45, 11.5, 22, 1, true);
-    beamGeo.rotateX(Math.PI / 2);
-    const lightSpan = carId === "formula" ? 0.42 : carId === "buggy" ? 0.52 : sp.bodyW * 0.34;
-
-    [-lightSpan, lightSpan].forEach((lx) => {
-      const hl = new THREE.Mesh(new THREE.BoxGeometry(carId === "formula" ? 0.22 : 0.46, 0.15, 0.08), headlightMat);
-      hl.position.set(lx, lightY, -halfL - 0.02);
-      carBodyGroup.add(hl);
-
-      const cone = new THREE.Mesh(beamGeo, softBeamMat);
-      cone.position.set(lx, lightY - 0.24, -halfL - 5.75);
-      cone.rotation.x = -0.055;
-      carBodyGroup.add(cone);
-      volumetricBeams.push(cone);
-
-      const tl = new THREE.Mesh(new THREE.BoxGeometry(carId === "formula" ? 0.26 : 0.52, 0.16, 0.08), brakeLightMat);
-      tl.position.set(lx, lightY + 0.02, halfL + 0.02);
-      carBodyGroup.add(tl);
-    });
-
-    headSpot = new THREE.SpotLight(0xfff8e7, 3.2, 125, Math.PI / 4.5, 0.52, 1.15);
-    headSpot.position.set(0, lightY + 0.28, -halfL + 0.1);
-    const headTarget = new THREE.Object3D();
-    headTarget.position.set(0, 0.0, -34);
-    carBodyGroup.add(headSpot);
-    carBodyGroup.add(headTarget);
-    headSpot.target = headTarget;
-
-    rearGlowLight = new THREE.PointLight(0xff2222, 0.7, 10, 2);
-    rearGlowLight.position.set(0, 0.24, halfL + 1.05);
-    carBodyGroup.add(rearGlowLight);
-
-    const flameOffsets = carId === "formula" ? [0] : [-0.52, 0.52];
-    flameOffsets.forEach((fx) => {
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.3, 8), flameMat);
-      cone.rotation.x = Math.PI / 2;
-      cone.position.set(fx, baseY - 0.02, halfL + 0.62);
-      cone.visible = false;
-      carBodyGroup.add(cone);
-      flames.push(cone);
-    });
-
-    const wGeo = new THREE.CylinderGeometry(sp.wheelRadius, sp.wheelRadius, sp.wheelWidth, 18);
-    wGeo.rotateZ(Math.PI / 2);
-
-    const wheelList = sp.isSixWheel
-      ? [
-          { x: -sp.wheelX, y: sp.wheelRadius, z: -2.25, front: true },
-          { x: sp.wheelX, y: sp.wheelRadius, z: -2.25, front: true },
-          { x: -sp.wheelX, y: sp.wheelRadius, z: 1.35, front: false },
-          { x: sp.wheelX, y: sp.wheelRadius, z: 1.35, front: false },
-          { x: -sp.wheelX, y: sp.wheelRadius, z: 2.65, front: false },
-          { x: sp.wheelX, y: sp.wheelRadius, z: 2.65, front: false },
-        ]
-      : [
-          { x: -sp.wheelX, y: sp.wheelRadius, z: -sp.wheelZ, front: true },
-          { x: sp.wheelX, y: sp.wheelRadius, z: -sp.wheelZ, front: true },
-          { x: -sp.wheelX, y: sp.wheelRadius, z: sp.wheelZ, front: false },
-          { x: sp.wheelX, y: sp.wheelRadius, z: sp.wheelZ, front: false },
-        ];
-
-    wheelList.forEach((wp) => {
-      const pivot = new THREE.Group();
-      pivot.position.set(wp.x, wp.y, wp.z);
-
-      const tire = new THREE.Mesh(wGeo, tireMat);
-      tire.castShadow = true;
-      const hub = new THREE.Mesh(
-        new THREE.BoxGeometry(sp.wheelWidth + 0.02, sp.wheelRadius * 1.18, sp.wheelRadius * 0.34),
-        chromeMat
-      );
-      tire.add(hub);
-
-      pivot.add(tire);
-      carGroup.add(pivot);
-
-      wheelPivots.push(pivot);
-      wheelMeshes.push(tire);
-      wheelIsRear.push(!wp.front);
-      if (wp.front) frontWheelPivots.push(pivot);
-    });
+    world.setRoadUniform("uCarHalfL", sp.bodyLen * 0.5);
+
+    const built = window.HorizonCars.buildPlayerVehicle(
+      carId,
+      sp,
+      {
+        bodyMat,
+        secondaryWhiteMat,
+        cabinMat,
+        trimMat,
+        chromeMat,
+        tireMat,
+        headlightMat,
+        evCyanGlowMat,
+        brakeLightMat,
+        softBeamMat,
+        flameMat,
+      },
+      carGroup,
+      carBodyGroup
+    );
+
+    wheelPivots = built.wheelPivots;
+    wheelMeshes = built.wheelMeshes;
+    wheelIsRear = built.wheelIsRear;
+    frontWheelPivots = built.frontWheelPivots;
+    volumetricBeams = built.volumetricBeams;
+    flames = built.flames;
+    headSpot = built.headSpot;
+    rearGlowLight = built.rearGlowLight;
+    policeLightbar = built.policeLightbar;
+    activeWingPivot = built.activeWingPivot;
 
     const carLabel = document.getElementById("active-car-label");
     if (carLabel) carLabel.textContent = sp.name.toUpperCase();
@@ -4347,7 +3795,7 @@
   }
 
   // Full-Screen Map Projection (fits all 4 islands cleanly inside 840x580 canvas)
-  const MAP_VIEW = { minX: -500, maxX: 1760, minZ: -1520, maxZ: 1560 };
+  const MAP_VIEW = { minX: -1240, maxX: 1960, minZ: -1540, maxZ: 1580 };
 
   function worldToFullMap(wx, wz) {
     const cw = fullMapCanvas.width;
@@ -4411,12 +3859,11 @@
       const p1 = worldToFullMap(isl.minX, isl.minZ);
       const p2 = worldToFullMap(isl.maxX, isl.maxZ);
       fullMapCtx.fillStyle =
-        isl.id === "palm"
-          ? "#1e3a2f"
-          : isl.id === "pinecrest"
-          ? "#162d26"
-          : isl.id === "apexia"
-          ? "#111c33"
+        isl.id === "palm" ? "#1e3a2f"
+          : isl.id === "pinecrest" ? "#152a24"
+          : isl.id === "kuroshio" ? "#1a1430"
+          : isl.id === "solara" ? "#262a20"
+          : isl.id === "apexia" ? "#111c33"
           : "#0f172a";
       fullMapCtx.strokeStyle = "rgba(148, 163, 184, 0.25)";
       fullMapCtx.lineWidth = 1.5;
@@ -5093,13 +4540,12 @@
     for (let i = 0; i < ISLANDS.length; i++) {
       const isl = ISLANDS[i];
       mapCtx.fillStyle =
-        isl.id === "palm"
-          ? "#1e3a2f"
-          : isl.id === "pinecrest"
-          ? "#152a24"
-          : isl.id === "apexia"
-          ? "#111c33"
-          : "#0f172a";
+        isl.id === "palm" ? "#1e3a2f"
+        : isl.id === "pinecrest" ? "#152a24"
+        : isl.id === "kuroshio" ? "#1a1430"
+        : isl.id === "solara" ? "#262a20"
+        : isl.id === "apexia" ? "#111c33"
+        : "#0f172a";
       mapCtx.fillRect(
         (isl.minX - car.x) * scale,
         (isl.minZ - car.z) * scale,
@@ -5265,7 +4711,7 @@
     surfacePill.className = `surface-pill ${car.surfaceClass}`;
     gripReadout.textContent = `GRIP ${Math.round(Math.min(140, (car.currentGrip / 1.9) * 100))}%`;
 
-    zoneEl.textContent = world.getZoneName(car.x, car.z);
+    zoneEl.textContent = world.getZoneName(car.x, car.z, car.y);
 
     drawMinimap();
     if (mapOpen && frameCounter % 3 === 0) drawFullMap();
