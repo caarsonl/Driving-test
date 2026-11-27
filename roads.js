@@ -39,9 +39,9 @@ window.HorizonRoads = (() => {
     return new THREE.Mesh(geo, mat);
   }
 
-  // Defines merge-gap zones where existing skyway/bridge barriers & poles open cleanly for diversions
+  // Merge-gap zones where existing skyway/bridge barriers & poles open cleanly for diversions
   const MERGE_OPENINGS = [
-    // Solara Y-Split (fixes Coastal Viaduct / Solara Skyway overlap)
+    // Solara Y-Split (Coastal Viaduct / Solara Skyway merge)
     { minX: 1130, maxX: 1255, minZ: -1158, maxZ: -1115, minY: 8, maxY: 16, side: 1 },
     // Metro Stack Spiral Flyover peeling off SKYWAY_EW (z = 60, south side)
     { minX: -255, maxX: -195, minZ: 45, maxZ: 76, minY: 8, maxY: 16, side: 1 },
@@ -70,9 +70,9 @@ window.HorizonRoads = (() => {
     return false;
   }
 
-  // Trench holes cut into flat island shapes so sunken underpasses & subsea tunnel ramps never clip grass
+  // Trench cutouts in flat island shapes so sunken underpasses & subsea tunnel ramps never clip grass
   const ISLAND_TRENCH_HOLES = {
-    metro: [{ minX: 155, maxX: 175, minZ: -162, maxZ: 182 }],
+    metro: [{ minX: 155, maxX: 175, minZ: -162, maxZ: 194 }],
     palm: [{ minX: 1518, maxX: 1544, minZ: -380, maxZ: -305 }],
     solara: [{ minX: 1508, maxX: 1534, minZ: -815, maxZ: -780 }],
   };
@@ -201,7 +201,7 @@ window.HorizonRoads = (() => {
         gpsConnectEnd: "p_1080_0",
       },
 
-      // 5) LEVEL -1 (-6.2m): Metro Bay Central Underway (Dives Underneath z=0 & z=120 Downtown Avenues!)
+      // 5) LEVEL -1 (-6.2m): Metro Bay Central Underway (Dives Underneath z=0, z=60 & z=120 Avenues!)
       {
         id: "metro_underway",
         zone: "METRO BAY CENTRAL UNDERWAY",
@@ -211,7 +211,11 @@ window.HorizonRoads = (() => {
         segs: 48,
         barriers: false,
         underpassWalls: true,
-        overpassCrossings: [0, 120],
+        overpassCrossings: [
+          { z: 0, halfW: 13.5, addDeck: true },
+          { z: 60, halfW: 12.5, addDeck: false },
+          { z: 120, halfW: 11.5, addDeck: true },
+        ],
         pts: [
           [165, 0.04, -240],
           [165, 0.02, -160],
@@ -561,7 +565,7 @@ window.HorizonRoads = (() => {
           }
         }
 
-        // Side concrete barriers & rails (auto-opened at merge ends so diversions are 100% unobstructed!)
+        // Side concrete barriers & rails (auto-opened at merge ends so diversions are 100% unobstructed)
         const openEnd = cfg.openEnds || 0;
         if (cfg.barriers && uMid > openEnd && uMid < 1.0 - openEnd) {
           [-1, 1].forEach((side) => {
@@ -574,49 +578,67 @@ window.HorizonRoads = (() => {
           });
         }
 
-        // Sunken underpass retaining walls + overhead illumination strips
-        if (cfg.underpassWalls && my < -0.2) {
-          const wallH = Math.max(2.0, -my + 1.2);
+        // Sunken underpass retaining walls: auto-lower beneath surface crossings & inside subsea tube
+        if (cfg.underpassWalls && my < -0.15) {
+          let underCrossing = false;
+          if (cfg.overpassCrossings) {
+            for (let k = 0; k < cfg.overpassCrossings.length; k++) {
+              const ov = cfg.overpassCrossings[k];
+              if (Math.abs(mz - ov.z) <= ov.halfW) {
+                underCrossing = true;
+                break;
+              }
+            }
+          }
+
+          const inSubseaTube = Boolean(cfg.isTubeTunnel && mz >= cfg.tubeMinZ && mz <= cfg.tubeMaxZ);
+          const rampFade = THREE.MathUtils.clamp((-my - 0.15) / 1.2, 0, 1);
+          const wallTop = inSubseaTube ? my + 2.1 : underCrossing ? -0.45 : 0.65 * rampFade;
+          const wallH = Math.max(0.35, wallTop - my);
+          const colMaxY = inSubseaTube ? my + 5.0 : underCrossing ? -0.5 : wallTop + 1.0;
+
           [-1, 1].forEach((side) => {
             const wx = mx + a.rx * side * (cfg.halfW + 0.55);
             const wz = mz + a.rz * side * (cfg.halfW + 0.55);
             wallBatch.push({ x: wx, y: my + wallH * 0.5, z: wz, sx: 1.0, sy: wallH, sz: segLen3D + 0.4, rx: 0, ry: yaw, rz: 0 });
-            addOBB(wx, wz, 0.55, segLen3D * 0.5 + 0.15, yaw, my - 1.5, my + wallH + 1.0);
+            addOBB(wx, wz, 0.55, segLen3D * 0.5 + 0.15, yaw, my - 1.5, colMaxY);
           });
           if (i % 3 === 1 && my < -2.2) {
-            ceilingStripBatch.push({ x: mx, y: my + (cfg.isTubeTunnel ? 7.6 : 5.4), z: mz, sx: 4.2, sy: 0.28, sz: 3.0, rx: 0, ry: yaw, rz: 0 });
+            ceilingStripBatch.push({ x: mx, y: my + (cfg.isTubeTunnel ? 6.5 : 5.4), z: mz, sx: 4.2, sy: 0.28, sz: 3.0, rx: 0, ry: yaw, rz: 0 });
           }
         }
       }
 
       // Overpass concrete deck caps where Metro Bay avenues cross over the sunken underway
       if (cfg.overpassCrossings) {
-        cfg.overpassCrossings.forEach((crossZ) => {
-          const deck = new THREE.Mesh(new THREE.BoxGeometry(cfg.halfW * 2 + 4.0, 0.9, 24.0), underWallMat);
-          deck.position.set(165, -0.48, crossZ);
+        cfg.overpassCrossings.forEach((ov) => {
+          if (!ov.addDeck) return;
+          const deck = new THREE.Mesh(new THREE.BoxGeometry(cfg.halfW * 2 + 4.0, 0.9, ov.halfW * 2), underWallMat);
+          deck.position.set(165, -0.48, ov.z);
           bridgeUndersideGroup.add(deck);
         });
       }
 
-      // Subsea Bay Illuminated Concrete-Arch Tunnel Shell (keeps ocean above completely sealed out!)
+      // Subsea Bay Illuminated Concrete-Arch Tunnel Shell (tucked cleanly beneath the ocean surface)
       if (cfg.isTubeTunnel) {
         const len = cfg.tubeMaxZ - cfg.tubeMinZ;
         const midZ = (cfg.tubeMaxZ + cfg.tubeMinZ) * 0.5;
-        const archGeo = new THREE.CylinderGeometry(cfg.halfW + 1.6, cfg.halfW + 1.6, len, 22, 1, true, -Math.PI / 2, Math.PI);
+        const archGeo = new THREE.CylinderGeometry(cfg.halfW + 1.3, cfg.halfW + 1.3, len, 22, 1, true, -Math.PI / 2, Math.PI);
         archGeo.rotateX(-Math.PI / 2);
         const tube = new THREE.Mesh(archGeo, tubeArchMat);
         tube.position.set(1528, -7.5, midZ);
+        tube.scale.set(1.0, 0.7, 1.0);
         scene.add(tube);
 
         // Twin Underwater Portal Frames
         [cfg.tubeMinZ, cfg.tubeMaxZ].forEach((pz) => {
-          const cap = new THREE.Mesh(new THREE.BoxGeometry(cfg.halfW * 2 + 6, 4.2, 3.2), underWallMat);
-          cap.position.set(1528, 0.2, pz);
+          const cap = new THREE.Mesh(new THREE.BoxGeometry(cfg.halfW * 2 + 5.5, 3.6, 3.2), underWallMat);
+          cap.position.set(1528, 0.0, pz);
           scene.add(cap);
         });
       }
 
-      // 3) Automatically wire every new corridor into the 6-City A* GPS Navigation Graph!
+      // 3) Wire every corridor into the 6-City A* GPS Navigation Graph
       if (addGpsNode && linkGps) {
         const step = Math.max(4, Math.floor(cfg.segs / 7));
         let prevKey = cfg.gpsConnectStart || null;
@@ -631,7 +653,7 @@ window.HorizonRoads = (() => {
       }
     });
 
-    // Flush all batched structural meshes into 7 single InstancedMeshes!
+    // Flush all batched structural meshes into 7 single InstancedMeshes
     const dummy = new THREE.Object3D();
     const boxGeo = new THREE.BoxGeometry(1, 1, 1);
     const cylGeo = new THREE.CylinderGeometry(0.85, 1.0, 1, 8);
@@ -689,10 +711,9 @@ window.HorizonRoads = (() => {
         if (dSq > limit * limit) continue;
 
         const h = s.y1 + s.dy * t;
-        // Multi-level layer check: snap only to a deck reachable from currentY (never teleport up onto an overpass!)
+        // Multi-level layer checks: never warp up onto an overpass or drop through a ground avenue into an underpass
         if (currentY < h - 3.8) continue;
-        // If driving on ground level above an underpass (h < -2.5), don't pull down through the overpass slab!
-        if (h < -2.2 && currentY > -0.9) continue;
+        if (h < -2.2 && currentY > h + 3.8) continue;
 
         const vertDiff = Math.abs(currentY - h);
         const score = vertDiff + Math.sqrt(dSq) * 0.08;
@@ -724,7 +745,7 @@ window.HorizonRoads = (() => {
         const s = list[i];
         const t = THREE.MathUtils.clamp(((x - s.x1) * s.dx + (z - s.z1) * s.dz) / s.lenSqXZ, 0, 1);
         const h = s.y1 + s.dy * t;
-        if (h > maxHeight) continue; // High elevated skyways allow grass underneath!
+        if (h > maxHeight) continue;
         const px = s.x1 + s.dx * t;
         const pz = s.z1 + s.dz * t;
         const lim = s.halfW + pad;
